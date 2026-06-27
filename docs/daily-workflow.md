@@ -8,6 +8,8 @@ Put Garmin exports in `input/garmin/` and Strava exports in `input/strava/`.
 
 Imported activities should be the source for runs, walks, and other tracked activities whenever possible.
 
+FIT, TCX, or CSV exports are preferred when available because they usually include better summary data than GPX. GPX remains a fallback when summary exports are not available.
+
 ## 2. Create Or Open The Journal
 
 ```bash

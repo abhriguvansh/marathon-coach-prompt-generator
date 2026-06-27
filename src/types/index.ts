@@ -101,7 +101,11 @@ export interface JournalEntry {
   questionsForCoach: string | null;
 }
 
-export type ExportSource = "garmin_export" | "strava_export";
+export type ExportSource =
+  | "garmin_export"
+  | "strava_export"
+  | "garmin_fit_export"
+  | "strava_fit_export";
 
 export interface ExportParseWarning {
   source: ExportSource | "unknown";

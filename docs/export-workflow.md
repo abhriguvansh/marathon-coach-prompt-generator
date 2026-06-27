@@ -30,12 +30,15 @@ These files should stay local and ignored.
 
 Best-effort parsing is available for:
 
+- `.fit`
 - `.csv`
 - `.tcx`
 - `.gpx`
 - `.json`
 
-FIT files are detected and warned about, but not parsed.
+Prefer FIT, TCX, or CSV exports when available because they usually carry better activity summary data than GPX. GPX is still useful as a fallback when summary exports are not available.
+
+FIT parsing is local and summary-focused. It reads fields such as date, activity type, distance, duration, pace, elevation, heart rate, and cadence when present. It does not print raw binary contents, route points, or coordinates. Corrupt or unsupported FIT files produce a warning and are skipped.
 
 ## Safe Export Inspection
 
@@ -45,7 +48,7 @@ Run:
 npm run parse:exports
 ```
 
-The command prints safe counts, activity-type summaries, and parse warnings. It does not print raw file contents or raw GPS route points.
+The command prints safe counts, activity-type summaries, and parse warnings. It does not print raw file contents, raw FIT binary data, coordinates, or raw GPS route points.
 
 ## Daily And Weekly Generation
 

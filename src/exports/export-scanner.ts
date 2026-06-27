@@ -9,13 +9,17 @@ import type {
   ManualActivity,
 } from "../types";
 import { parseCsvExport } from "./parse-csv-export";
+import { parseFitExport } from "./parse-fit-export";
 import { parseGpxExport } from "./parse-gpx-export";
 import { parseJsonExport } from "./parse-json-export";
 import { parseTcxExport } from "./parse-tcx-export";
 
-const SUPPORTED_EXTENSIONS = new Set([".csv", ".tcx", ".gpx", ".json"]);
+const SUPPORTED_EXTENSIONS = new Set([".csv", ".tcx", ".gpx", ".json", ".fit"]);
 
-const EXPORT_FOLDERS: Array<{ relativePath: string; source: ExportSource }> = [
+const EXPORT_FOLDERS: Array<{
+  relativePath: string;
+  source: "garmin_export" | "strava_export";
+}> = [
   { relativePath: "input/garmin", source: "garmin_export" },
   { relativePath: "input/strava", source: "strava_export" },
 ];
@@ -55,10 +59,7 @@ export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
         warnings.push({
           source: folder.source,
           extension: extension || "(none)",
-          message:
-            extension === ".fit"
-              ? "FIT export detected but skipped; FIT parsing is not implemented in this dependency-light version."
-              : `Unsupported export file type skipped: ${extension || "(none)"}.`,
+          message: `Unsupported export file type skipped: ${extension || "(none)"}.`,
         });
       }
     }
@@ -76,7 +77,7 @@ export function parseLocalExports(cwd = process.cwd()): ExportParseResult {
     const absolutePath = join(cwd, file.relativePath);
 
     try {
-      const content = readFileSync(absolutePath, "utf8");
+      const content = readFileSync(absolutePath);
       const parsed = parseExportContent({
         content,
         extension: file.extension,
@@ -89,7 +90,10 @@ export function parseLocalExports(cwd = process.cwd()): ExportParseResult {
       warnings.push({
         source: file.source,
         extension: file.extension,
-        message: `Could not parse one ${file.extension} export file; skipped safely.`,
+        message:
+          file.extension === ".fit"
+            ? `FIT file could not be parsed: ${file.relativePath}. Skipping file.`
+            : `Could not parse one ${file.extension} export file; skipped safely.`,
       });
     }
   }
@@ -121,19 +125,21 @@ export function summarizeExportScan(scan: ExportScanResult): string {
 }
 
 function parseExportContent(input: {
-  content: string;
+  content: Buffer;
   extension: string;
   source: ExportSource;
 }): { activities: ManualActivity[]; warnings: ExportParseWarning[] } {
   switch (input.extension) {
     case ".csv":
-      return parseCsvExport(input.content, input.source);
+      return parseCsvExport(input.content.toString("utf8"), input.source);
+    case ".fit":
+      return parseFitExport(input.content, input.source);
     case ".tcx":
-      return parseTcxExport(input.content, input.source);
+      return parseTcxExport(input.content.toString("utf8"), input.source);
     case ".gpx":
-      return parseGpxExport(input.content, input.source);
+      return parseGpxExport(input.content.toString("utf8"), input.source);
     case ".json":
-      return parseJsonExport(input.content, input.source);
+      return parseJsonExport(input.content.toString("utf8"), input.source);
     default:
       return {
         activities: [],

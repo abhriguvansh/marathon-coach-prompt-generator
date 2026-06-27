@@ -78,6 +78,8 @@ npm run inspect
 
 Inspect reports file presence and safe export counts. It does not print private file contents.
 
+If you use local Garmin or Strava exports, place them in `input/garmin/` or `input/strava/`. FIT, TCX, or CSV exports are preferred when available; GPX can be used as a fallback. Real export files remain ignored by Git.
+
 ## 6. Generate Daily And Weekly Files
 
 Daily:

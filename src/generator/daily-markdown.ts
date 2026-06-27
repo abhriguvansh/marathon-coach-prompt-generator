@@ -220,6 +220,8 @@ function formatActivities(activities: ManualActivity[]): string {
         activity.paceMinPerMile === null
           ? null
           : `${activity.paceMinPerMile} min/mi`,
+        activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+        activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
         activity.notes,
       ]
         .filter((value): value is string => value !== null)

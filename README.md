@@ -36,7 +36,7 @@ This project keeps the workflow local, explicit, and easy to audit before anythi
 - No OpenAI API calls.
 - No authentication.
 - No database.
-- No FIT parsing yet.
+- No raw route-point or coordinate output.
 - No medical diagnosis or injury treatment plan.
 
 ## Privacy Model
@@ -213,10 +213,13 @@ These files may contain GPS, heart-rate, route, health, and schedule details. Do
 
 Best-effort local parsing is available for:
 
+- `.fit`
 - `.csv`
 - `.tcx`
 - `.gpx`
 - `.json`
+
+Prefer FIT, TCX, or CSV exports when available because they usually include better activity summary data than GPX. GPX remains useful as a fallback when summary exports are not available.
 
 Run:
 
@@ -224,11 +227,13 @@ Run:
 npm run parse:exports
 ```
 
-The command prints safe counts and summaries. It does not print raw route points or raw private file contents.
+The command prints safe counts and summaries. It does not print raw route points, coordinates, raw binary data, or raw private file contents.
 
-## FIT Limitation
+## FIT Support
 
-FIT files are detected and reported as unsupported, but they are not parsed yet. FIT is a binary format, and this project is staying dependency-light until a parser is added deliberately.
+FIT parsing uses a small local summary parser instead of an added dependency. It reads session/lap-level summary fields such as date, activity type, distance, duration, pace, elevation, heart rate, and cadence when those fields are present. Route details, GPS points, coordinates, and raw binary contents are intentionally omitted.
+
+If a FIT file is corrupt or uses unsupported message layouts, the tool warns and skips it instead of printing private contents.
 
 ## Generating Daily Check-In
 
@@ -458,7 +463,7 @@ See [docs/public-github-checklist.md](docs/public-github-checklist.md) for the f
 ## Known Limitations
 
 - This is a prompt generator, not a coaching engine.
-- FIT parsing is not implemented.
+- FIT parsing is summary-focused and may skip corrupt or unsupported FIT files.
 - Export parsing is best-effort and intentionally avoids route-point output.
 - Duplicate detection is conservative and may warn instead of merging.
 - The privacy check is a guardrail, not a substitute for reviewing staged files.
@@ -470,5 +475,5 @@ See [docs/public-github-checklist.md](docs/public-github-checklist.md) for the f
 - Richer validation for parsed local exports.
 - Multi-week trend summaries.
 - More synthetic end-to-end fixtures.
-- Optional FIT support if a safe, maintained parser is chosen.
+- Broader FIT message coverage if real-world exports reveal safe summary fields that are currently skipped.
 - More detailed setup diagnostics without printing private contents.

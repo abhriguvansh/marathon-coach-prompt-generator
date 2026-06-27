@@ -68,7 +68,7 @@ function formatActivity(activity: ManualActivity): string {
       : secondsToReadableDuration(activity.durationMinutes * 60),
     activity.paceMinPerMile === null
       ? "unknown pace"
-      : `${activity.paceMinPerMile}/mi`,
+      : `${activity.paceMinPerMile} min/mi`,
     "route details omitted",
   ].join(" | ");
 }
