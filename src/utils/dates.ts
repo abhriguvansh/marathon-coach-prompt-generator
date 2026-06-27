@@ -51,3 +51,25 @@ export function daysUntilRace(fromDate: Date, raceDate: Date): number {
 
   return Math.ceil((race - from) / 86_400_000);
 }
+
+export function addDays(date: Date, days: number): Date {
+  const next = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  next.setUTCDate(next.getUTCDate() + days);
+
+  return next;
+}
+
+export function isDateWithinRange(
+  date: string,
+  startDate: string,
+  endDate: string,
+): boolean {
+  const parsed = parseDate(date).getTime();
+
+  return (
+    parsed >= parseDate(startDate).getTime() &&
+    parsed <= parseDate(endDate).getTime()
+  );
+}

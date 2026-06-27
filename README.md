@@ -96,6 +96,8 @@ The inspect command checks for expected local folders and warns not to commit pr
 ```bash
 npm run generate:daily -- --date 2026-06-27
 npm run generate:daily -- --date 2026-06-27 --preview
+npm run generate:weekly -- --week-start 2026-06-22
+npm run generate:weekly -- --week-start 2026-06-22 --preview
 npm run inspect
 npm run build
 npm test
@@ -122,12 +124,19 @@ Then edit the private copies with real local data. `npm run generate:daily -- --
 
 The `--date` value is the check-in date. The generator summarizes the previous day's notes and activities as evidence for what to do today. `--preview` prints the generated Markdown summary; it does not print raw input files.
 
+## Weekly Summary Generation
+
+`npm run generate:weekly -- --week-start YYYY-MM-DD` writes `output/weekly-summary.md`, which is ignored by Git because it may contain private training and recovery data.
+
+The `--week-start` value must be a Monday. The weekly summary keeps running mileage separate from walking mileage, treats cross-training and steps as context, and asks ChatGPT to review whether next week's training should progress, hold steady, or back off. `--preview` prints only the generated Markdown summary, not raw private files.
+
 ## Known Limitations
 
 - Prompt generation is not implemented yet.
 - Garmin and Strava local export parsing is not implemented yet.
 - The privacy check is currently inspect-only and does not scan tracked files.
 - Daily check-in generation currently uses manually prepared local CSV and Markdown files only.
+- Weekly summary generation currently uses manually prepared local CSV and Markdown files only.
 
 ## Planned Next Sessions
 

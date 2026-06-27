@@ -119,3 +119,57 @@ export interface DailySummary {
   safetyFlags: SafetyFlag[];
   missingDataFlags: MissingDataFlag[];
 }
+
+export interface WeeklyActivityTotals {
+  runningMileage: number;
+  walkingMileage: number;
+  totalActiveMileage: number;
+  runningDurationMinutes: number;
+  walkingDurationMinutes: number;
+  runCount: number;
+  walkCount: number;
+  rockClimbingCount: number;
+  tennisCount: number;
+  weightsCount: number;
+  mobilityRestOtherCount: number;
+  totalSteps: number | null;
+  averageDailySteps: number | null;
+  longestRun: ManualActivity | null;
+  longestWalk: ManualActivity | null;
+  runElevationGainFt: number | null;
+  averageRunPaceSecondsPerMile: number | null;
+  averageRunHr: number | null;
+}
+
+export interface WeeklyRecoveryTrend {
+  sorenessAverage: number | null;
+  sorenessHighest: number | null;
+  painReports: DailyNote[];
+  fatigueAverage: number | null;
+  energyAverage: number | null;
+  sleepAverage: number | null;
+  stressAverage: number | null;
+}
+
+export type WeeklySafetyFlag = SafetyFlag;
+export type WeeklyMissingDataFlag = MissingDataFlag;
+
+export interface WeeklySummary {
+  weekStart: string;
+  weekEnd: string;
+  athleteConfig: AthleteConfig;
+  daysUntilRaceAtWeekEnd: number;
+  dailyNotes: DailyNote[];
+  activityNotes: ActivityNote[];
+  manualActivities: ManualActivity[];
+  planNotes: string | null;
+  totals: WeeklyActivityTotals;
+  recovery: WeeklyRecoveryTrend;
+  activityListByDay: Array<{
+    date: string;
+    activities: ManualActivity[];
+  }>;
+  travelBreakNote: string | null;
+  safetyFlags: WeeklySafetyFlag[];
+  missingDataFlags: WeeklyMissingDataFlag[];
+}

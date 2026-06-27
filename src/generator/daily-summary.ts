@@ -8,10 +8,7 @@ import type {
   SafetyFlag,
 } from "../types";
 import { daysUntilRace, formatDate, parseDate } from "../utils/dates";
-
-const RUN_TYPES = new Set(["run"]);
-const WALK_TYPES = new Set(["walk", "hike"]);
-const WEIGHTS_TYPES = new Set(["weights", "strength"]);
+import { classifyActivities, sumMileage } from "./activity-classification";
 
 export function previousDate(date: string): string {
   const parsed = parseDate(date);
@@ -38,33 +35,10 @@ export function createDailySummary(input: {
     (activity) => activity.date === evidenceDate,
   );
 
-  const runs = manualActivities.filter((activity) =>
-    RUN_TYPES.has(normalizeActivityType(activity.activityType)),
-  );
-  const walks = manualActivities.filter((activity) =>
-    WALK_TYPES.has(normalizeActivityType(activity.activityType)),
-  );
-  const rockClimbing = manualActivities.filter(
-    (activity) =>
-      normalizeActivityType(activity.activityType) === "rock_climbing",
-  );
-  const tennis = manualActivities.filter(
-    (activity) => normalizeActivityType(activity.activityType) === "tennis",
-  );
-  const weights = manualActivities.filter((activity) =>
-    WEIGHTS_TYPES.has(normalizeActivityType(activity.activityType)),
-  );
-  const mobility = manualActivities.filter(
-    (activity) => normalizeActivityType(activity.activityType) === "mobility",
-  );
-  const restOrOther = manualActivities.filter((activity) => {
-    const type = normalizeActivityType(activity.activityType);
+  const groups = classifyActivities(manualActivities);
 
-    return type === "rest" || type === "other";
-  });
-
-  const runningMileage = sumMileage(runs);
-  const walkingMileage = sumMileage(walks);
+  const runningMileage = sumMileage(groups.runs);
+  const walkingMileage = sumMileage(groups.walks);
 
   return {
     date: input.date,
@@ -80,13 +54,13 @@ export function createDailySummary(input: {
     ),
     runningMileage,
     walkingMileage,
-    runs,
-    walks,
-    rockClimbing,
-    tennis,
-    weights,
-    mobility,
-    restOrOther,
+    runs: groups.runs,
+    walks: groups.walks,
+    rockClimbing: groups.rockClimbing,
+    tennis: groups.tennis,
+    weights: groups.weights,
+    mobility: groups.mobility,
+    restOrOther: groups.restOrOther,
     safetyFlags: buildSafetyFlags(dailyNote, activityNotes),
     missingDataFlags: buildMissingDataFlags({
       dailyNote,
@@ -96,17 +70,6 @@ export function createDailySummary(input: {
       missingFiles: input.missingFiles ?? [],
     }),
   };
-}
-
-function normalizeActivityType(activityType: string): string {
-  return activityType.trim().toLowerCase();
-}
-
-function sumMileage(activities: ManualActivity[]): number {
-  return activities.reduce(
-    (total, activity) => total + (activity.distanceMiles ?? 0),
-    0,
-  );
 }
 
 function buildSafetyFlags(
