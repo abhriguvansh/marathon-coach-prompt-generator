@@ -1,0 +1,29 @@
+{
+  "name": "marathon-coach-prompt-generator",
+  "version": "0.1.0",
+  "description": "Local CLI tool for generating privacy-safe marathon coaching prompts from local training notes.",
+  "private": true,
+  "type": "commonjs",
+  "bin": {
+    "marathon-coach": "dist/src/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/tests",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "inspect": "node scripts/inspect.cjs",
+    "privacy:check": "node scripts/privacy-check.cjs"
+  },
+  "keywords": [
+    "marathon",
+    "running",
+    "cli",
+    "prompt-generator"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0"
+  }
+}

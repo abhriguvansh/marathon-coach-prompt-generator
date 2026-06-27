@@ -1,0 +1,2 @@
+date,total_steps,leg_soreness_0_10,pain_0_10,pain_location,pain_type,gait_changed,fatigue_0_10,energy_0_10,sleep_quality_0_10,stress_0_10,motivation_0_10,notes
+2026-06-15,8200,2,0,none,none,false,3,7,8,4,8,Fake demo day with easy walking only.

@@ -1,0 +1,9 @@
+{
+  "athleteName": "Sample Runner",
+  "weekStart": "2026-06-15",
+  "weekEnd": "2026-06-21",
+  "runningMiles": 9.3,
+  "walkingMiles": "not provided",
+  "highestPain": 0,
+  "highestSoreness": 3
+}

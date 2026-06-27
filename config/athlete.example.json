@@ -1,0 +1,45 @@
+{
+  "athleteName": "Sample Runner",
+  "race": {
+    "name": "Example City Marathon",
+    "date": "2026-11-29",
+    "goalTime": "4:30 stretch goal",
+    "goalPace": "10:18 min/mi"
+  },
+  "background": {
+    "experienceLevel": "beginner",
+    "runningBackground": "Started consistent run-walk training this year using short easy efforts.",
+    "baselineRun": {
+      "date": "2026-06-01",
+      "distanceMiles": 3.1,
+      "durationMinutes": 36,
+      "notes": "Comfortable conversational effort on a flat demo route."
+    },
+    "travelNoRunningBreak": {
+      "startDate": "2026-07-10",
+      "endDate": "2026-07-17",
+      "notes": "Example planned travel week with walking only."
+    }
+  },
+  "normalLifestyleActivity": {
+    "averageDailySteps": 8500,
+    "notes": "Moderate walking during a typical demo week."
+  },
+  "recurringCrossTraining": [
+    {
+      "activityType": "mobility",
+      "frequency": "2 times per week",
+      "notes": "Light mobility and stretching."
+    },
+    {
+      "activityType": "weights",
+      "frequency": "1 time per week",
+      "notes": "Short full-body strength session."
+    }
+  ],
+  "unitPreferences": {
+    "distance": "miles",
+    "pace": "minutes_per_mile",
+    "duration": "minutes"
+  }
+}
