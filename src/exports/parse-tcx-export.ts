@@ -12,6 +12,7 @@ import {
   parseNumber,
   secondsValueToMinutes,
   textBetween,
+  timeFromDateTime,
   warning,
 } from "./parse-helpers";
 
@@ -30,12 +31,12 @@ export function parseTcxExport(content: string, source: ExportSource) {
   }
 
   blocks.forEach((block, index) => {
+    const startValue = textBetween(block, "Id") ?? textBetween(block, "Time");
     const activity = buildExportActivity({
       source,
       activityType: activityTypeFromTcx(block),
-      startDate: dateFromDateTime(
-        textBetween(block, "Id") ?? textBetween(block, "Time"),
-      ),
+      startDate: dateFromDateTime(startValue),
+      startTime: timeFromDateTime(startValue),
       distanceMiles: metersValueToMiles(textBetween(block, "DistanceMeters")),
       durationMinutes: secondsValueToMinutes(
         textBetween(block, "TotalTimeSeconds"),

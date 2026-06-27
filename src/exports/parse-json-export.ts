@@ -13,6 +13,7 @@ import {
   parseDurationMinutes,
   parseNumber,
   secondsValueToMinutes,
+  timeFromDateTime,
   warning,
 } from "./parse-helpers";
 
@@ -33,16 +34,16 @@ export function parseJsonExport(content: string, source: ExportSource) {
   const activities: ManualActivity[] = [];
 
   records.forEach((record, index) => {
+    const startValue = stringValue(
+      firstValue(record, ["date", "startTime", "start_time", "startDate"]),
+    );
     const activity = buildExportActivity({
       source,
       activityType: stringValue(
         firstValue(record, ["activityType", "activity_type", "type", "sport"]),
       ),
-      startDate: dateFromDateTime(
-        stringValue(
-          firstValue(record, ["date", "startTime", "start_time", "startDate"]),
-        ),
-      ),
+      startDate: dateFromDateTime(startValue),
+      startTime: timeFromDateTime(startValue),
       distanceMiles: jsonDistanceMiles(record),
       durationMinutes: jsonDurationMinutes(record),
       elevationFt: jsonElevationFeet(record),

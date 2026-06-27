@@ -13,6 +13,7 @@ export function buildExportActivity(input: {
   source: ExportSource;
   activityType: string | null;
   startDate: string | null;
+  startTime?: string | null;
   distanceMiles: number | null;
   durationMinutes: number | null;
   elevationFt: number | null;
@@ -27,6 +28,7 @@ export function buildExportActivity(input: {
 
   return {
     date: input.startDate,
+    startTime: input.startTime ?? null,
     source: input.source,
     activityType: normalizeActivityType(input.activityType),
     distanceMiles: input.distanceMiles,
@@ -90,6 +92,18 @@ export function dateFromDateTime(
   const match = value.match(/\d{4}-\d{2}-\d{2}/);
 
   return match?.[0] ?? null;
+}
+
+export function timeFromDateTime(
+  value: string | null | undefined,
+): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const match = value.match(/T?(\d{2}:\d{2}(?::\d{2})?)/);
+
+  return match?.[1] ?? null;
 }
 
 export function parseNumber(value: unknown): number | null {

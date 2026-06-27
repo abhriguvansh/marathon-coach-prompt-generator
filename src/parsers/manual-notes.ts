@@ -82,6 +82,7 @@ export function parseActivityNotes(content: string): ActivityNote[] {
 export function parseManualActivities(content: string): ManualActivity[] {
   return parseCsv(content).map((record) => ({
     date: record.date,
+    startTime: null,
     source: record.source,
     activityType: record.activity_type,
     distanceMiles: parseOptionalNumber(record.distance_miles),

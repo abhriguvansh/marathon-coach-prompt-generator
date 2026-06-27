@@ -68,6 +68,7 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     "- Missing values are shown as unknown or not provided.",
     "- Local export parsing omits route points and GPS coordinates from this prompt.",
     ...formatExportWarnings(summary.exportWarnings),
+    ...formatDuplicateWarnings(summary.duplicateWarnings),
     "",
     "## Missing Data Flags",
     "",
@@ -222,6 +223,16 @@ function formatFlags(flags: string[]): string {
 function formatExportWarnings(warnings: Array<{ message: string }>): string[] {
   if (warnings.length === 0) {
     return ["- No local export warnings."];
+  }
+
+  return warnings.map((warning) => `- ${warning.message}`);
+}
+
+function formatDuplicateWarnings(
+  warnings: Array<{ message: string; excludedFromTotals: boolean }>,
+): string[] {
+  if (warnings.length === 0) {
+    return ["- No likely duplicate activity warnings."];
   }
 
   return warnings.map((warning) => `- ${warning.message}`);

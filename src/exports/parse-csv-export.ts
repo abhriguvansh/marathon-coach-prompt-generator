@@ -13,6 +13,7 @@ import {
   metersValueToMiles,
   parseDurationMinutes,
   parseNumber,
+  timeFromDateTime,
   warning,
 } from "./parse-helpers";
 
@@ -22,6 +23,15 @@ export function parseCsvExport(content: string, source: ExportSource) {
   const warnings: ExportParseWarning[] = [];
 
   records.forEach((record, index) => {
+    const startValue = stringValue(
+      firstValue(record, [
+        "date",
+        "Activity Date",
+        "Start Time",
+        "start_time",
+        "beginTimestamp",
+      ]),
+    );
     const activity = buildExportActivity({
       source,
       activityType: stringValue(
@@ -33,17 +43,8 @@ export function parseCsvExport(content: string, source: ExportSource) {
           "Sport",
         ]),
       ),
-      startDate: dateFromDateTime(
-        stringValue(
-          firstValue(record, [
-            "date",
-            "Activity Date",
-            "Start Time",
-            "start_time",
-            "beginTimestamp",
-          ]),
-        ),
-      ),
+      startDate: dateFromDateTime(startValue),
+      startTime: timeFromDateTime(startValue),
       distanceMiles: distanceMilesFromRecord(record),
       durationMinutes: durationMinutesFromRecord(record),
       elevationFt: elevationFeetFromRecord(record),

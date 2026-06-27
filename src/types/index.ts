@@ -76,6 +76,7 @@ export interface ActivityNote {
 
 export interface ManualActivity {
   date: string;
+  startTime?: string | null;
   source: string;
   activityType: string;
   distanceMiles: number | null;
@@ -114,6 +115,12 @@ export interface ExportParseResult {
   warnings: ExportParseWarning[];
 }
 
+export interface DuplicateActivityWarning {
+  level: "high_confidence" | "uncertain";
+  message: string;
+  excludedFromTotals: boolean;
+}
+
 export interface SafetyFlag {
   level: "info" | "concern";
   message: string;
@@ -133,6 +140,7 @@ export interface DailySummary {
   manualActivities: ManualActivity[];
   planNotes: string | null;
   exportWarnings: ExportParseWarning[];
+  duplicateWarnings: DuplicateActivityWarning[];
   daysUntilRace: number;
   runningMileage: number;
   walkingMileage: number;
@@ -191,6 +199,7 @@ export interface WeeklySummary {
   manualActivities: ManualActivity[];
   planNotes: string | null;
   exportWarnings: ExportParseWarning[];
+  duplicateWarnings: DuplicateActivityWarning[];
   totals: WeeklyActivityTotals;
   recovery: WeeklyRecoveryTrend;
   activityListByDay: Array<{

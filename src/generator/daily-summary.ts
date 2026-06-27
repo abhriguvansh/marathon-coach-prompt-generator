@@ -10,6 +10,7 @@ import type {
 } from "../types";
 import { daysUntilRace, formatDate, parseDate } from "../utils/dates";
 import { classifyActivities, sumMileage } from "./activity-classification";
+import { analyzeActivityDuplicates } from "./duplicate-detection";
 
 export function previousDate(date: string): string {
   const parsed = parseDate(date);
@@ -36,8 +37,9 @@ export function createDailySummary(input: {
   const manualActivities = input.manualActivities.filter(
     (activity) => activity.date === evidenceDate,
   );
+  const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
 
-  const groups = classifyActivities(manualActivities);
+  const groups = classifyActivities(duplicateAnalysis.activitiesForTotals);
 
   const runningMileage = sumMileage(groups.runs);
   const walkingMileage = sumMileage(groups.walks);
@@ -51,6 +53,7 @@ export function createDailySummary(input: {
     manualActivities,
     planNotes: input.planNotes,
     exportWarnings: input.exportWarnings ?? [],
+    duplicateWarnings: duplicateAnalysis.warnings,
     daysUntilRace: daysUntilRace(
       parseDate(input.date),
       parseDate(input.athleteConfig.race.date),
@@ -72,6 +75,7 @@ export function createDailySummary(input: {
       planNotes: input.planNotes,
       missingFiles: input.missingFiles ?? [],
       exportWarnings: input.exportWarnings ?? [],
+      duplicateWarnings: duplicateAnalysis.warnings,
     }),
   };
 }
@@ -145,6 +149,7 @@ function buildMissingDataFlags(input: {
   planNotes: string | null;
   missingFiles: string[];
   exportWarnings: Array<{ message: string }>;
+  duplicateWarnings: Array<{ message: string; excludedFromTotals: boolean }>;
 }): MissingDataFlag[] {
   const flags: MissingDataFlag[] = [];
 
@@ -159,6 +164,13 @@ function buildMissingDataFlags(input: {
     flags.push({
       field: "local exports",
       message: `Export data-quality note: ${exportWarning.message}`,
+    });
+  }
+
+  for (const duplicateWarning of input.duplicateWarnings) {
+    flags.push({
+      field: "activity duplicates",
+      message: `Duplicate data-quality note: ${duplicateWarning.message}`,
     });
   }
 

@@ -163,6 +163,14 @@ npm run parse:exports
 
 `inspect` reports safe counts and file-type summaries only. `parse:exports` prints a safe activity summary without raw file contents or route coordinates. Daily and weekly generators merge parsed export activities with manual activities, keeping walking separate from running and treating climbing, tennis, weights, mobility, and steps as context.
 
+## Duplicate Detection
+
+Manual entries and local exports can overlap. For example, a manual row copied from a screenshot may describe the same run as a Garmin or Strava export.
+
+The tool uses conservative duplicate detection across manual, Garmin export, and Strava export activities. It compares calendar date, normalized activity type, distance, duration, and start time when available.
+
+High-confidence duplicates are kept internally but one likely duplicate is excluded from daily and weekly mileage/duration totals to reduce double-counting. Uncertain matches stay in totals and produce a warning instead of being merged. Duplicate detection is not perfect, so review data quality warnings before trusting mileage totals.
+
 ## Demo Mode
 
 Demo mode refreshes public-safe sample outputs from committed fake data only:

@@ -18,6 +18,7 @@ import {
   sumDurationMinutes,
   sumMileage,
 } from "./activity-classification";
+import { analyzeActivityDuplicates } from "./duplicate-detection";
 
 export function createWeeklySummary(input: {
   weekStart: string;
@@ -39,7 +40,9 @@ export function createWeeklySummary(input: {
   const manualActivities = input.manualActivities.filter((activity) =>
     isDateWithinRange(activity.date, input.weekStart, weekEnd),
   );
-  const groups = classifyActivities(manualActivities);
+  const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
+  const activitiesForTotals = duplicateAnalysis.activitiesForTotals;
+  const groups = classifyActivities(activitiesForTotals);
   const runningMileage = sumMileage(groups.runs);
   const walkingMileage = sumMileage(groups.walks);
   const runningDurationMinutes = sumDurationMinutes(groups.runs);
@@ -58,6 +61,7 @@ export function createWeeklySummary(input: {
     manualActivities,
     planNotes: input.planNotes,
     exportWarnings: input.exportWarnings ?? [],
+    duplicateWarnings: duplicateAnalysis.warnings,
     totals: {
       runningMileage,
       walkingMileage,
@@ -122,6 +126,7 @@ export function createWeeklySummary(input: {
       planNotes: input.planNotes,
       missingFiles: input.missingFiles ?? [],
       exportWarnings: input.exportWarnings ?? [],
+      duplicateWarnings: duplicateAnalysis.warnings,
     }),
   };
 }
@@ -217,6 +222,7 @@ function buildWeeklyMissingDataFlags(input: {
   planNotes: string | null;
   missingFiles: string[];
   exportWarnings: Array<{ message: string }>;
+  duplicateWarnings: Array<{ message: string; excludedFromTotals: boolean }>;
 }) {
   const flags: WeeklySummary["missingDataFlags"] = [];
 
@@ -231,6 +237,13 @@ function buildWeeklyMissingDataFlags(input: {
     flags.push({
       field: "local exports",
       message: `Export data-quality note: ${exportWarning.message}`,
+    });
+  }
+
+  for (const duplicateWarning of input.duplicateWarnings) {
+    flags.push({
+      field: "activity duplicates",
+      message: `Duplicate data-quality note: ${duplicateWarning.message}`,
     });
   }
 

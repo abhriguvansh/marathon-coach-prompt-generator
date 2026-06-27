@@ -10,6 +10,7 @@ import {
   metersValueToFeet,
   metersValueToMiles,
   textBetween,
+  timeFromDateTime,
   warning,
 } from "./parse-helpers";
 
@@ -30,11 +31,13 @@ export function parseGpxExport(content: string, source: ExportSource) {
 
   trackBlocks.forEach((block, index) => {
     const extensions = textBetween(block, "extensions") ?? "";
+    const startValue = textBetween(block, "time");
     const activity = buildExportActivity({
       source,
       activityType:
         textBetween(extensions, "type") ?? textBetween(block, "type") ?? "run",
-      startDate: dateFromDateTime(textBetween(block, "time")),
+      startDate: dateFromDateTime(startValue),
+      startTime: timeFromDateTime(startValue),
       distanceMiles: metersValueToMiles(
         textBetween(extensions, "distanceMeters") ??
           textBetween(extensions, "distance_meters"),
