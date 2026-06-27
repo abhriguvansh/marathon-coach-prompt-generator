@@ -12,6 +12,7 @@
     "test": "npm run build && node --test dist/tests",
     "lint": "tsc --noEmit -p tsconfig.json",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "generate:daily": "npm run build && node dist/src/cli/generate-daily.js",
     "inspect": "node scripts/inspect.cjs",
     "privacy:check": "node scripts/privacy-check.cjs"
   },

@@ -1,9 +1,9 @@
 const { execFileSync } = require("node:child_process");
 
 const riskyPathPatterns = [
-  /^private\//,
-  /^input\/(?!manual\/.*\.template\.(csv|md)$)/,
-  /^output\//,
+  /^private\/(?!\.gitkeep$)/,
+  /^input\/(?!manual\/.*\.template\.(csv|md)$|garmin\/\.gitkeep$|strava\/\.gitkeep$)/,
+  /^output\/(?!\.gitkeep$)/,
   /\.(fit|tcx|gpx)$/i,
   /\.env(\.|$)/,
 ];
@@ -22,8 +22,14 @@ function gitLines(args) {
     .filter(Boolean);
 }
 
-const trackedFiles = gitLines(["ls-files"]);
-const riskyFiles = trackedFiles.filter((file) =>
+const commitCandidateFiles = [
+  ...gitLines(["ls-files"]),
+  ...gitLines(["ls-files", "--others", "--exclude-standard"]),
+];
+const searchableFiles = commitCandidateFiles.filter(
+  (file) => file !== "scripts/privacy-check.cjs",
+);
+const riskyFiles = commitCandidateFiles.filter((file) =>
   riskyPathPatterns.some((pattern) => pattern.test(file.replaceAll("\\", "/"))),
 );
 
@@ -31,7 +37,7 @@ const riskyTextMatches = [];
 
 for (const pattern of riskyTextPatterns) {
   try {
-    const matches = gitLines(["grep", "-n", "-I", pattern.source, "--", "."]);
+    const matches = gitLines(["grep", "-n", "-I", pattern.source, "--", ...searchableFiles]);
     riskyTextMatches.push(...matches);
   } catch (error) {
     if (error.status !== 1) {
@@ -41,7 +47,9 @@ for (const pattern of riskyTextPatterns) {
 }
 
 if (riskyFiles.length === 0 && riskyTextMatches.length === 0) {
-  console.log("Privacy check passed: no obvious risky tracked files or text patterns found.");
+  console.log(
+    "Privacy check passed: no obvious risky tracked or untracked commit-candidate files found.",
+  );
   process.exit(0);
 }
 

@@ -94,6 +94,8 @@ The inspect command checks for expected local folders and warns not to commit pr
 ## Commands
 
 ```bash
+npm run generate:daily -- --date 2026-06-27
+npm run generate:daily -- --date 2026-06-27 --preview
 npm run inspect
 npm run build
 npm test
@@ -104,12 +106,28 @@ npm run privacy:check
 
 `npm run lint` currently uses the TypeScript compiler with `--noEmit`. This keeps the first version dependency-light while still checking types.
 
+## Daily Check-In Generation
+
+Create private local files first:
+
+```bash
+cp config/athlete.example.json private/athlete.config.local.json
+cp input/manual/daily-notes.template.csv input/manual/daily-notes.csv
+cp input/manual/activity-notes.template.csv input/manual/activity-notes.csv
+cp input/manual/manual-activities.template.csv input/manual/manual-activities.csv
+cp input/manual/plan-notes.template.md input/manual/plan-notes.md
+```
+
+Then edit the private copies with real local data. `npm run generate:daily -- --date YYYY-MM-DD` writes `output/daily-checkin.md`, which is ignored by Git because it may contain private training and recovery information.
+
+The `--date` value is the check-in date. The generator summarizes the previous day's notes and activities as evidence for what to do today. `--preview` prints the generated Markdown summary; it does not print raw input files.
+
 ## Known Limitations
 
 - Prompt generation is not implemented yet.
 - Garmin and Strava local export parsing is not implemented yet.
 - The privacy check is currently inspect-only and does not scan tracked files.
-- CSV parsing is not implemented yet.
+- Daily check-in generation currently uses manually prepared local CSV and Markdown files only.
 
 ## Planned Next Sessions
 
