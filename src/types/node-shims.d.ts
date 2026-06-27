@@ -30,7 +30,11 @@ declare module "node:child_process" {
   export function execFileSync(
     command: string,
     args: string[],
-    options: { encoding: "utf8" },
+    options: {
+      cwd?: string;
+      encoding: "utf8";
+      stdio?: "ignore" | "pipe" | "inherit";
+    },
   ): string;
 }
 

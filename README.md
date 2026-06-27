@@ -89,7 +89,7 @@ npm run privacy:check
 git status
 ```
 
-The inspect command checks for expected local folders and warns not to commit private data. It does not print private file contents. The privacy check scans tracked files for obvious risky paths and secret-like text.
+The inspect command checks for expected local folders and warns not to commit private data. It does not print private file contents. The privacy check scans tracked files and untracked commit candidates for obvious risky paths, filenames, export files, screenshots, and secret-like text. Public docs and tests are allowed to mention warning terms.
 
 ## Commands
 
@@ -98,6 +98,8 @@ npm run generate:daily -- --date 2026-06-27
 npm run generate:daily -- --date 2026-06-27 --preview
 npm run generate:weekly -- --week-start 2026-06-22
 npm run generate:weekly -- --week-start 2026-06-22 --preview
+npm run demo:daily
+npm run demo:weekly
 npm run inspect
 npm run build
 npm test
@@ -130,18 +132,33 @@ The `--date` value is the check-in date. The generator summarizes the previous d
 
 The `--week-start` value must be a Monday. The weekly summary keeps running mileage separate from walking mileage, treats cross-training and steps as context, and asks ChatGPT to review whether next week's training should progress, hold steady, or back off. `--preview` prints only the generated Markdown summary, not raw private files.
 
+## Demo Mode
+
+Demo mode refreshes public-safe sample outputs from committed fake data only:
+
+```bash
+npm run demo:daily
+npm run demo:weekly
+```
+
+These commands write:
+
+- `examples/demo-daily-checkin.md`
+- `examples/demo-weekly-summary.md`
+
+Demo outputs use fake details such as Sample Runner and Example City Marathon. They are safe to commit. Real generated outputs remain ignored under `output/`, and real local inputs remain ignored under `input/`.
+
 ## Known Limitations
 
 - Prompt generation is not implemented yet.
 - Garmin and Strava local export parsing is not implemented yet.
-- The privacy check is currently inspect-only and does not scan tracked files.
+- Garmin and Strava export parsing will be local-only when added. It will not require Strava API access, OAuth, tokens, or automatic sync.
 - Daily check-in generation currently uses manually prepared local CSV and Markdown files only.
 - Weekly summary generation currently uses manually prepared local CSV and Markdown files only.
 
 ## Planned Next Sessions
 
-- Add CSV parsing and validation.
-- Add privacy scanning for risky tracked files and secret-like strings.
-- Generate `output/daily-checkin.md`.
-- Generate `output/weekly-summary.md`.
-- Add synthetic fixtures for end-to-end prompt generation.
+- Add local Garmin/Strava export parsing without API access.
+- Add richer validation for manual CSV files.
+- Add multi-week trend summaries.
+- Add more synthetic fixtures for end-to-end prompt generation.

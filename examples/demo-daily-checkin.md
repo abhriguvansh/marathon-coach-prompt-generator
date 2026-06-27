@@ -1,26 +1,71 @@
-# Daily Check-In Prompt
+<!-- Public-safe fake demo output. Do not replace with real training data. -->
 
-You are my marathon coach. Review the fake sample training context below and help plan the next training day.
+# Daily Marathon Coach Check-In
 
-## Athlete Context
+- Date: 2026-06-28
+- Evidence date: 2026-06-27
+- Days until race: 154
+- Race: Example City Marathon
+- Race date: 2026-11-29
+- Race goal: 4:30 stretch goal
+- Goal pace: 10:18 min/mi
+
+## Athlete Background
 
 - Athlete: Sample Runner
-- Race: Example City Marathon on 2026-11-29
-- Goal: 4:30 stretch goal
+- Experience: beginner
+- Running background: Sample Runner is building consistency with easy run-walk training and conservative mileage increases.
+- Baseline run: 2026-06-01, 3.1 mi, 36 min, Comfortable fake baseline effort on a flat demo route.
+- Travel/no-running break: 2026-07-06 to 2026-07-10: Fake planned travel week with walking only.
+- Normal lifestyle activity: 8500 average daily steps; Moderate fake walking during a normal demo week.
+- Recurring cross-training: mobility 2 times per week (Light fake mobility routine.); weights 1 time per week (Short fake full-body strength session.)
 
-## Recent Training
+## Yesterday's Logged Activities
 
-- Running: 3.1 miles easy
-- Walking: 8,200 total daily steps
-- Cross-training: 20 minutes mobility
+- Runs: not provided
+- Walks: walk, 2 mi, 38 min, 19:00 min/mi, Fake relaxed walk.
+- Rock climbing: not provided
+- Tennis: not provided
+- Weights/strength: not provided
+- Mobility: mobility, 20 min, Fake mobility work.
+- Rest/other activity: not provided
+
+## Mileage And Load
+
+- Running mileage: 0 mi
+- Walking mileage: 2 mi
+- Steps: 9000
 
 ## Recovery Notes
 
-- Leg soreness: 2/10
-- Pain: 0/10
-- Fatigue: 3/10
-- Sleep quality: 8/10
+- Soreness: 2
+- Pain: 1
+- Pain location/type: left calf / tight
+- Gait changed: false
+- Fatigue: 3
+- Energy: 7
+- Sleep: 8
+- Stress: 3
+- Motivation: 8
+- Daily notes: Fake public demo recovery note.
 
-## Request
+## Gear And Fueling
 
-Recommend tomorrow's training while keeping running mileage separate from walking and cross-training.
+- Gear notes: Mat
+- Fueling/hydration notes: Water.
+
+## Plan Notes
+
+Fake plan note: keep easy days easy, separate walking from running mileage, and hold effort conservative if calf tightness increases.
+
+## Missing Data Flags
+
+- None.
+
+## Safety Flags
+
+- Pain location may be one-sided. Do not diagnose; prioritize caution.
+
+## Question For ChatGPT Coach
+
+Given this context, what should I do today, and should this week's plan change? Prioritize injury prevention, consistency, and separating running mileage from walking and cross-training load.

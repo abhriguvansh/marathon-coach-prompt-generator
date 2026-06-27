@@ -21,6 +21,10 @@ output/*
 *.fit
 *.tcx
 *.gpx
+*.png
+*.jpg
+*.jpeg
+*.heic
 
 .DS_Store
 node_modules/
