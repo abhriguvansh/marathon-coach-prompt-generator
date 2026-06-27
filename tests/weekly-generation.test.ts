@@ -94,7 +94,7 @@ describe("weekly generation", () => {
     assert.match(summary.travelBreakNote ?? "", /is approaching/);
     assert.equal(
       summary.missingDataFlags.some((flag) => flag.field === "plan-notes.md"),
-      true,
+      false,
     );
   });
 

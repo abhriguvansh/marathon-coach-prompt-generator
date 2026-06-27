@@ -1,5 +1,6 @@
 import type { ActivityNote, DailySummary, ManualActivity } from "../types";
 import { formatUnknown } from "../utils/format";
+import { secondsToReadableDuration } from "../utils/units";
 
 export function renderDailyCheckIn(summary: DailySummary): string {
   const config = summary.athleteConfig;
@@ -210,10 +211,12 @@ function formatActivities(activities: ManualActivity[]): string {
     .map((activity) =>
       [
         activity.activityType,
-        activity.distanceMiles === null ? null : `${activity.distanceMiles} mi`,
+        activity.distanceMiles === null
+          ? null
+          : `${Number(activity.distanceMiles.toFixed(2))} mi`,
         activity.durationMinutes === null
           ? null
-          : `${activity.durationMinutes} min`,
+          : formatDuration(activity.durationMinutes),
         activity.paceMinPerMile === null
           ? null
           : `${activity.paceMinPerMile} min/mi`,
@@ -223,6 +226,14 @@ function formatActivities(activities: ManualActivity[]): string {
         .join(", "),
     )
     .join("; ");
+}
+
+function formatDuration(minutes: number): string {
+  if (Number.isInteger(minutes) && minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  return secondsToReadableDuration(minutes * 60);
 }
 
 function formatMiles(miles: number): string {

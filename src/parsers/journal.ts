@@ -328,7 +328,9 @@ function parseDurationMinutes(value: string | null): number | null {
 
 function fieldValue(content: string, label: string): string | null {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = content.match(new RegExp(`^${escapedLabel}:\\s*(.*)$`, "im"));
+  const match = content.match(
+    new RegExp(`^${escapedLabel}:[ \\t]*(.*)$`, "im"),
+  );
 
   if (!match) {
     return null;
@@ -336,7 +338,15 @@ function fieldValue(content: string, label: string): string | null {
 
   const value = match[1].trim();
 
-  return value === "" ? null : value;
+  if (value === "" || value === "---" || looksLikeBlankFieldLabel(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+function looksLikeBlankFieldLabel(value: string): boolean {
+  return /^[A-Za-z][A-Za-z /()0-9-]*:$/.test(value);
 }
 
 function sectionBody(content: string, heading: string): string {

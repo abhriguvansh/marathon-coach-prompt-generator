@@ -67,6 +67,13 @@ export function generateDailyCheckIn(
   });
   const exportInputs = parseLocalExports(cwd);
   const journalInputs = loadJournalInputs(cwd);
+  const hasEvidenceJournal = journalInputs.journalEntries.some(
+    (entry) => entry.date === evidenceDate,
+  );
+  const missingFiles = filterNoisyMissingFiles(
+    manualInputs.missingFiles,
+    hasEvidenceJournal,
+  );
 
   const summary = createDailySummary({
     date: args.date,
@@ -84,7 +91,7 @@ export function generateDailyCheckIn(
     planNotes: manualInputs.planNotes,
     journalEntries: journalInputs.journalEntries,
     exportWarnings: exportInputs.warnings,
-    missingFiles: manualInputs.missingFiles.map((file) =>
+    missingFiles: missingFiles.map((file) =>
       file.replace(`${cwd}\\`, "").replace(`${cwd}/`, ""),
     ),
   });
@@ -97,10 +104,29 @@ export function generateDailyCheckIn(
   return {
     markdown,
     outputPath,
-    missingFiles: manualInputs.missingFiles,
+    missingFiles,
     coachingDate: args.date,
     evidenceDate,
   };
+}
+
+function filterNoisyMissingFiles(
+  missingFiles: string[],
+  hasEvidenceJournal: boolean,
+): string[] {
+  return missingFiles.filter((file) => {
+    const normalized = file.replaceAll("\\", "/");
+
+    if (normalized.includes("plan-notes.md")) {
+      return false;
+    }
+
+    if (hasEvidenceJournal && normalized.includes("input/manual/")) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 if (require.main === module) {

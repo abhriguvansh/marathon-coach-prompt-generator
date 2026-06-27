@@ -151,7 +151,7 @@ describe("daily summary generation", () => {
     assert.equal(summary.safetyFlags.length, 5);
     assert.equal(
       summary.missingDataFlags.some((flag) => flag.field === "plan-notes.md"),
-      true,
+      false,
     );
   });
 
@@ -164,7 +164,7 @@ describe("daily summary generation", () => {
     assert.match(markdown, /Walking mileage: 2 mi/);
     assert.match(markdown, /Rock climbing:/);
     assert.match(markdown, /Gear notes: Demo shoes/);
-    assert.match(markdown, /Plan notes were not provided/);
+    assert.match(markdown, /## Plan Notes\s+not provided/);
     assert.match(markdown, /what should I do today/i);
   });
 

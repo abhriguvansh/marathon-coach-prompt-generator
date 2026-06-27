@@ -236,7 +236,13 @@ function buildWeeklyMissingDataFlags(input: {
   const hasJournalEntries = input.journalEntries.length > 0;
 
   for (const missingFile of input.missingFiles) {
-    if (hasJournalEntries && isLegacyManualPath(missingFile)) {
+    const normalized = missingFile.replaceAll("\\", "/");
+
+    if (normalized.includes("plan-notes.md")) {
+      continue;
+    }
+
+    if (hasJournalEntries && isLegacyManualPath(normalized)) {
       continue;
     }
 
@@ -278,13 +284,6 @@ function buildWeeklyMissingDataFlags(input: {
     flags.push({
       field: "activity-notes.csv",
       message: "No activity notes found for this week.",
-    });
-  }
-
-  if (!input.planNotes) {
-    flags.push({
-      field: "plan-notes.md",
-      message: "Plan notes were not provided.",
     });
   }
 

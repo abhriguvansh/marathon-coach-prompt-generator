@@ -67,6 +67,10 @@ export function generateWeeklySummary(
   });
   const exportInputs = parseLocalExports(cwd);
   const journalInputs = loadJournalInputs(cwd);
+  const missingFiles = filterNoisyMissingFiles(
+    manualInputs.missingFiles,
+    journalInputs.journalEntries.length > 0,
+  );
   const summary = createWeeklySummary({
     weekStart: args.weekStart,
     athleteConfig: config,
@@ -83,7 +87,7 @@ export function generateWeeklySummary(
     planNotes: manualInputs.planNotes,
     journalEntries: journalInputs.journalEntries,
     exportWarnings: exportInputs.warnings,
-    missingFiles: manualInputs.missingFiles.map((file) => relative(cwd, file)),
+    missingFiles: missingFiles.map((file) => relative(cwd, file)),
   });
   const markdown = renderWeeklySummary(summary);
   const outputPath = join(cwd, OUTPUT_PATH);
@@ -91,7 +95,26 @@ export function generateWeeklySummary(
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, markdown);
 
-  return { markdown, outputPath, missingFiles: manualInputs.missingFiles };
+  return { markdown, outputPath, missingFiles };
+}
+
+function filterNoisyMissingFiles(
+  missingFiles: string[],
+  hasJournalEntries: boolean,
+): string[] {
+  return missingFiles.filter((file) => {
+    const normalized = file.replaceAll("\\", "/");
+
+    if (normalized.includes("plan-notes.md")) {
+      return false;
+    }
+
+    if (hasJournalEntries && normalized.includes("input/manual/")) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 if (require.main === module) {

@@ -2,9 +2,10 @@ import {
   parseLocalExports,
   summarizeExportScan,
 } from "../exports/export-scanner";
+import type { ExportParseResult, ManualActivity } from "../types";
+import { secondsToReadableDuration } from "../utils/units";
 
-if (require.main === module) {
-  const result = parseLocalExports(process.cwd());
+export function renderExportParseSummary(result: ExportParseResult): string {
   const bySource = new Map<string, number>();
   const byType = new Map<string, number>();
 
@@ -16,22 +17,60 @@ if (require.main === module) {
     );
   }
 
-  console.log("Local Export Parse Summary");
-  console.log("");
-  console.log(summarizeExportScan(result.scan));
-  console.log(`Parsed activities: ${result.activities.length}`);
-  console.log(`Activities by source: ${formatMap(bySource)}`);
-  console.log(`Activities by type: ${formatMap(byType)}`);
-  console.log(`Parse warnings: ${result.warnings.length}`);
+  const lines = [
+    "Local Export Parse Summary",
+    "",
+    summarizeExportScan(result.scan),
+    `Parsed activities: ${result.activities.length}`,
+    ...formatActivitySummaries(result.activities),
+    `Activities by source: ${formatMap(bySource)}`,
+    `Activities by type: ${formatMap(byType)}`,
+    `Parse warnings: ${result.warnings.length}`,
+  ];
 
   for (const warning of result.warnings) {
-    console.log(`- ${warning.message}`);
+    lines.push(`- ${warning.message}`);
   }
 
-  console.log("");
-  console.log(
+  lines.push(
+    "",
     "Route points and GPS coordinates are omitted from this summary.",
   );
+
+  return lines.join("\n");
+}
+
+if (require.main === module) {
+  console.log(renderExportParseSummary(parseLocalExports(process.cwd())));
+}
+
+function formatActivitySummaries(activities: ManualActivity[]): string[] {
+  if (activities.length === 0) {
+    return [];
+  }
+
+  return [
+    "Parsed activity details:",
+    ...activities.map((activity) => `- ${formatActivity(activity)}`),
+  ];
+}
+
+function formatActivity(activity: ManualActivity): string {
+  return [
+    activity.activityType,
+    activity.source,
+    activity.date,
+    activity.distanceMiles === null
+      ? "unknown distance"
+      : `${Number(activity.distanceMiles.toFixed(2))} mi`,
+    activity.durationMinutes === null
+      ? "unknown duration"
+      : secondsToReadableDuration(activity.durationMinutes * 60),
+    activity.paceMinPerMile === null
+      ? "unknown pace"
+      : `${activity.paceMinPerMile}/mi`,
+    "route details omitted",
+  ].join(" | ");
 }
 
 function formatMap(values: Map<string, number>): string {

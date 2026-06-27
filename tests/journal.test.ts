@@ -12,6 +12,7 @@ import { describe, it } from "node:test";
 import { parseLocalExports } from "../src/exports/export-scanner";
 import { createDailySummary } from "../src/generator/daily-summary";
 import { renderDailyCheckIn } from "../src/generator/daily-markdown";
+import { generateDailyCheckIn } from "../src/cli/generate-daily";
 import { createWeeklySummary } from "../src/generator/weekly-summary";
 import {
   createJournal,
@@ -121,6 +122,26 @@ describe("daily journal workflow", () => {
     assert.equal(parsed.manualActivities.length, 0);
   });
 
+  it("renders blank journal nutrition and gear fields as not provided", () => {
+    const parsed = parseJournal(blankJournalMarkdown(), "2026-06-27");
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [parsed.dailyNote],
+        activityNotes: [],
+        manualActivities: [],
+        planNotes: null,
+        journalEntries: [parsed.journalEntry],
+      }),
+    );
+
+    assert.match(markdown, /Journal nutrition: not provided/);
+    assert.match(markdown, /Journal gear: not provided/);
+    assert.doesNotMatch(markdown, /Hydration: Fueling:/);
+    assert.doesNotMatch(markdown, /Shoes: Equipment:/);
+  });
+
   it("warns when a journal activity may duplicate an imported activity", () => {
     const dir = makeJournalProject();
     writeFile(join(dir, "input/journal/2026-06-27.md"), duplicateRunJournal());
@@ -191,6 +212,22 @@ describe("daily journal workflow", () => {
 
     assert.equal(summary.totals.rockClimbingCount, 1);
     assert.equal(summary.totals.mobilityRestOtherCount, 1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not report noisy missing legacy files in journal workflow", () => {
+    const dir = makeJournalProject();
+    writeJson(join(dir, "private/athlete.config.local.json"), fakeConfig);
+    writeFile(join(dir, "input/journal/2026-06-27.md"), fakeJournalMarkdown());
+
+    const result = generateDailyCheckIn(dir, {
+      date: "2026-06-28",
+      preview: false,
+    });
+
+    assert.equal(result.missingFiles.length, 0);
+    assert.doesNotMatch(result.markdown, /Missing local input file/);
+    assert.match(result.markdown, /## Plan Notes\s+not provided/);
     rmSync(dir, { recursive: true, force: true });
   });
 });
@@ -267,6 +304,29 @@ function duplicateRunJournal(): string {
   ].join("\n");
 }
 
+function blankJournalMarkdown(): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Nutrition",
+    "",
+    "Hydration:",
+    "Fueling:",
+    "Body Weight (optional):",
+    "",
+    "---",
+    "",
+    "## Gear Notes",
+    "",
+    "Shoes:",
+    "Equipment:",
+    "Other Notes:",
+    "",
+  ].join("\n");
+}
+
 function makeJournalProject(): string {
   const dir = mkdtempSync(join(tmpdir(), "marathon-journal-test-"));
   writeFile(join(dir, "input/journal/template.md"), journalTemplate);
@@ -292,4 +352,8 @@ function copyFixture(sourceRelativePath: string, destination: string): void {
 function writeFile(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
+}
+
+function writeJson(path: string, value: unknown): void {
+  writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }
