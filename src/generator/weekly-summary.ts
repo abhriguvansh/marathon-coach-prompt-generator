@@ -2,6 +2,7 @@ import type {
   ActivityNote,
   AthleteConfig,
   DailyNote,
+  ExportParseWarning,
   ManualActivity,
   WeeklySummary,
 } from "../types";
@@ -26,6 +27,7 @@ export function createWeeklySummary(input: {
   manualActivities: ManualActivity[];
   planNotes: string | null;
   missingFiles?: string[];
+  exportWarnings?: ExportParseWarning[];
 }): WeeklySummary {
   const weekEnd = formatDate(addDays(parseDate(input.weekStart), 6));
   const dailyNotes = input.dailyNotes.filter((note) =>
@@ -55,6 +57,7 @@ export function createWeeklySummary(input: {
     activityNotes,
     manualActivities,
     planNotes: input.planNotes,
+    exportWarnings: input.exportWarnings ?? [],
     totals: {
       runningMileage,
       walkingMileage,
@@ -118,6 +121,7 @@ export function createWeeklySummary(input: {
       manualActivities,
       planNotes: input.planNotes,
       missingFiles: input.missingFiles ?? [],
+      exportWarnings: input.exportWarnings ?? [],
     }),
   };
 }
@@ -212,6 +216,7 @@ function buildWeeklyMissingDataFlags(input: {
   manualActivities: ManualActivity[];
   planNotes: string | null;
   missingFiles: string[];
+  exportWarnings: Array<{ message: string }>;
 }) {
   const flags: WeeklySummary["missingDataFlags"] = [];
 
@@ -219,6 +224,13 @@ function buildWeeklyMissingDataFlags(input: {
     flags.push({
       field: missingFile,
       message: `Missing local input file: ${missingFile}. Copy the matching template file before adding real data.`,
+    });
+  }
+
+  for (const exportWarning of input.exportWarnings) {
+    flags.push({
+      field: "local exports",
+      message: `Export data-quality note: ${exportWarning.message}`,
     });
   }
 

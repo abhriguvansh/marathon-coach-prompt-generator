@@ -42,7 +42,7 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     `- Average daily steps: ${formatRounded(summary.totals.averageDailySteps, "unknown")}`,
     `- Longest run: ${formatActivityDistance(summary.totals.longestRun)}`,
     `- Longest walk: ${formatActivityDistance(summary.totals.longestWalk)}`,
-    `- Elevation gain from runs: ${formatUnknown(summary.totals.runElevationGainFt, "unknown")} ft`,
+    `- Elevation gain from runs: ${formatRounded(summary.totals.runElevationGainFt, "unknown")} ft`,
     `- Average run pace: ${formatPace(summary.totals.averageRunPaceSecondsPerMile)}`,
     `- Average run HR: ${formatRounded(summary.totals.averageRunHr, "unknown")}`,
     "",
@@ -66,6 +66,8 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     "- Rock climbing, tennis, weights, mobility, and steps are training-load context, not running mileage.",
     "- Do not claim marathon goal readiness from this week alone; treat ambitious race goals as stretch goals unless supported by enough recent data.",
     "- Missing values are shown as unknown or not provided.",
+    "- Local export parsing omits route points and GPS coordinates from this prompt.",
+    ...formatExportWarnings(summary.exportWarnings),
     "",
     "## Missing Data Flags",
     "",
@@ -215,4 +217,12 @@ function formatFlags(flags: string[]): string {
   }
 
   return flags.map((flag) => `- ${flag}`).join("\n");
+}
+
+function formatExportWarnings(warnings: Array<{ message: string }>): string[] {
+  if (warnings.length === 0) {
+    return ["- No local export warnings."];
+  }
+
+  return warnings.map((warning) => `- ${warning.message}`);
 }

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { loadAthleteConfig } from "../config/load";
+import { parseLocalExports } from "../exports/export-scanner";
 import { createDailySummary } from "../generator/daily-summary";
 import { renderDailyCheckIn } from "../generator/daily-markdown";
 import { loadManualInputs } from "../parsers/manual-notes";
@@ -53,14 +54,19 @@ export function generateDailyCheckIn(
     manualActivitiesPath: join(cwd, "input/manual/manual-activities.csv"),
     planNotesPath: join(cwd, "input/manual/plan-notes.md"),
   });
+  const exportInputs = parseLocalExports(cwd);
 
   const summary = createDailySummary({
     date: args.date,
     athleteConfig: config,
     dailyNotes: manualInputs.dailyNotes,
     activityNotes: manualInputs.activityNotes,
-    manualActivities: manualInputs.manualActivities,
+    manualActivities: [
+      ...manualInputs.manualActivities,
+      ...exportInputs.activities,
+    ],
     planNotes: manualInputs.planNotes,
+    exportWarnings: exportInputs.warnings,
     missingFiles: manualInputs.missingFiles.map((file) =>
       file.replace(`${cwd}\\`, "").replace(`${cwd}/`, ""),
     ),

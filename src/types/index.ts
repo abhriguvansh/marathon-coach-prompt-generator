@@ -88,6 +88,32 @@ export interface ManualActivity {
   notes: string | null;
 }
 
+export type ExportSource = "garmin_export" | "strava_export";
+
+export interface ExportParseWarning {
+  source: ExportSource | "unknown";
+  extension?: string;
+  message: string;
+}
+
+export interface ExportFileInfo {
+  relativePath: string;
+  source: ExportSource;
+  extension: string;
+  supported: boolean;
+}
+
+export interface ExportScanResult {
+  files: ExportFileInfo[];
+  warnings: ExportParseWarning[];
+}
+
+export interface ExportParseResult {
+  activities: ManualActivity[];
+  scan: ExportScanResult;
+  warnings: ExportParseWarning[];
+}
+
 export interface SafetyFlag {
   level: "info" | "concern";
   message: string;
@@ -106,6 +132,7 @@ export interface DailySummary {
   activityNotes: ActivityNote[];
   manualActivities: ManualActivity[];
   planNotes: string | null;
+  exportWarnings: ExportParseWarning[];
   daysUntilRace: number;
   runningMileage: number;
   walkingMileage: number;
@@ -163,6 +190,7 @@ export interface WeeklySummary {
   activityNotes: ActivityNote[];
   manualActivities: ManualActivity[];
   planNotes: string | null;
+  exportWarnings: ExportParseWarning[];
   totals: WeeklyActivityTotals;
   recovery: WeeklyRecoveryTrend;
   activityListByDay: Array<{

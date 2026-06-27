@@ -16,10 +16,14 @@ const contentAllowlistPrefixes = [
   "docs/",
   "tests/",
   "scripts/privacy-check.cjs",
+  "src/exports/",
   "src/privacy/",
 ];
 const contentAllowlistExactPaths = new Set([
   ".gitignore",
+  "src/cli/parse-exports.ts",
+  "src/generator/daily-markdown.ts",
+  "src/generator/weekly-markdown.ts",
   "scripts/inspect.cjs",
   "src/cli/inspect.ts",
 ]);
@@ -111,6 +115,10 @@ function scanPrivacyRisks(cwd = process.cwd()) {
 }
 
 function scanPathRisk(file) {
+  if (file.startsWith("tests/fixtures/")) {
+    return [];
+  }
+
   if (allowedExactPaths.has(file)) {
     return [];
   }

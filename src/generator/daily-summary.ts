@@ -3,6 +3,7 @@ import type {
   AthleteConfig,
   DailyNote,
   DailySummary,
+  ExportParseWarning,
   ManualActivity,
   MissingDataFlag,
   SafetyFlag,
@@ -24,6 +25,7 @@ export function createDailySummary(input: {
   manualActivities: ManualActivity[];
   planNotes: string | null;
   missingFiles?: string[];
+  exportWarnings?: ExportParseWarning[];
 }): DailySummary {
   const evidenceDate = previousDate(input.date);
   const dailyNote =
@@ -48,6 +50,7 @@ export function createDailySummary(input: {
     activityNotes,
     manualActivities,
     planNotes: input.planNotes,
+    exportWarnings: input.exportWarnings ?? [],
     daysUntilRace: daysUntilRace(
       parseDate(input.date),
       parseDate(input.athleteConfig.race.date),
@@ -68,6 +71,7 @@ export function createDailySummary(input: {
       activityNotes,
       planNotes: input.planNotes,
       missingFiles: input.missingFiles ?? [],
+      exportWarnings: input.exportWarnings ?? [],
     }),
   };
 }
@@ -140,6 +144,7 @@ function buildMissingDataFlags(input: {
   activityNotes: ActivityNote[];
   planNotes: string | null;
   missingFiles: string[];
+  exportWarnings: Array<{ message: string }>;
 }): MissingDataFlag[] {
   const flags: MissingDataFlag[] = [];
 
@@ -147,6 +152,13 @@ function buildMissingDataFlags(input: {
     flags.push({
       field: missingFile,
       message: `Missing local input file: ${missingFile}. Copy the matching template file before adding real data.`,
+    });
+  }
+
+  for (const exportWarning of input.exportWarnings) {
+    flags.push({
+      field: "local exports",
+      message: `Export data-quality note: ${exportWarning.message}`,
     });
   }
 

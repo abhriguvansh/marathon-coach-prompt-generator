@@ -10,6 +10,7 @@ The tool is intentionally local-first. It summarizes evidence so ChatGPT can rea
 - Keeps running mileage separate from walking and cross-training context.
 - Generates coaching-ready Markdown summaries.
 - Helps check that private files stay out of Git.
+- Parses supported Garmin/Strava local export files without API access.
 
 ## What It Does Not Do
 
@@ -100,6 +101,7 @@ npm run generate:weekly -- --week-start 2026-06-22
 npm run generate:weekly -- --week-start 2026-06-22 --preview
 npm run demo:daily
 npm run demo:weekly
+npm run parse:exports
 npm run inspect
 npm run build
 npm test
@@ -132,6 +134,35 @@ The `--date` value is the check-in date. The generator summarizes the previous d
 
 The `--week-start` value must be a Monday. The weekly summary keeps running mileage separate from walking mileage, treats cross-training and steps as context, and asks ChatGPT to review whether next week's training should progress, hold steady, or back off. `--preview` prints only the generated Markdown summary, not raw private files.
 
+## Local Export Parsing
+
+The tool can scan ignored local export folders and include parsed activity summaries in daily and weekly prompts:
+
+```txt
+input/garmin/
+input/strava/
+```
+
+Supported local formats:
+
+- `.csv`
+- `.tcx`
+- `.gpx`
+- `.json`
+
+FIT parsing is intentionally skipped for now. FIT is a binary format, and this project is staying dependency-light until there is a clear, maintained parser worth adding.
+
+No Garmin API, Strava API, OAuth, cloud sync, or upload is used. Export files can contain sensitive GPS, heart-rate, health, and location data, so real exports must stay in ignored local folders and must never be committed.
+
+Run:
+
+```bash
+npm run inspect
+npm run parse:exports
+```
+
+`inspect` reports safe counts and file-type summaries only. `parse:exports` prints a safe activity summary without raw file contents or route coordinates. Daily and weekly generators merge parsed export activities with manual activities, keeping walking separate from running and treating climbing, tennis, weights, mobility, and steps as context.
+
 ## Demo Mode
 
 Demo mode refreshes public-safe sample outputs from committed fake data only:
@@ -151,14 +182,14 @@ Demo outputs use fake details such as Sample Runner and Example City Marathon. T
 ## Known Limitations
 
 - Prompt generation is not implemented yet.
-- Garmin and Strava local export parsing is not implemented yet.
-- Garmin and Strava export parsing will be local-only when added. It will not require Strava API access, OAuth, tokens, or automatic sync.
-- Daily check-in generation currently uses manually prepared local CSV and Markdown files only.
-- Weekly summary generation currently uses manually prepared local CSV and Markdown files only.
+- FIT export parsing is not implemented yet.
+- Export parsing is best-effort and intentionally avoids route-point output.
+- Daily check-in generation currently uses manual CSV/Markdown files plus best-effort local export summaries.
+- Weekly summary generation currently uses manual CSV/Markdown files plus best-effort local export summaries.
 
 ## Planned Next Sessions
 
-- Add local Garmin/Strava export parsing without API access.
 - Add richer validation for manual CSV files.
+- Add richer validation for parsed local exports.
 - Add multi-week trend summaries.
 - Add more synthetic fixtures for end-to-end prompt generation.

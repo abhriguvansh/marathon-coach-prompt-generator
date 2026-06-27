@@ -1,0 +1,177 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { extname, join, relative } from "node:path";
+import type {
+  ExportFileInfo,
+  ExportParseResult,
+  ExportParseWarning,
+  ExportScanResult,
+  ExportSource,
+  ManualActivity,
+} from "../types";
+import { parseCsvExport } from "./parse-csv-export";
+import { parseGpxExport } from "./parse-gpx-export";
+import { parseJsonExport } from "./parse-json-export";
+import { parseTcxExport } from "./parse-tcx-export";
+
+const SUPPORTED_EXTENSIONS = new Set([".csv", ".tcx", ".gpx", ".json"]);
+
+const EXPORT_FOLDERS: Array<{ relativePath: string; source: ExportSource }> = [
+  { relativePath: "input/garmin", source: "garmin_export" },
+  { relativePath: "input/strava", source: "strava_export" },
+];
+
+export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
+  const files: ExportFileInfo[] = [];
+  const warnings: ExportParseWarning[] = [];
+
+  for (const folder of EXPORT_FOLDERS) {
+    const absoluteFolder = join(cwd, folder.relativePath);
+
+    if (!existsSync(absoluteFolder)) {
+      warnings.push({
+        source: folder.source,
+        message: `${folder.relativePath} is missing; no local exports scanned.`,
+      });
+      continue;
+    }
+
+    for (const absolutePath of walkFiles(absoluteFolder)) {
+      const relativePath = normalizePath(relative(cwd, absolutePath));
+      const extension = extname(absolutePath).toLowerCase();
+
+      if (relativePath.endsWith("/.gitkeep")) {
+        continue;
+      }
+
+      const supported = SUPPORTED_EXTENSIONS.has(extension);
+      files.push({
+        relativePath,
+        source: folder.source,
+        extension: extension || "(none)",
+        supported,
+      });
+
+      if (!supported) {
+        warnings.push({
+          source: folder.source,
+          extension: extension || "(none)",
+          message:
+            extension === ".fit"
+              ? "FIT export detected but skipped; FIT parsing is not implemented in this dependency-light version."
+              : `Unsupported export file type skipped: ${extension || "(none)"}.`,
+        });
+      }
+    }
+  }
+
+  return { files, warnings };
+}
+
+export function parseLocalExports(cwd = process.cwd()): ExportParseResult {
+  const scan = scanExportFiles(cwd);
+  const activities: ManualActivity[] = [];
+  const warnings = [...scan.warnings];
+
+  for (const file of scan.files.filter((candidate) => candidate.supported)) {
+    const absolutePath = join(cwd, file.relativePath);
+
+    try {
+      const content = readFileSync(absolutePath, "utf8");
+      const parsed = parseExportContent({
+        content,
+        extension: file.extension,
+        source: file.source,
+      });
+
+      activities.push(...parsed.activities);
+      warnings.push(...parsed.warnings);
+    } catch {
+      warnings.push({
+        source: file.source,
+        extension: file.extension,
+        message: `Could not parse one ${file.extension} export file; skipped safely.`,
+      });
+    }
+  }
+
+  return { activities, scan, warnings };
+}
+
+export function summarizeExportScan(scan: ExportScanResult): string {
+  const garminFiles = scan.files.filter(
+    (file) => file.source === "garmin_export",
+  );
+  const stravaFiles = scan.files.filter(
+    (file) => file.source === "strava_export",
+  );
+  const supportedTypes = unique(
+    scan.files.filter((file) => file.supported).map((file) => file.extension),
+  );
+  const unsupportedTypes = unique(
+    scan.files.filter((file) => !file.supported).map((file) => file.extension),
+  );
+
+  return [
+    `Garmin export files found: ${garminFiles.length}`,
+    `Strava export files found: ${stravaFiles.length}`,
+    `Supported file types detected: ${supportedTypes.length === 0 ? "none" : supportedTypes.join(", ")}`,
+    `Unsupported file types detected: ${unsupportedTypes.length === 0 ? "none" : unsupportedTypes.join(", ")}`,
+    `Warnings: ${scan.warnings.length}`,
+  ].join("\n");
+}
+
+function parseExportContent(input: {
+  content: string;
+  extension: string;
+  source: ExportSource;
+}): { activities: ManualActivity[]; warnings: ExportParseWarning[] } {
+  switch (input.extension) {
+    case ".csv":
+      return parseCsvExport(input.content, input.source);
+    case ".tcx":
+      return parseTcxExport(input.content, input.source);
+    case ".gpx":
+      return parseGpxExport(input.content, input.source);
+    case ".json":
+      return parseJsonExport(input.content, input.source);
+    default:
+      return {
+        activities: [],
+        warnings: [
+          {
+            source: input.source,
+            extension: input.extension,
+            message: `Unsupported export file type skipped: ${input.extension}.`,
+          },
+        ],
+      };
+  }
+}
+
+function walkFiles(root: string): string[] {
+  const entries = readdirSync(root, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const absolutePath = join(root, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...walkFiles(absolutePath));
+      continue;
+    }
+
+    if (entry.isFile()) {
+      files.push(absolutePath);
+    }
+  }
+
+  return files;
+}
+
+function normalizePath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
+}

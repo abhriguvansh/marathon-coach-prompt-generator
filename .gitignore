@@ -25,6 +25,13 @@ output/*
 *.jpg
 *.jpeg
 *.heic
+!tests/fixtures/**/*.tcx
+!tests/fixtures/**/*.gpx
+!tests/fixtures/**/*.fit
+!tests/fixtures/**/*.png
+!tests/fixtures/**/*.jpg
+!tests/fixtures/**/*.jpeg
+!tests/fixtures/**/*.heic
 
 .DS_Store
 node_modules/

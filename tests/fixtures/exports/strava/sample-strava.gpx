@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Synthetic Fixture">
+  <trk>
+    <name>Fake public route</name>
+    <type>walk</type>
+    <time>2026-06-27T12:00:00Z</time>
+    <extensions>
+      <distanceMeters>3218.688</distanceMeters>
+      <durationSeconds>2400</durationSeconds>
+      <elevationGainMeters>30.48</elevationGainMeters>
+    </extensions>
+    <trkseg>
+      <trkpt lat="10.0000" lon="20.0000"><ele>1</ele><time>2026-06-27T12:00:00Z</time></trkpt>
+      <trkpt lat="10.0100" lon="20.0100"><ele>2</ele><time>2026-06-27T12:10:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

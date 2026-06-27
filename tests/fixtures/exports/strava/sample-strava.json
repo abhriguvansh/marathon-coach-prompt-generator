@@ -1,0 +1,13 @@
+{
+  "activities": [
+    {
+      "date": "2026-06-28T09:00:00Z",
+      "activityType": "weights",
+      "durationMinutes": 30,
+      "distanceMiles": null,
+      "elevationFt": null,
+      "avgHr": null,
+      "maxHr": null
+    }
+  ]
+}

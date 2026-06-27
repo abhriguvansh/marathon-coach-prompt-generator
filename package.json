@@ -17,6 +17,7 @@
     "generate:daily": "npm run build && node dist/src/cli/generate-daily.js",
     "generate:weekly": "npm run build && node dist/src/cli/generate-weekly.js",
     "inspect": "node scripts/inspect.cjs",
+    "parse:exports": "npm run build && node dist/src/cli/parse-exports.js",
     "privacy:check": "node scripts/privacy-check.cjs"
   },
   "keywords": [

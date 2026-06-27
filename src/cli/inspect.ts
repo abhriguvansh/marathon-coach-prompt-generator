@@ -4,6 +4,10 @@ import {
   EXAMPLE_ATHLETE_CONFIG_PATH,
   LOCAL_ATHLETE_CONFIG_PATH,
 } from "../config";
+import {
+  scanExportFiles,
+  summarizeExportScan,
+} from "../exports/export-scanner";
 import { PRIVATE_DATA_WARNING } from "../privacy";
 
 interface Check {
@@ -42,6 +46,11 @@ export function inspectProject(cwd = process.cwd()): string {
     lines.push(`${exists ? "OK" : "MISSING"} ${check.label}: ${check.path}`);
   }
 
+  lines.push(
+    "",
+    "Local Export Status",
+    summarizeExportScan(scanExportFiles(cwd)),
+  );
   lines.push("", PRIVATE_DATA_WARNING);
   lines.push(
     "Inspect reports file presence only and does not print private file contents.",

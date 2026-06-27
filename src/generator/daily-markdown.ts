@@ -68,6 +68,12 @@ export function renderDailyCheckIn(summary: DailySummary): string {
     "",
     formatFlags(summary.missingDataFlags.map((flag) => flag.message)),
     "",
+    "## Data Quality Notes",
+    "",
+    "- Walking mileage is reported separately and is not counted as running mileage.",
+    "- Local export parsing omits route points and GPS coordinates from this prompt.",
+    ...formatExportWarnings(summary.exportWarnings),
+    "",
     "## Safety Flags",
     "",
     summary.safetyFlags.length === 0
@@ -192,4 +198,12 @@ function formatFlags(flags: string[]): string {
   }
 
   return flags.map((flag) => `- ${flag}`).join("\n");
+}
+
+function formatExportWarnings(warnings: Array<{ message: string }>): string[] {
+  if (warnings.length === 0) {
+    return ["- No local export warnings."];
+  }
+
+  return warnings.map((warning) => `- ${warning.message}`);
 }

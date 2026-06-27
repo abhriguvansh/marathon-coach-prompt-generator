@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { loadAthleteConfig } from "../config/load";
+import { parseLocalExports } from "../exports/export-scanner";
 import { renderWeeklySummary } from "../generator/weekly-markdown";
 import { createWeeklySummary } from "../generator/weekly-summary";
 import { loadManualInputs } from "../parsers/manual-notes";
@@ -60,13 +61,18 @@ export function generateWeeklySummary(
     manualActivitiesPath: join(cwd, "input/manual/manual-activities.csv"),
     planNotesPath: join(cwd, "input/manual/plan-notes.md"),
   });
+  const exportInputs = parseLocalExports(cwd);
   const summary = createWeeklySummary({
     weekStart: args.weekStart,
     athleteConfig: config,
     dailyNotes: manualInputs.dailyNotes,
     activityNotes: manualInputs.activityNotes,
-    manualActivities: manualInputs.manualActivities,
+    manualActivities: [
+      ...manualInputs.manualActivities,
+      ...exportInputs.activities,
+    ],
     planNotes: manualInputs.planNotes,
+    exportWarnings: exportInputs.warnings,
     missingFiles: manualInputs.missingFiles.map((file) => relative(cwd, file)),
   });
   const markdown = renderWeeklySummary(summary);
