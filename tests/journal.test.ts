@@ -1,0 +1,295 @@
+import assert from "node:assert/strict";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { describe, it } from "node:test";
+import { parseLocalExports } from "../src/exports/export-scanner";
+import { createDailySummary } from "../src/generator/daily-summary";
+import { renderDailyCheckIn } from "../src/generator/daily-markdown";
+import { createWeeklySummary } from "../src/generator/weekly-summary";
+import {
+  createJournal,
+  loadJournalInputs,
+  parseJournal,
+} from "../src/parsers/journal";
+import type { AthleteConfig } from "../src/types";
+
+const fixtureRoot = join(process.cwd(), "tests/fixtures/exports");
+const journalTemplate = readFileSync(
+  join(process.cwd(), "input/journal/template.md"),
+  "utf8",
+);
+
+const fakeConfig: AthleteConfig = {
+  athleteName: "Sample Runner",
+  race: {
+    name: "Example City Marathon",
+    date: "2026-11-29",
+    goalTime: "4:30 stretch goal",
+    goalPace: "10:18 min/mi",
+  },
+  background: {
+    experienceLevel: "beginner",
+    runningBackground: "Fake journal workflow background.",
+  },
+};
+
+describe("daily journal workflow", () => {
+  it("creates a dated journal with imported activity references", () => {
+    const dir = makeJournalProject();
+    const exports = parseLocalExports(dir);
+    const result = createJournal({
+      cwd: dir,
+      date: "2026-06-27",
+      importedActivities: exports.activities,
+    });
+    const content = readFileSync(
+      join(dir, "input/journal/2026-06-27.md"),
+      "utf8",
+    );
+
+    assert.equal(result.created, true);
+    assert.equal(result.importedActivityCount, 2);
+    assert.match(content, /Date: 2026-06-27/);
+    assert.match(content, /Run - 4 mi - 40:00/);
+    assert.match(content, /Walk - 2 mi - 40:00/);
+    assert.match(content, /Do not manually re-enter/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not overwrite an existing journal", () => {
+    const dir = makeJournalProject();
+    const path = join(dir, "input/journal/2026-06-27.md");
+    writeFile(path, "Existing fake journal");
+
+    const result = createJournal({
+      cwd: dir,
+      date: "2026-06-27",
+      importedActivities: parseLocalExports(dir).activities,
+    });
+
+    assert.equal(result.created, false);
+    assert.equal(readFileSync(path, "utf8"), "Existing fake journal");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("keeps the imported section when no exports exist for the date", () => {
+    const dir = makeJournalProject();
+    createJournal({
+      cwd: dir,
+      date: "2026-06-25",
+      importedActivities: parseLocalExports(dir).activities,
+    });
+    const content = readFileSync(
+      join(dir, "input/journal/2026-06-25.md"),
+      "utf8",
+    );
+
+    assert.match(content, /No imported activities found for this date yet/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("parses recovery, nutrition, gear, notes, questions, and activities", () => {
+    const parsed = parseJournal(fakeJournalMarkdown(), "2026-06-27");
+
+    assert.equal(parsed.dailyNote.date, "2026-06-27");
+    assert.equal(parsed.dailyNote.legSoreness, 3);
+    assert.equal(parsed.dailyNote.gaitChanged, false);
+    assert.equal(parsed.journalEntry.hydration, "Fake hydration note.");
+    assert.equal(parsed.journalEntry.shoes, "Demo shoes.");
+    assert.match(parsed.journalEntry.coachNotes ?? "", /fresh/);
+    assert.match(parsed.journalEntry.questionsForCoach ?? "", /easy run/);
+    assert.deepEqual(
+      parsed.manualActivities.map((activity) => activity.activityType),
+      ["rock_climbing", "mobility"],
+    );
+    assert.equal(parsed.manualActivities[0].source, "journal");
+    assert.equal(parsed.manualActivities[0].durationMinutes, 60);
+  });
+
+  it("ignores missing optional fields and sections gracefully", () => {
+    const parsed = parseJournal("# Daily Journal\n\nDate: 2026-06-27\n");
+
+    assert.equal(parsed.dailyNote.pain, null);
+    assert.equal(parsed.journalEntry.fueling, null);
+    assert.equal(parsed.manualActivities.length, 0);
+  });
+
+  it("warns when a journal activity may duplicate an imported activity", () => {
+    const dir = makeJournalProject();
+    writeFile(join(dir, "input/journal/2026-06-27.md"), duplicateRunJournal());
+    const journal = loadJournalInputs(dir);
+    const exports = parseLocalExports(dir);
+    const summary = createDailySummary({
+      date: "2026-06-28",
+      athleteConfig: fakeConfig,
+      dailyNotes: journal.dailyNotes,
+      activityNotes: [],
+      manualActivities: [...exports.activities, ...journal.manualActivities],
+      planNotes: "Fake plan note.",
+      journalEntries: journal.journalEntries,
+      exportWarnings: exports.warnings,
+    });
+
+    assert.equal(summary.duplicateWarnings.length, 1);
+    assert.equal(summary.duplicateWarnings[0].excludedFromTotals, false);
+    assert.match(summary.duplicateWarnings[0].message, /partial similarity/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("merges journal context and imported activities into daily Markdown", () => {
+    const dir = makeJournalProject();
+    writeFile(join(dir, "input/journal/2026-06-27.md"), fakeJournalMarkdown());
+    const journal = loadJournalInputs(dir);
+    const exports = parseLocalExports(dir);
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: journal.dailyNotes,
+        activityNotes: [],
+        manualActivities: [...exports.activities, ...journal.manualActivities],
+        planNotes: "Fake plan note.",
+        journalEntries: journal.journalEntries,
+        exportWarnings: exports.warnings,
+      }),
+    );
+
+    assert.match(markdown, /Running mileage: 4 mi/);
+    assert.match(markdown, /Walking mileage: 2 mi/);
+    assert.match(markdown, /Rock climbing:/);
+    assert.match(markdown, /Journal nutrition: Hydration: Fake hydration note/);
+    assert.match(
+      markdown,
+      /Questions from journal: Should tomorrow be easy run/,
+    );
+    assert.doesNotMatch(markdown, /10\.0000|20\.0000|trkpt|lat=|lon=/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("includes journal manual activities in weekly summaries", () => {
+    const dir = makeJournalProject();
+    writeFile(join(dir, "input/journal/2026-06-27.md"), fakeJournalMarkdown());
+    const journal = loadJournalInputs(dir);
+    const exports = parseLocalExports(dir);
+    const summary = createWeeklySummary({
+      weekStart: "2026-06-22",
+      athleteConfig: fakeConfig,
+      dailyNotes: journal.dailyNotes,
+      activityNotes: [],
+      manualActivities: [...exports.activities, ...journal.manualActivities],
+      planNotes: "Fake plan note.",
+      journalEntries: journal.journalEntries,
+      exportWarnings: exports.warnings,
+    });
+
+    assert.equal(summary.totals.rockClimbingCount, 1);
+    assert.equal(summary.totals.mobilityRestOtherCount, 1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+function fakeJournalMarkdown(): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Recovery",
+    "",
+    "Soreness (0-10): 3",
+    "Pain (0-10): 1",
+    "Pain Location: left calf",
+    "Pain Type: tight",
+    "Did pain change gait? (Yes/No): No",
+    "Energy (0-10): 8",
+    "Fatigue (0-10): 2",
+    "Sleep: 7",
+    "Stress (0-10): 4",
+    "",
+    "## Manual Activities",
+    "",
+    "### Rock climbing",
+    "",
+    "Duration: 60",
+    "Intensity: moderate",
+    "Notes: Fake climbing session.",
+    "",
+    "### Mobility",
+    "",
+    "Duration: 20 min",
+    "Intensity: easy",
+    "Notes: Fake mobility work.",
+    "",
+    "## Nutrition",
+    "",
+    "Hydration: Fake hydration note.",
+    "Fueling: Fake fueling note.",
+    "Body Weight (optional): 150 lb demo value",
+    "",
+    "## Gear Notes",
+    "",
+    "Shoes: Demo shoes.",
+    "Equipment: Demo harness.",
+    "Other Notes: No issues.",
+    "",
+    "## Coach Notes",
+    "",
+    "Legs felt surprisingly fresh.",
+    "",
+    "## Questions for Coach",
+    "",
+    "Should tomorrow be easy run or rest?",
+    "",
+  ].join("\n");
+}
+
+function duplicateRunJournal(): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Manual Activities",
+    "",
+    "### Run",
+    "",
+    "Duration: 40:00",
+    "Intensity: easy",
+    "Notes: Fake duplicate copied from watch.",
+    "",
+  ].join("\n");
+}
+
+function makeJournalProject(): string {
+  const dir = mkdtempSync(join(tmpdir(), "marathon-journal-test-"));
+  writeFile(join(dir, "input/journal/template.md"), journalTemplate);
+  copyFixture(
+    "garmin/nested/sample-garmin.tcx",
+    join(dir, "input/garmin/nested/sample-garmin.tcx"),
+  );
+  copyFixture(
+    "strava/sample-strava.gpx",
+    join(dir, "input/strava/sample-strava.gpx"),
+  );
+
+  return dir;
+}
+
+function copyFixture(sourceRelativePath: string, destination: string): void {
+  writeFile(
+    destination,
+    readFileSync(join(fixtureRoot, sourceRelativePath), "utf8"),
+  );
+}
+
+function writeFile(path: string, content: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, content);
+}

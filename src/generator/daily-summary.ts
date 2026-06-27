@@ -4,6 +4,7 @@ import type {
   DailyNote,
   DailySummary,
   ExportParseWarning,
+  JournalEntry,
   ManualActivity,
   MissingDataFlag,
   SafetyFlag,
@@ -25,6 +26,7 @@ export function createDailySummary(input: {
   activityNotes: ActivityNote[];
   manualActivities: ManualActivity[];
   planNotes: string | null;
+  journalEntries?: JournalEntry[];
   missingFiles?: string[];
   exportWarnings?: ExportParseWarning[];
 }): DailySummary {
@@ -38,6 +40,9 @@ export function createDailySummary(input: {
     (activity) => activity.date === evidenceDate,
   );
   const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
+  const journalEntry =
+    (input.journalEntries ?? []).find((entry) => entry.date === evidenceDate) ??
+    null;
 
   const groups = classifyActivities(duplicateAnalysis.activitiesForTotals);
 
@@ -52,6 +57,7 @@ export function createDailySummary(input: {
     activityNotes,
     manualActivities,
     planNotes: input.planNotes,
+    journalEntry,
     exportWarnings: input.exportWarnings ?? [],
     duplicateWarnings: duplicateAnalysis.warnings,
     daysUntilRace: daysUntilRace(
@@ -76,6 +82,7 @@ export function createDailySummary(input: {
       missingFiles: input.missingFiles ?? [],
       exportWarnings: input.exportWarnings ?? [],
       duplicateWarnings: duplicateAnalysis.warnings,
+      journalEntry,
     }),
   };
 }
@@ -150,10 +157,16 @@ function buildMissingDataFlags(input: {
   missingFiles: string[];
   exportWarnings: Array<{ message: string }>;
   duplicateWarnings: Array<{ message: string; excludedFromTotals: boolean }>;
+  journalEntry: JournalEntry | null;
 }): MissingDataFlag[] {
   const flags: MissingDataFlag[] = [];
+  const hasJournalEntry = input.journalEntry !== null;
 
   for (const missingFile of input.missingFiles) {
+    if (hasJournalEntry && isLegacyManualPath(missingFile)) {
+      continue;
+    }
+
     flags.push({
       field: missingFile,
       message: `Missing local input file: ${missingFile}. Copy the matching template file before adding real data.`,
@@ -188,7 +201,7 @@ function buildMissingDataFlags(input: {
     });
   }
 
-  if (input.activityNotes.length === 0) {
+  if (input.activityNotes.length === 0 && !hasJournalEntry) {
     flags.push({
       field: "activity-notes.csv",
       message: "No activity notes found for yesterday.",
@@ -203,4 +216,13 @@ function buildMissingDataFlags(input: {
   }
 
   return flags;
+}
+
+function isLegacyManualPath(path: string): boolean {
+  return (
+    path.includes("input/manual/daily-notes.csv") ||
+    path.includes("input/manual/activity-notes.csv") ||
+    path.includes("input/manual/manual-activities.csv") ||
+    path.includes("input/manual/plan-notes.md")
+  );
 }

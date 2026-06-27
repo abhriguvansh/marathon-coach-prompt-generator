@@ -3,6 +3,7 @@ import type {
   AthleteConfig,
   DailyNote,
   ExportParseWarning,
+  JournalEntry,
   ManualActivity,
   WeeklySummary,
 } from "../types";
@@ -27,6 +28,7 @@ export function createWeeklySummary(input: {
   activityNotes: ActivityNote[];
   manualActivities: ManualActivity[];
   planNotes: string | null;
+  journalEntries?: JournalEntry[];
   missingFiles?: string[];
   exportWarnings?: ExportParseWarning[];
 }): WeeklySummary {
@@ -39,6 +41,9 @@ export function createWeeklySummary(input: {
   );
   const manualActivities = input.manualActivities.filter((activity) =>
     isDateWithinRange(activity.date, input.weekStart, weekEnd),
+  );
+  const journalEntries = (input.journalEntries ?? []).filter((entry) =>
+    isDateWithinRange(entry.date, input.weekStart, weekEnd),
   );
   const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
   const activitiesForTotals = duplicateAnalysis.activitiesForTotals;
@@ -60,6 +65,7 @@ export function createWeeklySummary(input: {
     activityNotes,
     manualActivities,
     planNotes: input.planNotes,
+    journalEntries,
     exportWarnings: input.exportWarnings ?? [],
     duplicateWarnings: duplicateAnalysis.warnings,
     totals: {
@@ -127,6 +133,7 @@ export function createWeeklySummary(input: {
       missingFiles: input.missingFiles ?? [],
       exportWarnings: input.exportWarnings ?? [],
       duplicateWarnings: duplicateAnalysis.warnings,
+      journalEntries,
     }),
   };
 }
@@ -223,10 +230,16 @@ function buildWeeklyMissingDataFlags(input: {
   missingFiles: string[];
   exportWarnings: Array<{ message: string }>;
   duplicateWarnings: Array<{ message: string; excludedFromTotals: boolean }>;
+  journalEntries: JournalEntry[];
 }) {
   const flags: WeeklySummary["missingDataFlags"] = [];
+  const hasJournalEntries = input.journalEntries.length > 0;
 
   for (const missingFile of input.missingFiles) {
+    if (hasJournalEntries && isLegacyManualPath(missingFile)) {
+      continue;
+    }
+
     flags.push({
       field: missingFile,
       message: `Missing local input file: ${missingFile}. Copy the matching template file before adding real data.`,
@@ -247,7 +260,7 @@ function buildWeeklyMissingDataFlags(input: {
     });
   }
 
-  if (input.dailyNotes.length === 0) {
+  if (input.dailyNotes.length === 0 && !hasJournalEntries) {
     flags.push({
       field: "daily-notes.csv",
       message: "No daily notes found for this week.",
@@ -261,7 +274,7 @@ function buildWeeklyMissingDataFlags(input: {
     });
   }
 
-  if (input.activityNotes.length === 0) {
+  if (input.activityNotes.length === 0 && !hasJournalEntries) {
     flags.push({
       field: "activity-notes.csv",
       message: "No activity notes found for this week.",
@@ -276,6 +289,15 @@ function buildWeeklyMissingDataFlags(input: {
   }
 
   return flags;
+}
+
+function isLegacyManualPath(path: string): boolean {
+  return (
+    path.includes("input/manual/daily-notes.csv") ||
+    path.includes("input/manual/activity-notes.csv") ||
+    path.includes("input/manual/manual-activities.csv") ||
+    path.includes("input/manual/plan-notes.md")
+  );
 }
 
 function buildTravelBreakNote(

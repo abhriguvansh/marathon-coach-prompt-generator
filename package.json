@@ -14,6 +14,7 @@
     "format": "prettier --write \"**/*.{ts,json,md}\"",
     "demo:daily": "npm run build && node dist/src/cli/demo-daily.js",
     "demo:weekly": "npm run build && node dist/src/cli/demo-weekly.js",
+    "journal": "npm run build && node dist/src/cli/journal.js",
     "generate:daily": "npm run build && node dist/src/cli/generate-daily.js",
     "generate:weekly": "npm run build && node dist/src/cli/generate-weekly.js",
     "inspect": "node scripts/inspect.cjs",

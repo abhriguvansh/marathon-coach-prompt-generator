@@ -17,7 +17,8 @@ This project keeps the workflow local, explicit, and easy to audit before anythi
 ## What This Tool Does
 
 - Reads private local athlete config from `private/`.
-- Reads private manual notes from `input/manual/`.
+- Reads private daily Markdown journals from `input/journal/`.
+- Still supports legacy private manual CSV notes from `input/manual/`.
 - Reads supported local Garmin and Strava export files from ignored folders.
 - Keeps running mileage separate from walking mileage.
 - Treats cross-training, steps, climbing, weights, tennis, and mobility as context, not running mileage.
@@ -65,6 +66,7 @@ Run `npm run privacy:check` and inspect `git status --short --ignored` before ev
 config/                 Public example config only
 private/                Ignored local athlete config
 input/manual/           Public templates and ignored local notes
+input/journal/          Public journal template and ignored daily journals
 input/garmin/           Ignored local Garmin exports
 input/strava/           Ignored local Strava exports
 output/                 Ignored generated summaries
@@ -93,20 +95,14 @@ PowerShell:
 
 ```powershell
 Copy-Item config/athlete.example.json private/athlete.config.local.json
-Copy-Item input/manual/daily-notes.template.csv input/manual/daily-notes.csv
-Copy-Item input/manual/activity-notes.template.csv input/manual/activity-notes.csv
-Copy-Item input/manual/manual-activities.template.csv input/manual/manual-activities.csv
-Copy-Item input/manual/plan-notes.template.md input/manual/plan-notes.md
+npm run journal
 ```
 
 macOS/Linux shell:
 
 ```bash
 cp config/athlete.example.json private/athlete.config.local.json
-cp input/manual/daily-notes.template.csv input/manual/daily-notes.csv
-cp input/manual/activity-notes.template.csv input/manual/activity-notes.csv
-cp input/manual/manual-activities.template.csv input/manual/manual-activities.csv
-cp input/manual/plan-notes.template.md input/manual/plan-notes.md
+npm run journal
 ```
 
 Then run:
@@ -121,7 +117,46 @@ Edit `private/athlete.config.local.json` with your real local race and training 
 
 Keep public config files fake. Do not put real athlete names, real race logistics, private travel, or health details in `config/athlete.example.json`.
 
-## Copying Manual Note Templates
+## Creating Daily Journals
+
+The recommended daily workflow uses one readable Markdown file for the day that just happened. This is the evidence day: the completed day you are logging at the end of the day.
+
+```bash
+npm run journal
+```
+
+For a specific date:
+
+```bash
+npm run journal -- --date YYYY-MM-DD
+```
+
+`npm run journal -- --date YYYY-MM-DD` means: create or open the journal for the completed evidence day. Do not create the journal for the coaching day unless you are actually logging that day's completed activity.
+
+This creates:
+
+```txt
+input/journal/YYYY-MM-DD.md
+```
+
+The command does not overwrite an existing journal. When Garmin or Strava exports exist for the same date, the journal is prefilled with an imported activity reference section. That section is read-only context so you do not manually re-enter activities already imported from exports.
+
+Daily journals capture recovery, sleep, stress, nutrition, gear notes, coach notes, questions for ChatGPT, and manual-only activities such as climbing, weights, mobility, tennis, yoga, or anything that was not imported.
+
+Example end-of-day flow:
+
+```bash
+npm run journal -- --date 2026-06-27
+npm run generate:daily -- --date 2026-06-28
+```
+
+That creates/fills the journal for June 27, 2026, then generates the coaching check-in for June 28, 2026. You can paste the output into ChatGPT on the night of June 27 to plan tomorrow, or on the morning of June 28 to plan the current day.
+
+Real daily journals are ignored by Git. Only `input/journal/template.md` is committed.
+
+## Legacy Manual CSV Templates
+
+The CSV workflow still works, but it is now considered legacy. Prefer the Markdown journal for daily logging unless you have an existing CSV habit or need bulk editing.
 
 The committed templates are:
 
@@ -141,19 +176,25 @@ The private working files are ignored by Git.
 
 ## Filling In Daily Notes
 
-Use `daily-notes.csv` for date-level recovery and readiness context: soreness, pain, gait changes, fatigue, energy, sleep, stress, motivation, steps, and short notes.
+In the recommended workflow, fill in `input/journal/YYYY-MM-DD.md` for date-level recovery and readiness context: soreness, pain, gait changes, fatigue, energy, sleep, stress, nutrition, gear, coach notes, and questions.
+
+In the legacy CSV workflow, use `daily-notes.csv` for soreness, pain, gait changes, fatigue, energy, sleep, stress, motivation, steps, and short notes.
 
 Use one row per day. Keep notes concise enough that the generated prompt remains readable.
 
 ## Filling In Activity Notes
 
-Use `activity-notes.csv` for notes about activities already represented elsewhere, such as gear, fueling, terrain, perceived effort, or anything you want the coaching prompt to know.
+In the recommended workflow, add gear, nutrition, and coach notes to the daily journal.
+
+In the legacy CSV workflow, use `activity-notes.csv` for notes about activities already represented elsewhere, such as gear, fueling, terrain, perceived effort, or anything you want the coaching prompt to know.
 
 This file is useful when an export has numbers but not enough context.
 
 ## Filling In Manual Activities
 
-Use `manual-activities.csv` for activities you enter yourself: runs, walks, strength, climbing, tennis, mobility, rest, and other training context.
+In the recommended workflow, use the journal's `Manual Activities` section only for activities that were not imported from Garmin or Strava.
+
+In the legacy CSV workflow, use `manual-activities.csv` for activities you enter yourself: runs, walks, strength, climbing, tennis, mobility, rest, and other training context.
 
 Walking mileage stays separate from running mileage. Cross-training is context and is not counted as running mileage.
 
@@ -197,10 +238,13 @@ Run:
 npm run generate:daily -- --date YYYY-MM-DD
 ```
 
+`npm run generate:daily -- --date YYYY-MM-DD` means: generate the coaching check-in for that coaching day. The daily generator uses the previous day as evidence.
+
 Example:
 
 ```bash
-npm run generate:daily -- --date 2026-06-27
+npm run journal -- --date 2026-06-27
+npm run generate:daily -- --date 2026-06-28
 ```
 
 This writes:
@@ -209,12 +253,12 @@ This writes:
 output/daily-checkin.md
 ```
 
-The `--date` is the check-in date. The generator uses the previous day as evidence for what to ask ChatGPT about today.
+This uses the June 27 journal/export data as evidence and writes a June 28 coaching check-in. The output can be pasted into ChatGPT on the night of June 27 or the morning of June 28.
 
 To print the generated Markdown to the terminal:
 
 ```bash
-npm run generate:daily -- --date 2026-06-27 --preview
+npm run generate:daily -- --date 2026-06-28 --preview
 ```
 
 ## Generating Weekly Summary
@@ -244,6 +288,22 @@ To print the generated Markdown to the terminal:
 ```bash
 npm run generate:weekly -- --week-start 2026-06-22 --preview
 ```
+
+## Running Journal
+
+Create the journal for the completed day you are logging:
+
+```bash
+npm run journal
+```
+
+Create a journal for a specific date:
+
+```bash
+npm run journal -- --date YYYY-MM-DD
+```
+
+The command creates an ignored local file under `input/journal/` and does not overwrite an existing journal. This date is the evidence day, not the coaching day.
 
 ## Running Demo Mode
 
@@ -304,24 +364,31 @@ npm test
 
 ## Recommended Daily Workflow
 
-1. Update `input/manual/daily-notes.csv`.
-2. Add or update any relevant manual activities.
-3. Optionally add local Garmin/Strava exports.
-4. Run `npm run inspect`.
-5. Run `npm run generate:daily -- --date YYYY-MM-DD`.
-6. Open `output/daily-checkin.md`.
-7. Paste the Markdown into ChatGPT.
-8. Review the coaching response and update `input/manual/plan-notes.md` if needed.
+1. Export Garmin/Strava activities if available.
+2. At the end of the day, run `npm run journal` or `npm run journal -- --date YYYY-MM-DD` for the day that just happened.
+3. Fill out the journal in under one minute.
+4. Run `npm run generate:daily -- --date YYYY-MM-DD` for the next coaching day.
+5. Open `output/daily-checkin.md`.
+6. Paste the Markdown into ChatGPT that night to plan tomorrow, or the next morning to plan the current day.
+7. Review the coaching response and update future journal notes or plan notes if needed.
+
+For example, on the night of June 27, 2026:
+
+```bash
+npm run journal -- --date 2026-06-27
+npm run generate:daily -- --date 2026-06-28
+```
 
 ## Recommended Weekly Workflow
 
 1. Make sure the week has daily notes and activities.
 2. Add any local exports you want included.
-3. Run `npm run parse:exports`.
-4. Run `npm run generate:weekly -- --week-start YYYY-MM-DD`.
-5. Open `output/weekly-summary.md`.
-6. Paste the Markdown into ChatGPT.
-7. Review mileage, recovery, duplicate warnings, and next-week recommendations.
+3. Create or update daily journals for the week.
+4. Run `npm run parse:exports`.
+5. Run `npm run generate:weekly -- --week-start YYYY-MM-DD`.
+6. Open `output/weekly-summary.md`.
+7. Paste the Markdown into ChatGPT.
+8. Review mileage, recovery, duplicate warnings, and next-week recommendations.
 
 ## How To Paste Output Into ChatGPT
 
@@ -336,6 +403,8 @@ Manual entries and exports can overlap. For example, a manual row copied from a 
 The tool compares date, activity type, distance, duration, and start time when available.
 
 High-confidence duplicates are kept internally but one likely duplicate is excluded from daily and weekly totals to reduce double-counting. Uncertain duplicates stay in totals and produce a warning.
+
+The journal template explicitly tells you not to re-enter imported runs, walks, or other exported activities under `Manual Activities`. Use that section only for manual-only activities or imports that are missing or incorrect.
 
 Review data quality warnings before trusting mileage totals.
 
@@ -352,7 +421,7 @@ npm config get ca
 
 Do not permanently disable SSL verification unless you understand the risk.
 
-If generation says local input files are missing, copy the templates into the private working filenames listed above.
+If generation says local input files are missing, create a journal with `npm run journal` or copy the legacy CSV templates into the private working filenames listed above.
 
 If weekly generation fails, confirm `--week-start` is a Monday.
 
@@ -376,6 +445,7 @@ git status --short --ignored
 Then inspect staged files and confirm:
 
 - no private athlete config is tracked
+- no real daily journal files are tracked
 - no real manual input files are tracked
 - no generated `output/` files are tracked
 - no raw Garmin/Strava exports are tracked

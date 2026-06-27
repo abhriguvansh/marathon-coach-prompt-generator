@@ -6,6 +6,7 @@ const allowedExactPaths = new Set([
   "private/.gitkeep",
   "input/garmin/.gitkeep",
   "input/strava/.gitkeep",
+  "input/journal/template.md",
   "output/.gitkeep",
   "examples/demo-daily-checkin.md",
   "examples/demo-weekly-summary.md",
@@ -22,6 +23,8 @@ const contentAllowlistPrefixes = [
 const contentAllowlistExactPaths = new Set([
   ".gitignore",
   "src/cli/parse-exports.ts",
+  "src/cli/journal.ts",
+  "src/parsers/journal.ts",
   "src/generator/daily-markdown.ts",
   "src/generator/weekly-markdown.ts",
   "scripts/inspect.cjs",
@@ -135,6 +138,13 @@ function scanPathRisk(file) {
     !/\.template\.(csv|md)$/i.test(file)
   ) {
     risks.push(pathRisk(file, "real manual input files must not be committed"));
+  }
+
+  if (
+    lower.startsWith("input/journal/") &&
+    lower !== "input/journal/template.md"
+  ) {
+    risks.push(pathRisk(file, "real daily journal files must not be committed"));
   }
 
   if (lower.startsWith("input/garmin/")) {

@@ -59,6 +59,13 @@ export function renderDailyCheckIn(summary: DailySummary): string {
     "",
     `- Gear notes: ${formatActivityNoteValues(summary.activityNotes, "gear")}`,
     `- Fueling/hydration notes: ${formatActivityNoteValues(summary.activityNotes, "fuelingHydrationNotes")}`,
+    `- Journal nutrition: ${formatJournalNutrition(summary.journalEntry)}`,
+    `- Journal gear: ${formatJournalGear(summary.journalEntry)}`,
+    "",
+    "## Coach Notes And Questions",
+    "",
+    `- Coach notes: ${formatUnknown(summary.journalEntry?.coachNotes, "not provided")}`,
+    `- Questions from journal: ${formatUnknown(summary.journalEntry?.questionsForCoach, "not provided")}`,
     "",
     "## Plan Notes",
     "",
@@ -90,6 +97,46 @@ export function renderDailyCheckIn(summary: DailySummary): string {
     "Given this context, what should I do today, and should this week's plan change? Prioritize injury prevention, consistency, and separating running mileage from walking and cross-training load.",
     "",
   ].join("\n");
+}
+
+function formatJournalNutrition(
+  journalEntry: DailySummary["journalEntry"],
+): string {
+  if (!journalEntry) {
+    return "not provided";
+  }
+
+  return formatValues([
+    journalEntry.hydration === null
+      ? null
+      : `Hydration: ${journalEntry.hydration}`,
+    journalEntry.fueling === null ? null : `Fueling: ${journalEntry.fueling}`,
+    journalEntry.bodyWeight === null
+      ? null
+      : `Body weight: ${journalEntry.bodyWeight}`,
+  ]);
+}
+
+function formatJournalGear(journalEntry: DailySummary["journalEntry"]): string {
+  if (!journalEntry) {
+    return "not provided";
+  }
+
+  return formatValues([
+    journalEntry.shoes === null ? null : `Shoes: ${journalEntry.shoes}`,
+    journalEntry.equipment === null
+      ? null
+      : `Equipment: ${journalEntry.equipment}`,
+    journalEntry.gearOtherNotes === null
+      ? null
+      : `Other: ${journalEntry.gearOtherNotes}`,
+  ]);
+}
+
+function formatValues(values: Array<string | null>): string {
+  const present = values.filter((value): value is string => value !== null);
+
+  return present.length === 0 ? "not provided" : present.join("; ");
 }
 
 function formatBaselineRun(config: DailySummary["athleteConfig"]): string {

@@ -4,6 +4,10 @@ import { loadAthleteConfig } from "../config/load";
 import { parseLocalExports } from "../exports/export-scanner";
 import { renderWeeklySummary } from "../generator/weekly-markdown";
 import { createWeeklySummary } from "../generator/weekly-summary";
+import {
+  loadJournalInputs,
+  mergeDailyNotesPreferJournal,
+} from "../parsers/journal";
 import { loadManualInputs } from "../parsers/manual-notes";
 import { getWeekRange, parseDate, formatDate } from "../utils/dates";
 
@@ -62,16 +66,22 @@ export function generateWeeklySummary(
     planNotesPath: join(cwd, "input/manual/plan-notes.md"),
   });
   const exportInputs = parseLocalExports(cwd);
+  const journalInputs = loadJournalInputs(cwd);
   const summary = createWeeklySummary({
     weekStart: args.weekStart,
     athleteConfig: config,
-    dailyNotes: manualInputs.dailyNotes,
+    dailyNotes: mergeDailyNotesPreferJournal(
+      manualInputs.dailyNotes,
+      journalInputs.dailyNotes,
+    ),
     activityNotes: manualInputs.activityNotes,
     manualActivities: [
       ...manualInputs.manualActivities,
       ...exportInputs.activities,
+      ...journalInputs.manualActivities,
     ],
     planNotes: manualInputs.planNotes,
+    journalEntries: journalInputs.journalEntries,
     exportWarnings: exportInputs.warnings,
     missingFiles: manualInputs.missingFiles.map((file) => relative(cwd, file)),
   });

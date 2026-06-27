@@ -53,6 +53,13 @@
 
 - Gear notes: Mat
 - Fueling/hydration notes: Water.
+- Journal nutrition: not provided
+- Journal gear: not provided
+
+## Coach Notes And Questions
+
+- Coach notes: not provided
+- Questions from journal: not provided
 
 ## Plan Notes
 

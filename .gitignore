@@ -10,6 +10,9 @@ input/**
 !input/manual/
 !input/manual/*.template.csv
 !input/manual/*.template.md
+!input/journal/
+input/journal/*
+!input/journal/template.md
 !input/garmin/
 !input/garmin/.gitkeep
 !input/strava/

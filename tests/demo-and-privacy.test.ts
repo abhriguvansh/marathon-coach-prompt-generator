@@ -100,6 +100,23 @@ describe("privacy check", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("catches real daily journal files", () => {
+    const dir = makeGitRepo();
+    writeFile(
+      join(dir, "input/journal/2026-06-22.md"),
+      "# Daily Journal\n\nFake private-style journal note.",
+    );
+
+    const result = runPrivacyCheck(dir);
+
+    assert.equal(result.ok, false);
+    assert.match(
+      result.output,
+      /real daily journal files must not be committed/,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("catches generated output files", () => {
     const dir = makeGitRepo();
     writeFile(

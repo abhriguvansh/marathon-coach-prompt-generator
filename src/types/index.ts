@@ -89,6 +89,18 @@ export interface ManualActivity {
   notes: string | null;
 }
 
+export interface JournalEntry {
+  date: string;
+  hydration: string | null;
+  fueling: string | null;
+  bodyWeight: string | null;
+  shoes: string | null;
+  equipment: string | null;
+  gearOtherNotes: string | null;
+  coachNotes: string | null;
+  questionsForCoach: string | null;
+}
+
 export type ExportSource = "garmin_export" | "strava_export";
 
 export interface ExportParseWarning {
@@ -139,6 +151,7 @@ export interface DailySummary {
   activityNotes: ActivityNote[];
   manualActivities: ManualActivity[];
   planNotes: string | null;
+  journalEntry: JournalEntry | null;
   exportWarnings: ExportParseWarning[];
   duplicateWarnings: DuplicateActivityWarning[];
   daysUntilRace: number;
@@ -198,6 +211,7 @@ export interface WeeklySummary {
   activityNotes: ActivityNote[];
   manualActivities: ManualActivity[];
   planNotes: string | null;
+  journalEntries: JournalEntry[];
   exportWarnings: ExportParseWarning[];
   duplicateWarnings: DuplicateActivityWarning[];
   totals: WeeklyActivityTotals;

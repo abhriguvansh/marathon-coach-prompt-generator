@@ -56,6 +56,19 @@ npm run generate:daily -- --date YYYY-MM-DD
 npm run generate:weekly -- --week-start YYYY-MM-DD
 ```
 
+The journal command also uses exports to prefill the read-only imported activity reference section:
+
+```bash
+npm run journal -- --date YYYY-MM-DD
+```
+
+That journal date is the completed evidence day. For next-day coaching, generate the daily check-in with the following day as the coaching date:
+
+```bash
+npm run journal -- --date 2026-06-27
+npm run generate:daily -- --date 2026-06-28
+```
+
 Manual activities and exports may overlap. Review data quality warnings before trusting totals.
 
 ## Duplicate Detection
@@ -63,6 +76,8 @@ Manual activities and exports may overlap. Review data quality warnings before t
 The tool compares date, activity type, distance, duration, and start time when available.
 
 High-confidence duplicates may be excluded from daily and weekly totals to avoid double-counting. Uncertain duplicates stay in totals and produce warnings.
+
+Do not manually re-enter imported runs, walks, or other exported activities in the daily journal unless the import is missing or incorrect.
 
 ## Before Committing
 

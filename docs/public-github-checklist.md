@@ -25,6 +25,7 @@ Use this checklist before publishing the repository, pushing a branch, or openin
 ## 3. Confirm Private Files Are Not Tracked
 
 - Confirm no private athlete config is tracked.
+- Confirm no real `input/journal/YYYY-MM-DD.md` files are tracked.
 - Confirm no real `input/manual/` working files are tracked.
 - Confirm no generated `output/` files are tracked.
 - Confirm no Garmin exports are tracked.
@@ -38,6 +39,7 @@ Use this checklist before publishing the repository, pushing a branch, or openin
 
 - Confirm `config/athlete.example.json` uses fake data only.
 - Confirm templates in `input/manual/` use fake/demo rows only.
+- Confirm `input/journal/template.md` contains guidance only, not real journal content.
 - Confirm `examples/demo-daily-checkin.md` says it is fake public-safe output.
 - Confirm `examples/demo-weekly-summary.md` says it is fake public-safe output.
 - Confirm tests use synthetic fixtures only.
