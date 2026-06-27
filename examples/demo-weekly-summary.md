@@ -66,6 +66,9 @@
 - Rock climbing, tennis, weights, mobility, and steps are training-load context, not running mileage.
 - Do not claim marathon goal readiness from this week alone; treat ambitious race goals as stretch goals unless supported by enough recent data.
 - Missing values are shown as unknown or not provided.
+- Local export parsing omits route points and GPS coordinates from this prompt.
+- No local export warnings.
+- No likely duplicate activity warnings.
 
 ## Missing Data Flags
 

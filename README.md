@@ -1,38 +1,63 @@
 # Marathon Coach Prompt Generator
 
-A local TypeScript Node CLI for turning private training notes into clean Markdown prompts that can be pasted into ChatGPT for marathon coaching.
+A private, local command-line tool for turning marathon training notes and local activity exports into clean Markdown that you can paste into ChatGPT for coaching help.
 
-The tool is intentionally local-first. It summarizes evidence so ChatGPT can reason from it; it does not replace ChatGPT as the coach.
+## Plain-English Overview
 
-## What It Does
+This project helps you collect the evidence a coach would need: recent runs, walks, recovery notes, pain flags, schedule context, and race goals. It then writes a daily check-in or weekly summary as a Markdown file.
 
-- Reads local CSV notes, manual activity summaries, and local export-derived files.
-- Keeps running mileage separate from walking and cross-training context.
-- Generates coaching-ready Markdown summaries.
-- Helps check that private files stay out of Git.
-- Parses supported Garmin/Strava local export files without API access.
+The tool does not coach by itself. It prepares a clear prompt for ChatGPT while keeping your real training data on your computer.
 
-## What It Does Not Do
+## Why This Exists
+
+Marathon training data is scattered across notes, watches, exported files, and memory. It can also be sensitive: health, location, schedule, and recovery details do not belong in a public repository.
+
+This project keeps the workflow local, explicit, and easy to audit before anything is committed or published.
+
+## What This Tool Does
+
+- Reads private local athlete config from `private/`.
+- Reads private manual notes from `input/manual/`.
+- Reads supported local Garmin and Strava export files from ignored folders.
+- Keeps running mileage separate from walking mileage.
+- Treats cross-training, steps, climbing, weights, tennis, and mobility as context, not running mileage.
+- Generates `output/daily-checkin.md` and `output/weekly-summary.md`.
+- Provides fake demo outputs that are safe for public GitHub.
+- Provides privacy checks before committing or publishing.
+
+## What This Tool Does Not Do
 
 - No web app.
-- No Strava API, OAuth, tokens, webhooks, or automatic sync.
+- No Garmin API.
+- No Strava API.
+- No OAuth.
+- No cloud sync.
 - No OpenAI API calls.
+- No authentication.
 - No database.
-- No diagnosis of injuries.
-- No upload of private health, location, or training data.
+- No FIT parsing yet.
+- No medical diagnosis or injury treatment plan.
 
-## Why Not A Web App
+## Privacy Model
 
-This project is designed for private local files. A command-line workflow keeps the first version simpler, easier to audit, and less likely to expose sensitive data.
+The public repository contains code, templates, docs, fake examples, and synthetic tests. Your real data belongs only in ignored local files.
 
-## Setup
+The tool should not print raw private file contents during inspection or export parsing. Generated daily and weekly Markdown may contain private training details, so generated files are written under `output/`, which is ignored by Git.
 
-```bash
-npm install
-npm run inspect
-npm run build
-npm test
-```
+## Public GitHub Safety Warning
+
+Before committing or publishing, assume these are private:
+
+- `private/athlete.config.local.json`
+- `input/manual/daily-notes.csv`
+- `input/manual/activity-notes.csv`
+- `input/manual/manual-activities.csv`
+- `input/manual/plan-notes.md`
+- any Garmin, Strava, GPX, TCX, FIT, JSON, CSV, screenshot, or activity export with real data
+- anything under `output/`
+- `.env` files, tokens, secrets, or credentials
+
+Run `npm run privacy:check` and inspect `git status --short --ignored` before every public commit.
 
 ## Folder Structure
 
@@ -44,77 +69,37 @@ input/garmin/           Ignored local Garmin exports
 input/strava/           Ignored local Strava exports
 output/                 Ignored generated summaries
 examples/               Fake demo output safe for public GitHub
-src/                    CLI source code
+docs/                   Public setup and safety docs
+src/                    TypeScript CLI source code
 tests/                  Unit tests and synthetic fixtures
 ```
 
-## Local Working Files
+## Installation
 
-Copy templates before entering real data:
-
-```bash
-cp input/manual/daily-notes.template.csv input/manual/daily-notes.local.csv
-cp input/manual/activity-notes.template.csv input/manual/activity-notes.local.csv
-cp input/manual/manual-activities.template.csv input/manual/manual-activities.local.csv
-cp input/manual/plan-notes.template.md input/manual/plan-notes.local.md
-```
-
-The copied local files are ignored by Git.
-
-## Private Athlete Config
-
-Copy the fake example config:
+Install Node.js 18 or newer, then run:
 
 ```bash
-cp config/athlete.example.json private/athlete.config.local.json
-```
-
-Then edit the private copy with real details. Do not put real athlete or race details in reusable application logic.
-
-## Privacy Checklist
-
-Never commit:
-
-- Real athlete config files.
-- Training logs, daily notes, soreness notes, pain notes, or recovery notes.
-- Garmin, Strava, phone health, or GPS exports.
-- Screenshots of real activities.
-- Generated summaries from real data.
-- `.env` files, API keys, tokens, secrets, or credentials.
-
-Before publishing or committing, run:
-
-```bash
-npm run inspect
-npm run privacy:check
-git status
-```
-
-The inspect command checks for expected local folders and warns not to commit private data. It does not print private file contents. The privacy check scans tracked files and untracked commit candidates for obvious risky paths, filenames, export files, screenshots, and secret-like text. Public docs and tests are allowed to mention warning terms.
-
-## Commands
-
-```bash
-npm run generate:daily -- --date 2026-06-27
-npm run generate:daily -- --date 2026-06-27 --preview
-npm run generate:weekly -- --week-start 2026-06-22
-npm run generate:weekly -- --week-start 2026-06-22 --preview
-npm run demo:daily
-npm run demo:weekly
-npm run parse:exports
+npm install
 npm run inspect
 npm run build
 npm test
-npm run lint
-npm run format
-npm run privacy:check
 ```
 
-`npm run lint` currently uses the TypeScript compiler with `--noEmit`. This keeps the first version dependency-light while still checking types.
+## First-Time Setup
 
-## Daily Check-In Generation
+Create private local working files from the public examples and templates.
 
-Create private local files first:
+PowerShell:
+
+```powershell
+Copy-Item config/athlete.example.json private/athlete.config.local.json
+Copy-Item input/manual/daily-notes.template.csv input/manual/daily-notes.csv
+Copy-Item input/manual/activity-notes.template.csv input/manual/activity-notes.csv
+Copy-Item input/manual/manual-activities.template.csv input/manual/manual-activities.csv
+Copy-Item input/manual/plan-notes.template.md input/manual/plan-notes.md
+```
+
+macOS/Linux shell:
 
 ```bash
 cp config/athlete.example.json private/athlete.config.local.json
@@ -124,80 +109,296 @@ cp input/manual/manual-activities.template.csv input/manual/manual-activities.cs
 cp input/manual/plan-notes.template.md input/manual/plan-notes.md
 ```
 
-Then edit the private copies with real local data. `npm run generate:daily -- --date YYYY-MM-DD` writes `output/daily-checkin.md`, which is ignored by Git because it may contain private training and recovery information.
+Then run:
 
-The `--date` value is the check-in date. The generator summarizes the previous day's notes and activities as evidence for what to do today. `--preview` prints the generated Markdown summary; it does not print raw input files.
+```bash
+npm run inspect
+```
 
-## Weekly Summary Generation
+## Creating Private Athlete Config
 
-`npm run generate:weekly -- --week-start YYYY-MM-DD` writes `output/weekly-summary.md`, which is ignored by Git because it may contain private training and recovery data.
+Edit `private/athlete.config.local.json` with your real local race and training context. This file is ignored by Git.
 
-The `--week-start` value must be a Monday. The weekly summary keeps running mileage separate from walking mileage, treats cross-training and steps as context, and asks ChatGPT to review whether next week's training should progress, hold steady, or back off. `--preview` prints only the generated Markdown summary, not raw private files.
+Keep public config files fake. Do not put real athlete names, real race logistics, private travel, or health details in `config/athlete.example.json`.
 
-## Local Export Parsing
+## Copying Manual Note Templates
 
-The tool can scan ignored local export folders and include parsed activity summaries in daily and weekly prompts:
+The committed templates are:
+
+- `input/manual/daily-notes.template.csv`
+- `input/manual/activity-notes.template.csv`
+- `input/manual/manual-activities.template.csv`
+- `input/manual/plan-notes.template.md`
+
+The private working files are:
+
+- `input/manual/daily-notes.csv`
+- `input/manual/activity-notes.csv`
+- `input/manual/manual-activities.csv`
+- `input/manual/plan-notes.md`
+
+The private working files are ignored by Git.
+
+## Filling In Daily Notes
+
+Use `daily-notes.csv` for date-level recovery and readiness context: soreness, pain, gait changes, fatigue, energy, sleep, stress, motivation, steps, and short notes.
+
+Use one row per day. Keep notes concise enough that the generated prompt remains readable.
+
+## Filling In Activity Notes
+
+Use `activity-notes.csv` for notes about activities already represented elsewhere, such as gear, fueling, terrain, perceived effort, or anything you want the coaching prompt to know.
+
+This file is useful when an export has numbers but not enough context.
+
+## Filling In Manual Activities
+
+Use `manual-activities.csv` for activities you enter yourself: runs, walks, strength, climbing, tennis, mobility, rest, and other training context.
+
+Walking mileage stays separate from running mileage. Cross-training is context and is not counted as running mileage.
+
+## Adding Garmin/Strava Local Exports
+
+Put real local exports in ignored folders:
 
 ```txt
 input/garmin/
 input/strava/
 ```
 
-Supported local formats:
+These files may contain GPS, heart-rate, route, health, and schedule details. Do not commit them.
+
+## Supported Export Formats
+
+Best-effort local parsing is available for:
 
 - `.csv`
 - `.tcx`
 - `.gpx`
 - `.json`
 
-FIT parsing is intentionally skipped for now. FIT is a binary format, and this project is staying dependency-light until there is a clear, maintained parser worth adding.
+Run:
 
-No Garmin API, Strava API, OAuth, cloud sync, or upload is used. Export files can contain sensitive GPS, heart-rate, health, and location data, so real exports must stay in ignored local folders and must never be committed.
+```bash
+npm run parse:exports
+```
+
+The command prints safe counts and summaries. It does not print raw route points or raw private file contents.
+
+## FIT Limitation
+
+FIT files are detected and reported as unsupported, but they are not parsed yet. FIT is a binary format, and this project is staying dependency-light until a parser is added deliberately.
+
+## Generating Daily Check-In
 
 Run:
 
 ```bash
-npm run inspect
-npm run parse:exports
+npm run generate:daily -- --date YYYY-MM-DD
 ```
 
-`inspect` reports safe counts and file-type summaries only. `parse:exports` prints a safe activity summary without raw file contents or route coordinates. Daily and weekly generators merge parsed export activities with manual activities, keeping walking separate from running and treating climbing, tennis, weights, mobility, and steps as context.
+Example:
 
-## Duplicate Detection
+```bash
+npm run generate:daily -- --date 2026-06-27
+```
 
-Manual entries and local exports can overlap. For example, a manual row copied from a screenshot may describe the same run as a Garmin or Strava export.
+This writes:
 
-The tool uses conservative duplicate detection across manual, Garmin export, and Strava export activities. It compares calendar date, normalized activity type, distance, duration, and start time when available.
+```txt
+output/daily-checkin.md
+```
 
-High-confidence duplicates are kept internally but one likely duplicate is excluded from daily and weekly mileage/duration totals to reduce double-counting. Uncertain matches stay in totals and produce a warning instead of being merged. Duplicate detection is not perfect, so review data quality warnings before trusting mileage totals.
+The `--date` is the check-in date. The generator uses the previous day as evidence for what to ask ChatGPT about today.
 
-## Demo Mode
+To print the generated Markdown to the terminal:
 
-Demo mode refreshes public-safe sample outputs from committed fake data only:
+```bash
+npm run generate:daily -- --date 2026-06-27 --preview
+```
+
+## Generating Weekly Summary
+
+Run:
+
+```bash
+npm run generate:weekly -- --week-start YYYY-MM-DD
+```
+
+The week start must be a Monday.
+
+Example:
+
+```bash
+npm run generate:weekly -- --week-start 2026-06-22
+```
+
+This writes:
+
+```txt
+output/weekly-summary.md
+```
+
+To print the generated Markdown to the terminal:
+
+```bash
+npm run generate:weekly -- --week-start 2026-06-22 --preview
+```
+
+## Running Demo Mode
+
+Demo mode refreshes public-safe example outputs from fake data only:
 
 ```bash
 npm run demo:daily
 npm run demo:weekly
 ```
 
-These commands write:
+Demo outputs are written to:
 
 - `examples/demo-daily-checkin.md`
 - `examples/demo-weekly-summary.md`
 
-Demo outputs use fake details such as Sample Runner and Example City Marathon. They are safe to commit. Real generated outputs remain ignored under `output/`, and real local inputs remain ignored under `input/`.
+They should always mention fake/sample data and should never be replaced with real generated output.
+
+## Running Inspect
+
+Run:
+
+```bash
+npm run inspect
+```
+
+Inspect reports whether expected folders and local files exist. It may show safe counts for export files. It does not print private file contents.
+
+## Running Privacy Check
+
+Run:
+
+```bash
+npm run privacy:check
+```
+
+This checks tracked files and untracked commit candidates for risky paths, raw exports, screenshots, private config, generated output, and secret-like strings.
+
+Also run:
+
+```bash
+git status --short --ignored
+```
+
+Confirm real local files are ignored before committing.
+
+## Running Tests/Build/Lint
+
+Useful project checks:
+
+```bash
+npm run format
+npm run build
+npm run lint
+npm test
+```
+
+`npm run lint` currently uses TypeScript `--noEmit` to keep dependencies minimal.
+
+## Recommended Daily Workflow
+
+1. Update `input/manual/daily-notes.csv`.
+2. Add or update any relevant manual activities.
+3. Optionally add local Garmin/Strava exports.
+4. Run `npm run inspect`.
+5. Run `npm run generate:daily -- --date YYYY-MM-DD`.
+6. Open `output/daily-checkin.md`.
+7. Paste the Markdown into ChatGPT.
+8. Review the coaching response and update `input/manual/plan-notes.md` if needed.
+
+## Recommended Weekly Workflow
+
+1. Make sure the week has daily notes and activities.
+2. Add any local exports you want included.
+3. Run `npm run parse:exports`.
+4. Run `npm run generate:weekly -- --week-start YYYY-MM-DD`.
+5. Open `output/weekly-summary.md`.
+6. Paste the Markdown into ChatGPT.
+7. Review mileage, recovery, duplicate warnings, and next-week recommendations.
+
+## How To Paste Output Into ChatGPT
+
+Open the generated file in `output/`, copy the full Markdown, and paste it into ChatGPT.
+
+Do not paste raw exports unless you intentionally choose to. The generated Markdown is designed to omit raw route points and keep the prompt focused.
+
+## Data Quality Warnings And Duplicate Detection
+
+Manual entries and exports can overlap. For example, a manual row copied from a watch screenshot may describe the same run as a Garmin or Strava export.
+
+The tool compares date, activity type, distance, duration, and start time when available.
+
+High-confidence duplicates are kept internally but one likely duplicate is excluded from daily and weekly totals to reduce double-counting. Uncertain duplicates stay in totals and produce a warning.
+
+Review data quality warnings before trusting mileage totals.
+
+## Troubleshooting
+
+If `npm install` fails with a certificate error, check your npm registry and certificate settings before changing SSL behavior:
+
+```bash
+npm config get registry
+npm config get strict-ssl
+npm config get cafile
+npm config get ca
+```
+
+Do not permanently disable SSL verification unless you understand the risk.
+
+If generation says local input files are missing, copy the templates into the private working filenames listed above.
+
+If weekly generation fails, confirm `--week-start` is a Monday.
+
+If exports do not appear, confirm they are in `input/garmin/` or `input/strava/` and use a supported format.
+
+## Before Publishing To GitHub Checklist
+
+Run:
+
+```bash
+npm run format
+npm run build
+npm run lint
+npm test
+npm run demo:daily
+npm run demo:weekly
+npm run privacy:check
+git status --short --ignored
+```
+
+Then inspect staged files and confirm:
+
+- no private athlete config is tracked
+- no real manual input files are tracked
+- no generated `output/` files are tracked
+- no raw Garmin/Strava exports are tracked
+- no screenshots or activity images are tracked
+- examples are fake
+- README and docs contain no private details
+
+See [docs/public-github-checklist.md](docs/public-github-checklist.md) for the full checklist.
 
 ## Known Limitations
 
-- Prompt generation is not implemented yet.
-- FIT export parsing is not implemented yet.
+- This is a prompt generator, not a coaching engine.
+- FIT parsing is not implemented.
 - Export parsing is best-effort and intentionally avoids route-point output.
-- Daily check-in generation currently uses manual CSV/Markdown files plus best-effort local export summaries.
-- Weekly summary generation currently uses manual CSV/Markdown files plus best-effort local export summaries.
+- Duplicate detection is conservative and may warn instead of merging.
+- The privacy check is a guardrail, not a substitute for reviewing staged files.
+- Medical concerns should be handled by qualified professionals, not this tool.
 
-## Planned Next Sessions
+## Roadmap/Future Improvements
 
-- Add richer validation for manual CSV files.
-- Add richer validation for parsed local exports.
-- Add multi-week trend summaries.
-- Add more synthetic fixtures for end-to-end prompt generation.
+- Richer validation for manual CSV files.
+- Richer validation for parsed local exports.
+- Multi-week trend summaries.
+- More synthetic end-to-end fixtures.
+- Optional FIT support if a safe, maintained parser is chosen.
+- More detailed setup diagnostics without printing private contents.

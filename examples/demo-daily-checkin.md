@@ -62,6 +62,13 @@ Fake plan note: keep easy days easy, separate walking from running mileage, and 
 
 - None.
 
+## Data Quality Notes
+
+- Walking mileage is reported separately and is not counted as running mileage.
+- Local export parsing omits route points and GPS coordinates from this prompt.
+- No local export warnings.
+- No likely duplicate activity warnings.
+
 ## Safety Flags
 
 - Pain location may be one-sided. Do not diagnose; prioritize caution.

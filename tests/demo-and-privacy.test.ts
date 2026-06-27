@@ -14,6 +14,8 @@ import { generateDemoDaily } from "../src/cli/demo-daily";
 import { generateDemoWeekly } from "../src/cli/demo-weekly";
 
 const privacyScript = join(process.cwd(), "scripts/privacy-check.cjs");
+const readProjectFile = (path: string): string =>
+  readFileSync(join(process.cwd(), path), "utf8");
 
 describe("demo generation", () => {
   it("generates fake daily demo output", () => {
@@ -142,6 +144,51 @@ describe("privacy check", () => {
     assert.match(result.output, /Authorization header/);
     assert.match(result.output, /Bearer token/);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("public documentation", () => {
+  it("documents the local-only privacy model and required commands", () => {
+    const readme = readProjectFile("README.md");
+    const packageJson = JSON.parse(readProjectFile("package.json")) as {
+      scripts: Record<string, string>;
+    };
+
+    assert.match(readme, /No Strava API/);
+    assert.match(readme, /No Garmin API/);
+    assert.match(readme, /No OAuth/);
+    assert.match(readme, /No OpenAI API calls/);
+    assert.match(readme, /npm run privacy:check/);
+    assert.match(readme, /private\/athlete\.config\.local\.json/);
+    assert.match(readme, /input\/manual\/daily-notes\.csv/);
+
+    for (const script of [
+      "inspect",
+      "generate:daily",
+      "generate:weekly",
+      "parse:exports",
+      "demo:daily",
+      "demo:weekly",
+      "privacy:check",
+      "format",
+      "build",
+      "lint",
+      "test",
+    ]) {
+      assert.equal(Boolean(packageJson.scripts[script]), true);
+    }
+  });
+
+  it("keeps committed demo outputs clearly fake", () => {
+    const daily = readProjectFile("examples/demo-daily-checkin.md");
+    const weekly = readProjectFile("examples/demo-weekly-summary.md");
+
+    assert.match(daily, /Public-safe fake demo output/);
+    assert.match(daily, /Sample Runner/);
+    assert.match(daily, /Example City Marathon/);
+    assert.match(weekly, /Public-safe fake demo output/);
+    assert.match(weekly, /Sample Runner/);
+    assert.match(weekly, /Example City Marathon/);
   });
 });
 
