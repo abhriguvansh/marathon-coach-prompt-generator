@@ -210,7 +210,9 @@ function formatActivityGroup(
     return [`- ${label}: not provided`];
   }
 
-  if (activities.every((activity) => !activity.laps?.length)) {
+  if (
+    activities.every((activity) => validRenderableSplits(activity).length === 0)
+  ) {
     return [`- ${label}: ${activities.map(formatActivitySummary).join("; ")}`];
   }
 
@@ -261,13 +263,19 @@ function formatActivitySummary(activity: ManualActivity): string {
     activity.temperatureC === null || activity.temperatureC === undefined
       ? null
       : `Temp ${Math.round(activity.temperatureC)} C`,
-    activity.device === null || activity.device === undefined
-      ? null
-      : `Device ${activity.device}`,
+    formatDevice(activity.device),
     activity.notes,
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
+}
+
+function formatDevice(device: string | null | undefined): string | null {
+  if (!device || /manufacturer\s+\d+|product\s+\d+/i.test(device)) {
+    return null;
+  }
+
+  return `Device ${device}`;
 }
 
 function formatTimeDetails(activity: ManualActivity): string[] {
@@ -308,32 +316,80 @@ function formatElevation(activity: ManualActivity): string | null {
     gain === null || gain === undefined
       ? null
       : `Elevation gain ${Math.round(gain)} ft`,
-    loss === null || loss === undefined ? null : `loss ${Math.round(loss)} ft`,
+    loss === null || loss === undefined
+      ? null
+      : gain === null || gain === undefined
+        ? `Elevation loss ${Math.round(loss)} ft`
+        : `loss ${Math.round(loss)} ft`,
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
 }
 
 function formatLapLines(activity: ManualActivity): string[] {
-  if (!activity.laps || activity.laps.length === 0) {
+  const splits = validRenderableSplits(activity);
+
+  if (splits.length === 0) {
     return [];
   }
 
   return [
-    `    - Splits / Laps (${paceVariability(activity.laps)}):`,
-    ...activity.laps.map((lap, index) => {
+    `    - Splits / Laps (${paceVariability(splits)}):`,
+    ...splits.map((lap, index) => {
       const distanceMiles = lap.distanceMiles;
       const isFinal =
-        index === (activity.laps?.length ?? 0) - 1 &&
+        index === splits.length - 1 &&
         distanceMiles !== null &&
         Math.abs(distanceMiles - Math.round(distanceMiles)) > 0.05;
-      const label = isFinal
-        ? `Final ${formatLapMiles(distanceMiles ?? 0)}`
-        : `Lap ${lap.lapNumber}`;
+      const label =
+        lap.label ??
+        (isFinal
+          ? `Final ${formatLapMiles(distanceMiles ?? 0)}`
+          : `Lap ${lap.lapNumber}`);
 
       return `      - ${label}: ${formatLap(lap, !isFinal)}`;
     }),
   ];
+}
+
+function validRenderableSplits(activity: ManualActivity) {
+  const splits = activity.laps ?? [];
+
+  if (splits.length < 2) {
+    return [];
+  }
+
+  const valid = splits.filter(
+    (split) =>
+      !duplicatesActivity(
+        split,
+        activity.distanceMiles,
+        activity.durationMinutes === null
+          ? null
+          : activity.durationMinutes * 60,
+      ),
+  );
+
+  return valid.length < 2 ? [] : valid;
+}
+
+function duplicatesActivity(
+  split: NonNullable<ManualActivity["laps"]>[number],
+  activityDistanceMiles: number | null,
+  activityDurationSeconds: number | null,
+): boolean {
+  const distanceDuplicate =
+    split.distanceMiles !== null &&
+    activityDistanceMiles !== null &&
+    Math.abs(split.distanceMiles - activityDistanceMiles) <=
+      Math.max(0.03, activityDistanceMiles * 0.02);
+  const durationDuplicate =
+    split.durationSeconds !== null &&
+    activityDurationSeconds !== null &&
+    Math.abs(split.durationSeconds - activityDurationSeconds) <=
+      Math.max(60, activityDurationSeconds * 0.02);
+
+  return distanceDuplicate && durationDuplicate;
 }
 
 function formatLap(
@@ -359,7 +415,7 @@ function formatLap(
 }
 
 function formatLapMiles(miles: number): string {
-  return `${Number(miles.toFixed(2))} mi`;
+  return `${miles.toFixed(2)} mi`;
 }
 
 function paceVariability(laps: NonNullable<ManualActivity["laps"]>): string {
@@ -381,6 +437,10 @@ function paceVariability(laps: NonNullable<ManualActivity["laps"]>): string {
 
   if (range <= 20) {
     return "pace variability: steady";
+  }
+
+  if (range >= 180) {
+    return "pace variability: uneven / stop-start";
   }
 
   if (last - first >= 30 || Math.max(...paces) - first >= 30) {

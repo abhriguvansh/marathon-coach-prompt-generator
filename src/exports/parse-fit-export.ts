@@ -59,8 +59,10 @@ interface FitActivitySummary {
 const FIT_MAGIC = ".FIT";
 const FIT_EPOCH_MS = Date.UTC(1989, 11, 31);
 const METERS_PER_MILE = 1609.344;
+const SPLIT_DISTANCE_TOLERANCE_MILES = 0.005;
 const GLOBAL_SESSION = 18;
 const GLOBAL_LAP = 19;
+const GLOBAL_RECORD = 20;
 const GLOBAL_DEVICE_INFO = 23;
 const GLOBAL_ACTIVITY = 34;
 
@@ -352,10 +354,6 @@ function summarizeFitMessages(
   const sessionMessages = messages.filter(
     (message) => message.globalMessageNumber === GLOBAL_SESSION,
   );
-  const lapSummaries = messages
-    .filter((message) => message.globalMessageNumber === GLOBAL_LAP)
-    .map((message, index) => lapFromMessage(message, index + 1))
-    .filter((lap): lap is ActivityLap => lap !== null);
   const summaryMessages =
     sessionMessages.length > 0
       ? sessionMessages
@@ -369,11 +367,7 @@ function summarizeFitMessages(
 
   return summaryMessages
     .map((message) =>
-      summaryFromMessage(
-        message,
-        messages,
-        sessionMessages.length > 0 ? lapSummaries : [],
-      ),
+      summaryFromMessage(message, messages, sessionMessages.length > 0),
     )
     .filter((summary): summary is FitActivitySummary => summary !== null);
 }
@@ -381,7 +375,7 @@ function summarizeFitMessages(
 function summaryFromMessage(
   message: FitParsedMessage,
   messages: FitParsedMessage[],
-  laps: ActivityLap[],
+  canUseLaps: boolean,
 ): FitActivitySummary | null {
   const startDateTime =
     fitTimestamp(valueNumber(message.fields[2])) ??
@@ -424,14 +418,24 @@ function summaryFromMessage(
       : null;
   const trainingEffect = trainingEffectValue(message.fields[24]);
   const temperatureC = valueNumber(message.fields[20]);
+  const distanceMiles =
+    distanceMeters === null ? null : metersToMiles(distanceMeters);
+  const durationMinutes =
+    durationSeconds === null ? null : durationSeconds / 60;
+  const fitLaps = canUseLaps
+    ? validFitLaps(messages, distanceMiles, durationSeconds)
+    : [];
+  const laps =
+    fitLaps.length > 0
+      ? fitLaps
+      : derivedMileSplits(messages, distanceMiles, durationSeconds);
 
   return {
     startDate: startDateTime.slice(0, 10),
     startTime: startDateTime.slice(11, 19),
     activityType,
-    distanceMiles:
-      distanceMeters === null ? null : metersToMiles(distanceMeters),
-    durationMinutes: durationSeconds === null ? null : durationSeconds / 60,
+    distanceMiles,
+    durationMinutes,
     elevationFt: ascentMeters === null ? null : ascentMeters * 3.28084,
     elevationGainFt: ascentMeters === null ? null : ascentMeters * 3.28084,
     elevationLossFt: descentMeters === null ? null : descentMeters * 3.28084,
@@ -457,7 +461,9 @@ function summaryFromMessage(
     device: deviceName(messages),
     laps,
     dataQualityNotes: [
-      ...(laps.length > 0 ? [`${laps.length} FIT lap summaries parsed.`] : []),
+      ...(laps.length > 0
+        ? [`${laps.length} privacy-safe split summaries parsed.`]
+        : []),
       ...(stoppedTimeSeconds !== null && stoppedTimeSeconds > 0
         ? [
             "Elapsed time is longer than moving time; stopped/paused time estimated from FIT summary fields.",
@@ -466,6 +472,50 @@ function summaryFromMessage(
     ],
     notes: "Parsed from local FIT export; route details omitted.",
   };
+}
+
+function validFitLaps(
+  messages: FitParsedMessage[],
+  activityDistanceMiles: number | null,
+  activityDurationSeconds: number | null,
+): ActivityLap[] {
+  const laps = messages
+    .filter((message) => message.globalMessageNumber === GLOBAL_LAP)
+    .map((message, index) => lapFromMessage(message, index + 1))
+    .filter((lap): lap is ActivityLap => lap !== null)
+    .filter(
+      (lap) =>
+        !duplicatesActivity(
+          lap,
+          activityDistanceMiles,
+          activityDurationSeconds,
+        ),
+    );
+
+  if (laps.length < 2) {
+    return [];
+  }
+
+  const lapDistance = sumLapDistance(laps);
+  const lapDuration = sumLapDuration(laps);
+
+  if (
+    activityDistanceMiles !== null &&
+    lapDistance !== null &&
+    lapDistance > activityDistanceMiles * 1.08
+  ) {
+    return [];
+  }
+
+  if (
+    activityDurationSeconds !== null &&
+    lapDuration !== null &&
+    lapDuration > activityDurationSeconds * 1.08
+  ) {
+    return [];
+  }
+
+  return laps;
 }
 
 function lapFromMessage(
@@ -488,6 +538,8 @@ function lapFromMessage(
 
   return {
     lapNumber,
+    label: null,
+    kind: "fit_lap",
     distanceMiles,
     durationSeconds,
     paceMinPerMile: formatPace(
@@ -502,6 +554,221 @@ function lapFromMessage(
         : (valueNumber(message.fields[21]) ?? 0) * 3.28084,
     avgCadence: valueNumber(message.fields[18]),
   };
+}
+
+interface FitRecordPoint {
+  timestampSeconds: number | null;
+  distanceMiles: number | null;
+  heartRate: number | null;
+  cadence: number | null;
+  altitudeFt: number | null;
+}
+
+function derivedMileSplits(
+  messages: FitParsedMessage[],
+  activityDistanceMiles: number | null,
+  activityDurationSeconds: number | null,
+): ActivityLap[] {
+  const records = messages
+    .filter((message) => message.globalMessageNumber === GLOBAL_RECORD)
+    .map(recordPoint)
+    .filter(
+      (record): record is FitRecordPoint =>
+        record.timestampSeconds !== null && record.distanceMiles !== null,
+    )
+    .sort(
+      (left, right) =>
+        (left.timestampSeconds ?? 0) - (right.timestampSeconds ?? 0),
+    );
+
+  if (records.length < 2 || activityDistanceMiles === null) {
+    return [];
+  }
+
+  const splits: ActivityLap[] = [];
+  let splitStart = records[0];
+  let nextMile = 1;
+
+  for (const record of records.slice(1)) {
+    while (
+      record.distanceMiles !== null &&
+      record.distanceMiles >= nextMile - SPLIT_DISTANCE_TOLERANCE_MILES &&
+      nextMile < Math.floor(activityDistanceMiles) + 1
+    ) {
+      const boundary = interpolateRecord(splitStart, record, nextMile);
+      const split = splitFromRecords(
+        splitStart,
+        boundary,
+        splits.length + 1,
+        `Mile ${nextMile}`,
+      );
+
+      if (split) {
+        splits.push(split);
+      }
+
+      splitStart = boundary;
+      nextMile += 1;
+    }
+  }
+
+  const last = records[records.length - 1];
+  const finalDistance =
+    last.distanceMiles === null || splitStart.distanceMiles === null
+      ? null
+      : last.distanceMiles - splitStart.distanceMiles;
+
+  if (finalDistance !== null && finalDistance >= 0.08) {
+    const finalSplit = splitFromRecords(
+      splitStart,
+      last,
+      splits.length + 1,
+      `Final ${formatSplitDistance(finalDistance)}`,
+    );
+
+    if (
+      finalSplit &&
+      !duplicatesActivity(
+        finalSplit,
+        activityDistanceMiles,
+        activityDurationSeconds,
+      )
+    ) {
+      splits.push(finalSplit);
+    }
+  }
+
+  return splits.length >= 2 ? splits : [];
+}
+
+function recordPoint(message: FitParsedMessage): FitRecordPoint {
+  return {
+    timestampSeconds: valueNumber(message.fields[253]),
+    distanceMiles:
+      scaledNumber(message.fields[5], 100) === null
+        ? null
+        : metersToMiles(scaledNumber(message.fields[5], 100) ?? 0),
+    heartRate: valueNumber(message.fields[3]),
+    cadence: valueNumber(message.fields[4]),
+    altitudeFt:
+      scaledNumber(message.fields[2], 5) === null
+        ? null
+        : ((scaledNumber(message.fields[2], 5) ?? 0) - 500) * 3.28084,
+  };
+}
+
+function interpolateRecord(
+  start: FitRecordPoint,
+  end: FitRecordPoint,
+  targetDistanceMiles: number,
+): FitRecordPoint {
+  const startDistance = start.distanceMiles ?? targetDistanceMiles;
+  const endDistance = end.distanceMiles ?? targetDistanceMiles;
+  const fraction =
+    endDistance === startDistance
+      ? 1
+      : (targetDistanceMiles - startDistance) / (endDistance - startDistance);
+
+  return {
+    timestampSeconds: interpolateNumber(
+      start.timestampSeconds,
+      end.timestampSeconds,
+      fraction,
+    ),
+    distanceMiles: targetDistanceMiles,
+    heartRate: interpolateNumber(start.heartRate, end.heartRate, fraction),
+    cadence: interpolateNumber(start.cadence, end.cadence, fraction),
+    altitudeFt: interpolateNumber(start.altitudeFt, end.altitudeFt, fraction),
+  };
+}
+
+function splitFromRecords(
+  start: FitRecordPoint,
+  end: FitRecordPoint,
+  lapNumber: number,
+  label: string,
+): ActivityLap | null {
+  if (
+    start.timestampSeconds === null ||
+    end.timestampSeconds === null ||
+    start.distanceMiles === null ||
+    end.distanceMiles === null
+  ) {
+    return null;
+  }
+
+  const distanceMiles = end.distanceMiles - start.distanceMiles;
+  const durationSeconds = end.timestampSeconds - start.timestampSeconds;
+
+  if (distanceMiles <= 0 || durationSeconds <= 0) {
+    return null;
+  }
+
+  const hrValues = [start.heartRate, end.heartRate].filter(
+    (value): value is number => value !== null,
+  );
+  const cadenceValues = [start.cadence, end.cadence].filter(
+    (value): value is number => value !== null,
+  );
+  const elevationGainFt =
+    start.altitudeFt === null || end.altitudeFt === null
+      ? null
+      : Math.max(0, end.altitudeFt - start.altitudeFt);
+
+  return {
+    lapNumber,
+    label,
+    kind: "derived_mile_split",
+    distanceMiles,
+    durationSeconds,
+    paceMinPerMile: formatPace(distanceMiles, durationSeconds / 60),
+    avgHr: hrValues.length === 0 ? null : Math.round(averageNumber(hrValues)),
+    maxHr: hrValues.length === 0 ? null : Math.round(Math.max(...hrValues)),
+    elevationGainFt,
+    avgCadence:
+      cadenceValues.length === 0
+        ? null
+        : Math.round(averageNumber(cadenceValues)),
+  };
+}
+
+function duplicatesActivity(
+  lap: ActivityLap,
+  activityDistanceMiles: number | null,
+  activityDurationSeconds: number | null,
+): boolean {
+  const distanceDuplicate =
+    lap.distanceMiles !== null &&
+    activityDistanceMiles !== null &&
+    Math.abs(lap.distanceMiles - activityDistanceMiles) <=
+      Math.max(0.03, activityDistanceMiles * 0.02);
+  const durationDuplicate =
+    lap.durationSeconds !== null &&
+    activityDurationSeconds !== null &&
+    Math.abs(lap.durationSeconds - activityDurationSeconds) <=
+      Math.max(60, activityDurationSeconds * 0.02);
+
+  return distanceDuplicate && durationDuplicate;
+}
+
+function sumLapDistance(laps: ActivityLap[]): number | null {
+  const distances = laps
+    .map((lap) => lap.distanceMiles)
+    .filter((value): value is number => value !== null);
+
+  return distances.length === 0
+    ? null
+    : distances.reduce((total, value) => total + value, 0);
+}
+
+function sumLapDuration(laps: ActivityLap[]): number | null {
+  const durations = laps
+    .map((lap) => lap.durationSeconds)
+    .filter((value): value is number => value !== null);
+
+  return durations.length === 0
+    ? null
+    : durations.reduce((total, value) => total + value, 0);
 }
 
 function activitySport(messages: FitParsedMessage[]): number | null {
@@ -529,12 +796,15 @@ function deviceName(messages: FitParsedMessage[]): string | null {
     );
   const manufacturer = manufacturerName(valueNumber(device.fields[2]));
 
-  return (
-    [manufacturer, productName]
-      .filter((value): value is string => value !== null)
-      .join(" ")
-      .trim() || null
-  );
+  if (!productName) {
+    return null;
+  }
+
+  if (!manufacturer) {
+    return productName;
+  }
+
+  return `${manufacturer} ${productName}`;
 }
 
 function mapFitSport(
@@ -608,6 +878,26 @@ function valueString(value: FitValue): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
+function interpolateNumber(
+  start: number | null,
+  end: number | null,
+  fraction: number,
+): number | null {
+  if (start === null || end === null) {
+    return null;
+  }
+
+  return start + (end - start) * Math.max(0, Math.min(1, fraction));
+}
+
+function averageNumber(values: number[]): number {
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function formatSplitDistance(distanceMiles: number): string {
+  return `${Number(distanceMiles.toFixed(2))} mi`;
+}
+
 function manufacturerName(value: number | null): string | null {
   switch (value) {
     case 1:
@@ -619,7 +909,7 @@ function manufacturerName(value: number | null): string | null {
     case 38:
       return "Suunto";
     default:
-      return value === null ? null : `Manufacturer ${value}`;
+      return null;
   }
 }
 
@@ -632,10 +922,10 @@ function productLabel(
   }
 
   if (manufacturer === 1) {
-    return `Garmin product ${product}`;
+    return null;
   }
 
-  return `product ${product}`;
+  return null;
 }
 
 function valueNumber(value: FitValue): number | null {

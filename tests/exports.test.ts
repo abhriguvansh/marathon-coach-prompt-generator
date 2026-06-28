@@ -153,7 +153,7 @@ describe("local export parsing", () => {
       dailyMarkdown,
       /Splits \/ Laps \(pace variability: mild fade\):/,
     );
-    assert.match(dailyMarkdown, /Lap 1: 1 mi, 15:32 min\/mi, Avg HR 118/);
+    assert.match(dailyMarkdown, /Lap 1: 1\.00 mi, 15:32 min\/mi, Avg HR 118/);
     assert.match(dailyMarkdown, /Final 0\.87 mi: 15:40 min\/mi, Avg HR 123/);
     assert.match(dailyMarkdown, /Runs: run, 2\.91 mi/);
     assert.match(weeklyMarkdown, /Elevation gain from walks: 85\.3 ft/);
@@ -174,6 +174,105 @@ describe("local export parsing", () => {
     assert.match(parseSummary, /laps: 4 privacy-safe lap summaries available/);
     assert.doesNotMatch(
       parseSummary,
+      /lat=|lon=|trkpt|position_lat|position_long/,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not render a single full-activity FIT lap as useful split data", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-fit-full-lap-test-"));
+    writeFile(
+      join(dir, "input/strava/full-lap.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-06-27T12:00:00Z",
+        distanceMiles: 3.25,
+        movingSeconds: 2572,
+        avgHr: 142,
+        maxHr: 160,
+        ascentMeters: 62,
+        avgCadence: 156,
+        laps: [lapInput(1, 3.25, 2572, 142, 160, 62, 156)],
+      }),
+    );
+
+    const result = parseLocalExports(dir);
+    const dailyMarkdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [],
+        activityNotes: [],
+        manualActivities: result.activities,
+        planNotes: null,
+        exportWarnings: result.warnings,
+      }),
+    );
+    const parseSummary = renderExportParseSummary(result);
+
+    assert.equal(result.activities.length, 1);
+    assert.equal(result.activities[0].laps?.length, 0);
+    assert.doesNotMatch(dailyMarkdown, /Splits \/ Laps/);
+    assert.doesNotMatch(dailyMarkdown, /Final 3\.25 mi/);
+    assert.doesNotMatch(parseSummary, /privacy-safe lap summaries available/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("derives privacy-safe mile splits from FIT record summaries", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-fit-record-test-"));
+    writeFile(
+      join(dir, "input/strava/record-splits.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-06-27T12:00:00Z",
+        distanceMiles: 3.24,
+        movingSeconds: 2559,
+        avgHr: 146,
+        maxHr: 164,
+        ascentMeters: 62,
+        avgCadence: 156,
+        manufacturer: 265,
+        product: 101,
+        records: [
+          recordInput(0, 0, 0, 136, 150, 10),
+          recordInput(1, 1, 814, 142, 154, 20),
+          recordInput(2, 2, 1542, 148, 158, 30),
+          recordInput(3, 3, 2293, 152, 160, 50),
+          recordInput(4, 3.24, 2559, 154, 148, 52),
+        ],
+      }),
+    );
+
+    const result = parseLocalExports(dir);
+    const activity = result.activities[0];
+    const dailyMarkdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [],
+        activityNotes: [],
+        manualActivities: result.activities,
+        planNotes: null,
+        exportWarnings: result.warnings,
+      }),
+    );
+    const parseSummary = renderExportParseSummary(result);
+
+    assert.equal(activity.laps?.length, 4);
+    assert.equal(activity.device, null);
+    assert.match(
+      dailyMarkdown,
+      /Splits \/ Laps \(pace variability: uneven \/ stop-start\):/,
+    );
+    assert.match(dailyMarkdown, /Mile 1: 1\.00 mi, 13:34 min\/mi/);
+    assert.match(dailyMarkdown, /Mile 2: 1\.00 mi, 12:08 min\/mi/);
+    assert.match(dailyMarkdown, /Mile 3: 1\.00 mi, 12:31 min\/mi/);
+    assert.match(dailyMarkdown, /Final 0\.24 mi: 18:28 min\/mi/);
+    assert.doesNotMatch(dailyMarkdown, /Device Manufacturer|product 101/);
+    assert.match(parseSummary, /laps: 4 privacy-safe lap summaries available/);
+    assert.doesNotMatch(parseSummary, /Device Manufacturer|product 101/);
+    assert.doesNotMatch(
+      dailyMarkdown,
       /lat=|lon=|trkpt|position_lat|position_long/,
     );
     rmSync(dir, { recursive: true, force: true });
@@ -410,6 +509,8 @@ function syntheticFitActivity(input: {
   trainingEffect?: number;
   temperatureC?: number;
   deviceName?: string;
+  manufacturer?: number;
+  product?: number;
   laps?: Array<{
     lapNumber: number;
     distanceMiles: number;
@@ -419,12 +520,35 @@ function syntheticFitActivity(input: {
     ascentMeters: number;
     avgCadence: number;
   }>;
+  records?: Array<{
+    recordNumber: number;
+    distanceMiles: number;
+    timestampOffsetSeconds: number;
+    heartRate: number;
+    cadence: number;
+    altitudeMeters: number;
+  }>;
 }): Buffer {
   return syntheticFitFile([
     fitSummaryDefinition(0, 18),
     fitSummaryData(0, input),
-    ...(input.deviceName
-      ? [fitDeviceDefinition(2), fitDeviceData(2, input.deviceName)]
+    ...(input.deviceName || input.manufacturer || input.product
+      ? [
+          fitDeviceDefinition(2),
+          fitDeviceData(2, {
+            deviceName: input.deviceName,
+            manufacturer: input.manufacturer ?? 1,
+            product: input.product ?? 999,
+          }),
+        ]
+      : []),
+    ...(input.records
+      ? [
+          fitRecordDefinition(14),
+          ...input.records.map((record) =>
+            fitRecordData(14, input.dateTime, record),
+          ),
+        ]
       : []),
     ...(input.laps ?? []).flatMap((lap, index) => [
       fitSummaryDefinition(index + 3, 19),
@@ -440,6 +564,24 @@ function syntheticFitActivity(input: {
       }),
     ]),
   ]);
+}
+
+function recordInput(
+  recordNumber: number,
+  distanceMiles: number,
+  timestampOffsetSeconds: number,
+  heartRate: number,
+  cadence: number,
+  altitudeMeters: number,
+) {
+  return {
+    recordNumber,
+    distanceMiles,
+    timestampOffsetSeconds,
+    heartRate,
+    cadence,
+    altitudeMeters,
+  };
 }
 
 function syntheticFitWithLap(): Buffer {
@@ -654,16 +796,81 @@ function fitDeviceDefinition(localMessageType: number): Buffer {
   return definition;
 }
 
-function fitDeviceData(localMessageType: number, deviceName: string): Buffer {
+function fitDeviceData(
+  localMessageType: number,
+  input: {
+    deviceName?: string;
+    manufacturer: number;
+    product: number;
+  },
+): Buffer {
   const data = Buffer.alloc(1 + 2 + 2 + 16);
-  const name = Buffer.from(deviceName);
+  const name = Buffer.from(input.deviceName ?? "");
 
   data.writeUInt8(localMessageType, 0);
-  data.writeUInt16LE(1, 1);
-  data.writeUInt16LE(999, 3);
+  data.writeUInt16LE(input.manufacturer, 1);
+  data.writeUInt16LE(input.product, 3);
   name.subarray(0, 16).forEach((byte, index) => {
     data.writeUInt8(byte, 5 + index);
   });
+
+  return data;
+}
+
+function fitRecordDefinition(localMessageType: number): Buffer {
+  return Buffer.from([
+    0x40 | localMessageType,
+    0x00,
+    0x00,
+    0x14,
+    0x00,
+    0x05,
+    0xfd,
+    0x04,
+    0x86,
+    0x05,
+    0x04,
+    0x86,
+    0x03,
+    0x01,
+    0x02,
+    0x04,
+    0x01,
+    0x02,
+    0x02,
+    0x02,
+    0x84,
+  ]);
+}
+
+function fitRecordData(
+  localMessageType: number,
+  startDateTime: string,
+  input: {
+    distanceMiles: number;
+    timestampOffsetSeconds: number;
+    heartRate: number;
+    cadence: number;
+    altitudeMeters: number;
+  },
+): Buffer {
+  const data = Buffer.alloc(1 + 4 + 4 + 1 + 1 + 2);
+  let offset = 0;
+
+  data.writeUInt8(localMessageType, offset);
+  offset += 1;
+  data.writeUInt32LE(
+    fitTimestamp(startDateTime) + input.timestampOffsetSeconds,
+    offset,
+  );
+  offset += 4;
+  data.writeUInt32LE(Math.round(input.distanceMiles * 1609.344 * 100), offset);
+  offset += 4;
+  data.writeUInt8(input.heartRate, offset);
+  offset += 1;
+  data.writeUInt8(input.cadence, offset);
+  offset += 1;
+  data.writeUInt16LE(Math.round((input.altitudeMeters + 500) * 5), offset);
 
   return data;
 }

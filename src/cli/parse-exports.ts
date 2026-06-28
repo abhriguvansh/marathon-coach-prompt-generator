@@ -92,13 +92,11 @@ function formatActivity(activity: ManualActivity): string {
     activity.trainingEffect === null || activity.trainingEffect === undefined
       ? null
       : `Training effect ${Number(activity.trainingEffect.toFixed(1))}`,
-    activity.device === null || activity.device === undefined
-      ? null
-      : `Device ${activity.device}`,
+    formatDevice(activity.device),
     "route details omitted",
   ].filter((value): value is string => value !== null);
 
-  const lapCount = activity.laps?.length ?? 0;
+  const lapCount = validRenderableSplits(activity).length;
 
   return [
     details.join(" | "),
@@ -146,10 +144,62 @@ function formatElevation(activity: ManualActivity): string | null {
 
   return [
     gain === null || gain === undefined ? null : `Elev ${Math.round(gain)} ft`,
-    loss === null || loss === undefined ? null : `loss ${Math.round(loss)} ft`,
+    loss === null || loss === undefined
+      ? null
+      : gain === null || gain === undefined
+        ? `Elevation loss ${Math.round(loss)} ft`
+        : `loss ${Math.round(loss)} ft`,
   ]
     .filter((value): value is string => value !== null)
     .join(" ");
+}
+
+function formatDevice(device: string | null | undefined): string | null {
+  if (!device || /manufacturer\s+\d+|product\s+\d+/i.test(device)) {
+    return null;
+  }
+
+  return `Device ${device}`;
+}
+
+function validRenderableSplits(activity: ManualActivity) {
+  const splits = activity.laps ?? [];
+
+  if (splits.length < 2) {
+    return [];
+  }
+
+  const valid = splits.filter(
+    (split) =>
+      !duplicatesActivity(
+        split,
+        activity.distanceMiles,
+        activity.durationMinutes === null
+          ? null
+          : activity.durationMinutes * 60,
+      ),
+  );
+
+  return valid.length < 2 ? [] : valid;
+}
+
+function duplicatesActivity(
+  split: NonNullable<ManualActivity["laps"]>[number],
+  activityDistanceMiles: number | null,
+  activityDurationSeconds: number | null,
+): boolean {
+  const distanceDuplicate =
+    split.distanceMiles !== null &&
+    activityDistanceMiles !== null &&
+    Math.abs(split.distanceMiles - activityDistanceMiles) <=
+      Math.max(0.03, activityDistanceMiles * 0.02);
+  const durationDuplicate =
+    split.durationSeconds !== null &&
+    activityDurationSeconds !== null &&
+    Math.abs(split.durationSeconds - activityDurationSeconds) <=
+      Math.max(60, activityDurationSeconds * 0.02);
+
+  return distanceDuplicate && durationDuplicate;
 }
 
 function formatMap(values: Map<string, number>): string {

@@ -107,6 +107,8 @@ export interface ManualActivity {
 
 export interface ActivityLap {
   lapNumber: number;
+  label?: string | null;
+  kind?: "fit_lap" | "derived_mile_split";
   distanceMiles: number | null;
   durationSeconds: number | null;
   paceMinPerMile: string | null;
