@@ -156,7 +156,8 @@ describe("local export parsing", () => {
     assert.match(dailyMarkdown, /Lap 1: 1\.00 mi, 15:32 min\/mi, Avg HR 118/);
     assert.match(dailyMarkdown, /Final 0\.87 mi: 15:40 min\/mi, Avg HR 123/);
     assert.match(dailyMarkdown, /Runs: run, 2\.91 mi/);
-    assert.match(weeklyMarkdown, /Elevation gain from walks: 85\.3 ft/);
+    assert.match(weeklyMarkdown, /Walk elevation gain: 85\.3 ft/);
+    assert.match(weeklyMarkdown, /Walk elevation loss: 72\.2 ft/);
     assert.match(weeklyMarkdown, /Average walk HR: 121/);
     assert.match(weeklyMarkdown, /Parsed activity calories: 286/);
     assert.doesNotMatch(
@@ -169,7 +170,7 @@ describe("local export parsing", () => {
     );
     assert.match(
       parseSummary,
-      /walk \| strava_fit_export \| 2026-06-26 \| 3\.87 mi \| 1:01:12 elapsed \| 59:48 moving \| 1:24 stopped\/paused \| 15:49 min\/mi \| Best pace \d+:\d{2} min\/mi \| Avg speed 3\.9 mph \| Max speed 4\.3 mph \| Avg HR 121 \| Max HR 144 \| Elev 85 ft loss 72 ft \| Cadence 108 spm \| Max cadence 118 spm \| 286 calories \| Training effect 2\.3 \| Device Garmin Synthetic Watch \| route details omitted/,
+      /walk \| strava_fit_export \| 2026-06-26 \| 3\.87 mi \| 1:01:12 elapsed \| 59:48 moving \| 1:24 stopped\/paused \| 15:49 min\/mi \| Best pace \d+:\d{2} min\/mi \| Avg speed 3\.9 mph \| Max speed 4\.3 mph \| Avg HR 121 \| Max HR 144 \| Elevation gain 85 ft, loss 72 ft \| Cadence 108 spm \| Max cadence 118 spm \| 286 calories \| Training effect 2\.3 \| Device Garmin Synthetic Watch \| route details omitted/,
     );
     assert.match(parseSummary, /laps: 4 privacy-safe lap summaries available/);
     assert.doesNotMatch(
@@ -271,6 +272,81 @@ describe("local export parsing", () => {
     assert.doesNotMatch(dailyMarkdown, /Device Manufacturer|product 101/);
     assert.match(parseSummary, /laps: 4 privacy-safe lap summaries available/);
     assert.doesNotMatch(parseSummary, /Device Manufacturer|product 101/);
+    assert.doesNotMatch(
+      dailyMarkdown,
+      /lat=|lon=|trkpt|position_lat|position_long/,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("falls back to summed FIT lap elevation when session elevation is missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-fit-lap-elevation-test-"));
+    writeFile(
+      join(dir, "input/strava/lap-elevation.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-06-27T12:00:00Z",
+        distanceMiles: 2,
+        movingSeconds: 1200,
+        avgHr: 140,
+        maxHr: 156,
+        avgCadence: 154,
+        laps: [
+          lapInput(1, 1, 600, 138, 150, 20, 154, 12),
+          lapInput(2, 1, 600, 142, 156, 30, 155, 18),
+        ],
+      }),
+    );
+
+    const activity = parseLocalExports(dir).activities[0];
+
+    assert.equal(Number((activity.elevationGainFt ?? 0).toFixed(0)), 164);
+    assert.equal(Number((activity.elevationLossFt ?? 0).toFixed(0)), 98);
+    assert.equal(activity.elevationSource, "lap");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("derives filtered elevation gain and loss from FIT record altitude", () => {
+    const dir = mkdtempSync(
+      join(tmpdir(), "marathon-fit-record-elevation-test-"),
+    );
+    writeFile(
+      join(dir, "input/strava/record-elevation.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-06-27T12:00:00Z",
+        distanceMiles: 1,
+        movingSeconds: 600,
+        avgHr: 140,
+        maxHr: 156,
+        avgCadence: 154,
+        records: [
+          recordInput(0, 0, 0, 136, 150, 100),
+          recordInput(1, 0.25, 150, 138, 152, 101),
+          recordInput(2, 0.5, 300, 140, 154, 110),
+          recordInput(3, 0.75, 450, 142, 156, 109),
+          recordInput(4, 1, 600, 144, 158, 95),
+        ],
+      }),
+    );
+
+    const activity = parseLocalExports(dir).activities[0];
+    const dailyMarkdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [],
+        activityNotes: [],
+        manualActivities: [activity],
+        planNotes: null,
+        exportWarnings: [],
+      }),
+    );
+
+    assert.equal(Number((activity.elevationGainFt ?? 0).toFixed(0)), 30);
+    assert.equal(Number((activity.elevationLossFt ?? 0).toFixed(0)), 46);
+    assert.equal(activity.elevationSource, "record-derived");
+    assert.match(dailyMarkdown, /Elevation gain 30 ft, loss 46 ft/);
     assert.doesNotMatch(
       dailyMarkdown,
       /lat=|lon=|trkpt|position_lat|position_long/,
@@ -501,7 +577,7 @@ function syntheticFitActivity(input: {
   elapsedSeconds?: number;
   avgHr: number;
   maxHr: number;
-  ascentMeters: number;
+  ascentMeters?: number;
   descentMeters?: number;
   avgCadence: number;
   maxCadence?: number;
@@ -517,7 +593,8 @@ function syntheticFitActivity(input: {
     durationSeconds: number;
     avgHr: number;
     maxHr: number;
-    ascentMeters: number;
+    ascentMeters?: number;
+    descentMeters?: number;
     avgCadence: number;
   }>;
   records?: Array<{
@@ -560,6 +637,7 @@ function syntheticFitActivity(input: {
         avgHr: lap.avgHr,
         maxHr: lap.maxHr,
         ascentMeters: lap.ascentMeters,
+        descentMeters: lap.descentMeters,
         avgCadence: lap.avgCadence,
       }),
     ]),
@@ -621,6 +699,7 @@ function lapInput(
   maxHr: number,
   ascentMeters: number,
   avgCadence: number,
+  descentMeters?: number,
 ) {
   return {
     lapNumber,
@@ -629,6 +708,7 @@ function lapInput(
     avgHr,
     maxHr,
     ascentMeters,
+    descentMeters,
     avgCadence,
   };
 }
@@ -708,7 +788,7 @@ function fitSummaryData(
     elapsedSeconds?: number;
     avgHr: number;
     maxHr: number;
-    ascentMeters: number;
+    ascentMeters?: number;
     descentMeters?: number;
     avgCadence: number;
     maxCadence?: number;
@@ -760,7 +840,7 @@ function fitSummaryData(
   offset += 1;
   data.writeUInt8(input.temperatureC ?? 0xff, offset);
   offset += 1;
-  data.writeUInt16LE(input.ascentMeters, offset);
+  data.writeUInt16LE(input.ascentMeters ?? 0xffff, offset);
   offset += 2;
   data.writeUInt16LE(input.descentMeters ?? 0xffff, offset);
   offset += 2;

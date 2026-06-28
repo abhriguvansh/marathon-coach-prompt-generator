@@ -19,6 +19,9 @@ export function buildExportActivity(input: {
   elevationFt: number | null;
   elevationGainFt?: number | null;
   elevationLossFt?: number | null;
+  netElevationChangeFt?: number | null;
+  elevationSource?: ManualActivity["elevationSource"];
+  elevationDataQuality?: string | null;
   avgHr: number | null;
   maxHr: number | null;
   avgCadence?: number | null;
@@ -53,6 +56,9 @@ export function buildExportActivity(input: {
     elevationFt: input.elevationFt,
     elevationGainFt: input.elevationGainFt ?? input.elevationFt,
     elevationLossFt: input.elevationLossFt ?? null,
+    netElevationChangeFt: input.netElevationChangeFt ?? null,
+    elevationSource: input.elevationSource ?? null,
+    elevationDataQuality: input.elevationDataQuality ?? null,
     avgHr: input.avgHr,
     maxHr: input.maxHr,
     avgCadence: input.avgCadence ?? null,

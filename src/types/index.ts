@@ -85,6 +85,9 @@ export interface ManualActivity {
   elevationFt: number | null;
   elevationGainFt?: number | null;
   elevationLossFt?: number | null;
+  netElevationChangeFt?: number | null;
+  elevationSource?: "session" | "lap" | "record-derived" | "unknown" | null;
+  elevationDataQuality?: string | null;
   avgHr: number | null;
   maxHr: number | null;
   avgCadence?: number | null;
@@ -218,8 +221,11 @@ export interface WeeklyActivityTotals {
   longestRun: ManualActivity | null;
   longestWalk: ManualActivity | null;
   runElevationGainFt: number | null;
+  runElevationLossFt: number | null;
   walkElevationGainFt: number | null;
+  walkElevationLossFt: number | null;
   totalElevationGainFt: number | null;
+  totalElevationLossFt: number | null;
   averageRunPaceSecondsPerMile: number | null;
   averageWalkPaceSecondsPerMile: number | null;
   averageRunHr: number | null;

@@ -37,6 +37,9 @@ interface FitActivitySummary {
   elevationFt: number | null;
   elevationGainFt: number | null;
   elevationLossFt: number | null;
+  netElevationChangeFt: number | null;
+  elevationSource: ManualActivity["elevationSource"];
+  elevationDataQuality: string | null;
   avgHr: number | null;
   maxHr: number | null;
   avgCadence: number | null;
@@ -60,6 +63,7 @@ const FIT_MAGIC = ".FIT";
 const FIT_EPOCH_MS = Date.UTC(1989, 11, 31);
 const METERS_PER_MILE = 1609.344;
 const SPLIT_DISTANCE_TOLERANCE_MILES = 0.005;
+const ELEVATION_NOISE_THRESHOLD_FT = 5;
 const GLOBAL_SESSION = 18;
 const GLOBAL_LAP = 19;
 const GLOBAL_RECORD = 20;
@@ -106,6 +110,9 @@ export function parseFitExport(
           elevationFt: summary.elevationFt,
           elevationGainFt: summary.elevationGainFt,
           elevationLossFt: summary.elevationLossFt,
+          netElevationChangeFt: summary.netElevationChangeFt,
+          elevationSource: summary.elevationSource,
+          elevationDataQuality: summary.elevationDataQuality,
           avgHr: summary.avgHr,
           maxHr: summary.maxHr,
           avgCadence: summary.avgCadence,
@@ -422,6 +429,7 @@ function summaryFromMessage(
     distanceMeters === null ? null : metersToMiles(distanceMeters);
   const durationMinutes =
     durationSeconds === null ? null : durationSeconds / 60;
+  const elevation = elevationSummary(messages, ascentMeters, descentMeters);
   const fitLaps = canUseLaps
     ? validFitLaps(messages, distanceMiles, durationSeconds)
     : [];
@@ -436,9 +444,12 @@ function summaryFromMessage(
     activityType,
     distanceMiles,
     durationMinutes,
-    elevationFt: ascentMeters === null ? null : ascentMeters * 3.28084,
-    elevationGainFt: ascentMeters === null ? null : ascentMeters * 3.28084,
-    elevationLossFt: descentMeters === null ? null : descentMeters * 3.28084,
+    elevationFt: elevation.gainFt,
+    elevationGainFt: elevation.gainFt,
+    elevationLossFt: elevation.lossFt,
+    netElevationChangeFt: elevation.netChangeFt,
+    elevationSource: elevation.source,
+    elevationDataQuality: elevation.dataQuality,
     avgHr,
     maxHr,
     avgCadence,
@@ -469,6 +480,7 @@ function summaryFromMessage(
             "Elapsed time is longer than moving time; stopped/paused time estimated from FIT summary fields.",
           ]
         : []),
+      ...(elevation.dataQuality === null ? [] : [elevation.dataQuality]),
     ],
     notes: "Parsed from local FIT export; route details omitted.",
   };
@@ -516,6 +528,178 @@ function validFitLaps(
   }
 
   return laps;
+}
+
+interface FitElevationSummary {
+  gainFt: number | null;
+  lossFt: number | null;
+  netChangeFt: number | null;
+  source: ManualActivity["elevationSource"];
+  dataQuality: string | null;
+}
+
+function elevationSummary(
+  messages: FitParsedMessage[],
+  sessionAscentMeters: number | null,
+  sessionDescentMeters: number | null,
+): FitElevationSummary {
+  const sessionGainFt = metersToFeetOrNull(sessionAscentMeters);
+  const sessionLossFt = metersToFeetOrNull(sessionDescentMeters);
+  const lapTotals = lapElevationTotals(messages);
+  const recordTotals = recordElevationTotals(messages);
+  const gainFt = firstSaneElevation([
+    sessionGainFt,
+    lapTotals.gainFt,
+    recordTotals.gainFt,
+  ]);
+  const lossFt = firstSaneElevation([
+    sessionLossFt,
+    lapTotals.lossFt,
+    recordTotals.lossFt,
+  ]);
+  const source = elevationSource({
+    gainFt,
+    lossFt,
+    sessionGainFt,
+    sessionLossFt,
+    lapTotals,
+    recordTotals,
+  });
+  const netChangeFt =
+    recordTotals.netChangeFt !== null ? recordTotals.netChangeFt : null;
+  const dataQuality =
+    source === "record-derived"
+      ? "Elevation derived from altitude records and may differ from Strava/Garmin corrected elevation."
+      : gainFt === null && lossFt !== null
+        ? "Elevation gain unavailable; elevation loss only."
+        : null;
+
+  return {
+    gainFt,
+    lossFt,
+    netChangeFt,
+    source,
+    dataQuality,
+  };
+}
+
+function lapElevationTotals(messages: FitParsedMessage[]): {
+  gainFt: number | null;
+  lossFt: number | null;
+} {
+  const laps = messages.filter(
+    (message) => message.globalMessageNumber === GLOBAL_LAP,
+  );
+  const gainMeters = sumNullableNumbers(
+    laps.map((message) => valueNumber(message.fields[21])),
+  );
+  const lossMeters = sumNullableNumbers(
+    laps.map((message) => valueNumber(message.fields[22])),
+  );
+
+  return {
+    gainFt: metersToFeetOrNull(gainMeters),
+    lossFt: metersToFeetOrNull(lossMeters),
+  };
+}
+
+function recordElevationTotals(messages: FitParsedMessage[]): {
+  gainFt: number | null;
+  lossFt: number | null;
+  netChangeFt: number | null;
+} {
+  const altitudes = messages
+    .filter((message) => message.globalMessageNumber === GLOBAL_RECORD)
+    .map((message) => recordPoint(message).altitudeFt)
+    .filter((value): value is number => value !== null);
+
+  if (altitudes.length < 2) {
+    return { gainFt: null, lossFt: null, netChangeFt: null };
+  }
+
+  let gainFt = 0;
+  let lossFt = 0;
+
+  for (let index = 1; index < altitudes.length; index += 1) {
+    const change = altitudes[index] - altitudes[index - 1];
+
+    if (Math.abs(change) < ELEVATION_NOISE_THRESHOLD_FT) {
+      continue;
+    }
+
+    if (change > 0) {
+      gainFt += change;
+    } else {
+      lossFt += Math.abs(change);
+    }
+  }
+
+  return {
+    gainFt: gainFt > 0 ? gainFt : null,
+    lossFt: lossFt > 0 ? lossFt : null,
+    netChangeFt: altitudes[altitudes.length - 1] - altitudes[0],
+  };
+}
+
+function elevationSource(input: {
+  gainFt: number | null;
+  lossFt: number | null;
+  sessionGainFt: number | null;
+  sessionLossFt: number | null;
+  lapTotals: { gainFt: number | null; lossFt: number | null };
+  recordTotals: {
+    gainFt: number | null;
+    lossFt: number | null;
+    netChangeFt: number | null;
+  };
+}): ManualActivity["elevationSource"] {
+  if (input.gainFt === null && input.lossFt === null) {
+    return "unknown";
+  }
+
+  if (
+    input.gainFt === input.sessionGainFt ||
+    input.lossFt === input.sessionLossFt
+  ) {
+    return "session";
+  }
+
+  if (
+    input.gainFt === input.lapTotals.gainFt ||
+    input.lossFt === input.lapTotals.lossFt
+  ) {
+    return "lap";
+  }
+
+  if (
+    input.gainFt === input.recordTotals.gainFt ||
+    input.lossFt === input.recordTotals.lossFt
+  ) {
+    return "record-derived";
+  }
+
+  return "unknown";
+}
+
+function firstSaneElevation(values: Array<number | null>): number | null {
+  return (
+    values.find(
+      (value): value is number =>
+        value !== null && value >= 0 && value < 100000,
+    ) ?? null
+  );
+}
+
+function metersToFeetOrNull(value: number | null): number | null {
+  return value === null ? null : value * 3.28084;
+}
+
+function sumNullableNumbers(values: Array<number | null>): number | null {
+  const present = values.filter((value): value is number => value !== null);
+
+  return present.length === 0
+    ? null
+    : present.reduce((total, value) => total + value, 0);
 }
 
 function lapFromMessage(
@@ -642,6 +826,9 @@ function derivedMileSplits(
 }
 
 function recordPoint(message: FitParsedMessage): FitRecordPoint {
+  const altitudeMeters =
+    scaledNumber(message.fields[78], 5) ?? scaledNumber(message.fields[2], 5);
+
   return {
     timestampSeconds: valueNumber(message.fields[253]),
     distanceMiles:
@@ -651,9 +838,7 @@ function recordPoint(message: FitParsedMessage): FitRecordPoint {
     heartRate: valueNumber(message.fields[3]),
     cadence: valueNumber(message.fields[4]),
     altitudeFt:
-      scaledNumber(message.fields[2], 5) === null
-        ? null
-        : ((scaledNumber(message.fields[2], 5) ?? 0) - 500) * 3.28084,
+      altitudeMeters === null ? null : (altitudeMeters - 500) * 3.28084,
   };
 }
 

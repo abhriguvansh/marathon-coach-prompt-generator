@@ -88,9 +88,14 @@ export function createWeeklySummary(input: {
       longestRun: longestByDistance(groups.runs),
       longestWalk: longestByDistance(groups.walks),
       runElevationGainFt: sumNullable(groups.runs.map(activityElevationGain)),
+      runElevationLossFt: sumNullable(groups.runs.map(activityElevationLoss)),
       walkElevationGainFt: sumNullable(groups.walks.map(activityElevationGain)),
+      walkElevationLossFt: sumNullable(groups.walks.map(activityElevationLoss)),
       totalElevationGainFt: sumNullable(
         [...groups.runs, ...groups.walks].map(activityElevationGain),
+      ),
+      totalElevationLossFt: sumNullable(
+        [...groups.runs, ...groups.walks].map(activityElevationLoss),
       ),
       averageRunPaceSecondsPerMile:
         runningMileage > 0 && runningDurationMinutes > 0
@@ -408,6 +413,10 @@ function weightedAverageHr(activities: ManualActivity[]): number | null {
 
 function activityElevationGain(activity: ManualActivity): number | null {
   return activity.elevationGainFt ?? activity.elevationFt;
+}
+
+function activityElevationLoss(activity: ManualActivity): number | null {
+  return activity.elevationLossFt ?? null;
 }
 
 function higherLoadActivities(activities: ManualActivity[]): ManualActivity[] {

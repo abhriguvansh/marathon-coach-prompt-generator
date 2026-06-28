@@ -143,7 +143,9 @@ function formatElevation(activity: ManualActivity): string | null {
   }
 
   return [
-    gain === null || gain === undefined ? null : `Elev ${Math.round(gain)} ft`,
+    gain === null || gain === undefined
+      ? null
+      : `Elevation gain ${Math.round(gain)} ft`,
     loss === null || loss === undefined
       ? null
       : gain === null || gain === undefined
@@ -151,7 +153,7 @@ function formatElevation(activity: ManualActivity): string | null {
         : `loss ${Math.round(loss)} ft`,
   ]
     .filter((value): value is string => value !== null)
-    .join(" ");
+    .join(", ");
 }
 
 function formatDevice(device: string | null | undefined): string | null {

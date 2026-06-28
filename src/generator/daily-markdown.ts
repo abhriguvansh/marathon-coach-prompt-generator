@@ -82,6 +82,7 @@ export function renderDailyCheckIn(summary: DailySummary): string {
     "- Local export parsing omits route points and GPS coordinates from this prompt.",
     ...formatExportWarnings(summary.exportWarnings),
     ...formatDuplicateWarnings(summary.duplicateWarnings),
+    ...formatActivityDataQuality(summary.manualActivities),
     "",
     "## Safety Flags",
     "",
@@ -497,4 +498,20 @@ function formatDuplicateWarnings(
   }
 
   return warnings.map((warning) => `- ${warning.message}`);
+}
+
+function formatActivityDataQuality(activities: ManualActivity[]): string[] {
+  const notes = new Set<string>();
+
+  for (const activity of activities) {
+    for (const note of activity.dataQualityNotes ?? []) {
+      if (note.toLowerCase().includes("split summaries")) {
+        continue;
+      }
+
+      notes.add(note);
+    }
+  }
+
+  return [...notes].map((note) => `- ${note}`);
 }
