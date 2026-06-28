@@ -38,7 +38,7 @@ Best-effort parsing is available for:
 
 Prefer FIT, TCX, or CSV exports when available because they usually carry better activity summary data than GPX. GPX is still useful as a fallback when summary exports are not available.
 
-FIT parsing is local and summary-focused. It reads fields such as date, activity type, distance, duration, pace, elevation, heart rate, and cadence when present. It does not print raw binary contents, route points, or coordinates. Corrupt or unsupported FIT files produce a warning and are skipped.
+FIT parsing is local and summary-focused. It reads fields such as date, activity type, distance, elapsed time, moving time, pace, speed, elevation gain/loss, heart rate, cadence, calories, training effect, temperature, device labels, and lap/split summaries when present. It does not print raw binary contents, route points, or coordinates. Corrupt or unsupported FIT files produce a warning and are skipped.
 
 ## Safe Export Inspection
 

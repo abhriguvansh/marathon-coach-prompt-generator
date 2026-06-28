@@ -83,10 +83,37 @@ export interface ManualActivity {
   durationMinutes: number | null;
   paceMinPerMile: string | null;
   elevationFt: number | null;
+  elevationGainFt?: number | null;
+  elevationLossFt?: number | null;
   avgHr: number | null;
   maxHr: number | null;
+  avgCadence?: number | null;
+  maxCadence?: number | null;
+  calories?: number | null;
+  elapsedTimeSeconds?: number | null;
+  movingTimeSeconds?: number | null;
+  stoppedTimeSeconds?: number | null;
+  avgSpeed?: number | null;
+  maxSpeed?: number | null;
+  bestPaceMinPerMile?: string | null;
+  trainingEffect?: number | null;
+  temperatureC?: number | null;
+  device?: string | null;
+  laps?: ActivityLap[];
+  dataQualityNotes?: string[];
   steps: number | null;
   notes: string | null;
+}
+
+export interface ActivityLap {
+  lapNumber: number;
+  distanceMiles: number | null;
+  durationSeconds: number | null;
+  paceMinPerMile: string | null;
+  avgHr: number | null;
+  maxHr: number | null;
+  elevationGainFt: number | null;
+  avgCadence: number | null;
 }
 
 export interface JournalEntry {
@@ -189,8 +216,14 @@ export interface WeeklyActivityTotals {
   longestRun: ManualActivity | null;
   longestWalk: ManualActivity | null;
   runElevationGainFt: number | null;
+  walkElevationGainFt: number | null;
+  totalElevationGainFt: number | null;
   averageRunPaceSecondsPerMile: number | null;
+  averageWalkPaceSecondsPerMile: number | null;
   averageRunHr: number | null;
+  averageWalkHr: number | null;
+  totalCalories: number | null;
+  higherLoadActivities: ManualActivity[];
 }
 
 export interface WeeklyRecoveryTrend {

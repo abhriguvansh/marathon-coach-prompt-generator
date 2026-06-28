@@ -43,8 +43,14 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     `- Longest run: ${formatActivityDistance(summary.totals.longestRun)}`,
     `- Longest walk: ${formatActivityDistance(summary.totals.longestWalk)}`,
     `- Elevation gain from runs: ${formatRounded(summary.totals.runElevationGainFt, "unknown")} ft`,
+    `- Elevation gain from walks: ${formatRounded(summary.totals.walkElevationGainFt, "unknown")} ft`,
+    `- Total run/walk elevation gain: ${formatRounded(summary.totals.totalElevationGainFt, "unknown")} ft`,
     `- Average run pace: ${formatPace(summary.totals.averageRunPaceSecondsPerMile)}`,
+    `- Average walk pace: ${formatPace(summary.totals.averageWalkPaceSecondsPerMile)}`,
     `- Average run HR: ${formatRounded(summary.totals.averageRunHr, "unknown")}`,
+    `- Average walk HR: ${formatRounded(summary.totals.averageWalkHr, "unknown")}`,
+    `- Parsed activity calories: ${formatRounded(summary.totals.totalCalories, "unknown")}`,
+    `- Higher load days: ${formatHigherLoadActivities(summary.totals.higherLoadActivities)}`,
     "",
     "## Recovery Trend",
     "",
@@ -168,6 +174,10 @@ function formatActivityDistance(activity: ManualActivity | null): string {
     activity.durationMinutes === null
       ? null
       : `${activity.durationMinutes} min`,
+    activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+    activity.calories === null || activity.calories === undefined
+      ? null
+      : `${Math.round(activity.calories)} calories`,
     activity.notes,
   ]
     .filter((value): value is string => value !== null)
@@ -206,10 +216,41 @@ function formatActivity(activity: ManualActivity): string {
     activity.durationMinutes === null
       ? null
       : `${activity.durationMinutes} min`,
+    activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+    activity.elevationGainFt === null || activity.elevationGainFt === undefined
+      ? null
+      : `Elevation gain ${Math.round(activity.elevationGainFt)} ft`,
     activity.notes,
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
+}
+
+function formatHigherLoadActivities(activities: ManualActivity[]): string {
+  if (activities.length === 0) {
+    return "not provided";
+  }
+
+  return activities
+    .map((activity) =>
+      [
+        activity.date,
+        activity.activityType,
+        activity.distanceMiles === null
+          ? null
+          : `${Number(activity.distanceMiles.toFixed(2))} mi`,
+        activity.durationMinutes === null
+          ? null
+          : `${Number(activity.durationMinutes.toFixed(1))} min`,
+        activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+        activity.calories === null || activity.calories === undefined
+          ? null
+          : `${Math.round(activity.calories)} calories`,
+      ]
+        .filter((value): value is string => value !== null)
+        .join(", "),
+    )
+    .join("; ");
 }
 
 function formatFlags(flags: string[]): string {

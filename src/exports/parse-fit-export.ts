@@ -1,10 +1,11 @@
 import type {
+  ActivityLap,
   ExportParseWarning,
   ExportSource,
   ManualActivity,
 } from "../types";
 import { metersToMiles } from "../utils/units";
-import { buildExportActivity, warning } from "./parse-helpers";
+import { buildExportActivity, formatPace, warning } from "./parse-helpers";
 
 interface FitFieldDefinition {
   fieldNumber: number;
@@ -34,15 +35,33 @@ interface FitActivitySummary {
   distanceMiles: number | null;
   durationMinutes: number | null;
   elevationFt: number | null;
+  elevationGainFt: number | null;
+  elevationLossFt: number | null;
   avgHr: number | null;
   maxHr: number | null;
+  avgCadence: number | null;
+  maxCadence: number | null;
+  calories: number | null;
+  elapsedTimeSeconds: number | null;
+  movingTimeSeconds: number | null;
+  stoppedTimeSeconds: number | null;
+  avgSpeed: number | null;
+  maxSpeed: number | null;
+  bestPaceMinPerMile: string | null;
+  trainingEffect: number | null;
+  temperatureC: number | null;
+  device: string | null;
+  laps: ActivityLap[];
+  dataQualityNotes: string[];
   notes: string | null;
 }
 
 const FIT_MAGIC = ".FIT";
 const FIT_EPOCH_MS = Date.UTC(1989, 11, 31);
+const METERS_PER_MILE = 1609.344;
 const GLOBAL_SESSION = 18;
 const GLOBAL_LAP = 19;
+const GLOBAL_DEVICE_INFO = 23;
 const GLOBAL_ACTIVITY = 34;
 
 const BASE_TYPE_SIZE = new Map<number, number>([
@@ -83,8 +102,24 @@ export function parseFitExport(
           distanceMiles: summary.distanceMiles,
           durationMinutes: summary.durationMinutes,
           elevationFt: summary.elevationFt,
+          elevationGainFt: summary.elevationGainFt,
+          elevationLossFt: summary.elevationLossFt,
           avgHr: summary.avgHr,
           maxHr: summary.maxHr,
+          avgCadence: summary.avgCadence,
+          maxCadence: summary.maxCadence,
+          calories: summary.calories,
+          elapsedTimeSeconds: summary.elapsedTimeSeconds,
+          movingTimeSeconds: summary.movingTimeSeconds,
+          stoppedTimeSeconds: summary.stoppedTimeSeconds,
+          avgSpeed: summary.avgSpeed,
+          maxSpeed: summary.maxSpeed,
+          bestPaceMinPerMile: summary.bestPaceMinPerMile,
+          trainingEffect: summary.trainingEffect,
+          temperatureC: summary.temperatureC,
+          device: summary.device,
+          laps: summary.laps,
+          dataQualityNotes: summary.dataQualityNotes,
           notes: summary.notes,
         }),
       )
@@ -317,6 +352,10 @@ function summarizeFitMessages(
   const sessionMessages = messages.filter(
     (message) => message.globalMessageNumber === GLOBAL_SESSION,
   );
+  const lapSummaries = messages
+    .filter((message) => message.globalMessageNumber === GLOBAL_LAP)
+    .map((message, index) => lapFromMessage(message, index + 1))
+    .filter((lap): lap is ActivityLap => lap !== null);
   const summaryMessages =
     sessionMessages.length > 0
       ? sessionMessages
@@ -329,13 +368,20 @@ function summarizeFitMessages(
   }
 
   return summaryMessages
-    .map((message) => summaryFromMessage(message, messages))
+    .map((message) =>
+      summaryFromMessage(
+        message,
+        messages,
+        sessionMessages.length > 0 ? lapSummaries : [],
+      ),
+    )
     .filter((summary): summary is FitActivitySummary => summary !== null);
 }
 
 function summaryFromMessage(
   message: FitParsedMessage,
   messages: FitParsedMessage[],
+  laps: ActivityLap[],
 ): FitActivitySummary | null {
   const startDateTime =
     fitTimestamp(valueNumber(message.fields[2])) ??
@@ -350,11 +396,14 @@ function summaryFromMessage(
     valueNumber(message.fields[6]),
   );
   const distanceMeters = scaledNumber(message.fields[9], 100);
+  const elapsedTimeSeconds = scaledNumber(message.fields[7], 1000);
+  const movingTimeSeconds = scaledNumber(message.fields[8], 1000);
   const durationSeconds =
-    scaledNumber(message.fields[8], 1000) ??
-    scaledNumber(message.fields[7], 1000) ??
+    elapsedTimeSeconds ??
+    movingTimeSeconds ??
     scaledNumber(message.fields[0], 1000);
   const ascentMeters = valueNumber(message.fields[21]);
+  const descentMeters = valueNumber(message.fields[22]);
   const avgHr =
     valueNumber(message.fields[16]) ??
     valueNumber(message.fields[15]) ??
@@ -363,6 +412,18 @@ function summaryFromMessage(
     valueNumber(message.fields[17]) ?? valueNumber(message.fields[16]);
   const avgCadence =
     valueNumber(message.fields[18]) ?? valueNumber(message.fields[17]);
+  const maxCadence = valueNumber(message.fields[19]);
+  const calories = valueNumber(message.fields[11]);
+  const avgSpeedMetersPerSecond = scaledNumber(message.fields[14], 1000);
+  const maxSpeedMetersPerSecond = scaledNumber(message.fields[15], 1000);
+  const stoppedTimeSeconds =
+    elapsedTimeSeconds !== null &&
+    movingTimeSeconds !== null &&
+    elapsedTimeSeconds > movingTimeSeconds
+      ? elapsedTimeSeconds - movingTimeSeconds
+      : null;
+  const trainingEffect = trainingEffectValue(message.fields[24]);
+  const temperatureC = valueNumber(message.fields[20]);
 
   return {
     startDate: startDateTime.slice(0, 10),
@@ -372,17 +433,75 @@ function summaryFromMessage(
       distanceMeters === null ? null : metersToMiles(distanceMeters),
     durationMinutes: durationSeconds === null ? null : durationSeconds / 60,
     elevationFt: ascentMeters === null ? null : ascentMeters * 3.28084,
+    elevationGainFt: ascentMeters === null ? null : ascentMeters * 3.28084,
+    elevationLossFt: descentMeters === null ? null : descentMeters * 3.28084,
     avgHr,
     maxHr,
-    notes: fitNotes(avgCadence),
+    avgCadence,
+    maxCadence,
+    calories,
+    elapsedTimeSeconds,
+    movingTimeSeconds,
+    stoppedTimeSeconds,
+    avgSpeed:
+      avgSpeedMetersPerSecond === null
+        ? null
+        : metersPerSecondToMilesPerHour(avgSpeedMetersPerSecond),
+    maxSpeed:
+      maxSpeedMetersPerSecond === null
+        ? null
+        : metersPerSecondToMilesPerHour(maxSpeedMetersPerSecond),
+    bestPaceMinPerMile: paceFromSpeed(maxSpeedMetersPerSecond),
+    trainingEffect,
+    temperatureC,
+    device: deviceName(messages),
+    laps,
+    dataQualityNotes: [
+      ...(laps.length > 0 ? [`${laps.length} FIT lap summaries parsed.`] : []),
+      ...(stoppedTimeSeconds !== null && stoppedTimeSeconds > 0
+        ? [
+            "Elapsed time is longer than moving time; stopped/paused time estimated from FIT summary fields.",
+          ]
+        : []),
+    ],
+    notes: "Parsed from local FIT export; route details omitted.",
   };
 }
 
-function fitNotes(avgCadence: number | null): string {
-  const extras =
-    avgCadence === null ? "" : ` Avg cadence ${Math.round(avgCadence)}.`;
+function lapFromMessage(
+  message: FitParsedMessage,
+  lapNumber: number,
+): ActivityLap | null {
+  const distanceMeters = scaledNumber(message.fields[9], 100);
+  const elapsedTimeSeconds = scaledNumber(message.fields[7], 1000);
+  const movingTimeSeconds = scaledNumber(message.fields[8], 1000);
+  const durationSeconds =
+    movingTimeSeconds ??
+    elapsedTimeSeconds ??
+    scaledNumber(message.fields[0], 1000);
+  const distanceMiles =
+    distanceMeters === null ? null : metersToMiles(distanceMeters);
 
-  return `Parsed from local FIT export; route details omitted.${extras}`;
+  if (distanceMiles === null && durationSeconds === null) {
+    return null;
+  }
+
+  return {
+    lapNumber,
+    distanceMiles,
+    durationSeconds,
+    paceMinPerMile: formatPace(
+      distanceMiles,
+      durationSeconds === null ? null : durationSeconds / 60,
+    ),
+    avgHr: valueNumber(message.fields[16]),
+    maxHr: valueNumber(message.fields[17]),
+    elevationGainFt:
+      valueNumber(message.fields[21]) === null
+        ? null
+        : (valueNumber(message.fields[21]) ?? 0) * 3.28084,
+    avgCadence: valueNumber(message.fields[18]),
+  };
 }
 
 function activitySport(messages: FitParsedMessage[]): number | null {
@@ -391,6 +510,31 @@ function activitySport(messages: FitParsedMessage[]): number | null {
   );
 
   return activity ? valueNumber(activity.fields[4]) : null;
+}
+
+function deviceName(messages: FitParsedMessage[]): string | null {
+  const device = messages.find(
+    (message) => message.globalMessageNumber === GLOBAL_DEVICE_INFO,
+  );
+
+  if (!device) {
+    return null;
+  }
+
+  const productName =
+    valueString(device.fields[27]) ??
+    productLabel(
+      valueNumber(device.fields[2]),
+      valueNumber(device.fields[10]) ?? valueNumber(device.fields[4]),
+    );
+  const manufacturer = manufacturerName(valueNumber(device.fields[2]));
+
+  return (
+    [manufacturer, productName]
+      .filter((value): value is string => value !== null)
+      .join(" ")
+      .trim() || null
+  );
 }
 
 function mapFitSport(
@@ -429,10 +573,69 @@ function fitTimestamp(value: number | null): string | null {
   return new Date(FIT_EPOCH_MS + value * 1000).toISOString();
 }
 
+function trainingEffectValue(value: FitValue): number | null {
+  const number = valueNumber(value);
+
+  if (number === null) {
+    return null;
+  }
+
+  return number > 10 ? number / 10 : number;
+}
+
+function metersPerSecondToMilesPerHour(value: number): number {
+  return (value * 3600) / METERS_PER_MILE;
+}
+
+function paceFromSpeed(speedMetersPerSecond: number | null): string | null {
+  if (speedMetersPerSecond === null || speedMetersPerSecond <= 0) {
+    return null;
+  }
+
+  const secondsPerMile = METERS_PER_MILE / speedMetersPerSecond;
+  const minutes = secondsPerMile / 60;
+
+  return formatPace(1, minutes);
+}
+
 function scaledNumber(value: FitValue, scale: number): number | null {
   const number = valueNumber(value);
 
   return number === null ? null : number / scale;
+}
+
+function valueString(value: FitValue): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+function manufacturerName(value: number | null): string | null {
+  switch (value) {
+    case 1:
+      return "Garmin";
+    case 15:
+      return "Dynastream";
+    case 32:
+      return "Wahoo";
+    case 38:
+      return "Suunto";
+    default:
+      return value === null ? null : `Manufacturer ${value}`;
+  }
+}
+
+function productLabel(
+  manufacturer: number | null,
+  product: number | null,
+): string | null {
+  if (product === null) {
+    return null;
+  }
+
+  if (manufacturer === 1) {
+    return `Garmin product ${product}`;
+  }
+
+  return `product ${product}`;
 }
 
 function valueNumber(value: FitValue): number | null {

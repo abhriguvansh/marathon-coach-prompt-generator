@@ -17,8 +17,24 @@ export function buildExportActivity(input: {
   distanceMiles: number | null;
   durationMinutes: number | null;
   elevationFt: number | null;
+  elevationGainFt?: number | null;
+  elevationLossFt?: number | null;
   avgHr: number | null;
   maxHr: number | null;
+  avgCadence?: number | null;
+  maxCadence?: number | null;
+  calories?: number | null;
+  elapsedTimeSeconds?: number | null;
+  movingTimeSeconds?: number | null;
+  stoppedTimeSeconds?: number | null;
+  avgSpeed?: number | null;
+  maxSpeed?: number | null;
+  bestPaceMinPerMile?: string | null;
+  trainingEffect?: number | null;
+  temperatureC?: number | null;
+  device?: string | null;
+  laps?: ManualActivity["laps"];
+  dataQualityNotes?: string[];
   steps?: number | null;
   notes?: string | null;
 }): ManualActivity | null {
@@ -35,8 +51,24 @@ export function buildExportActivity(input: {
     durationMinutes: input.durationMinutes,
     paceMinPerMile: formatPace(input.distanceMiles, input.durationMinutes),
     elevationFt: input.elevationFt,
+    elevationGainFt: input.elevationGainFt ?? input.elevationFt,
+    elevationLossFt: input.elevationLossFt ?? null,
     avgHr: input.avgHr,
     maxHr: input.maxHr,
+    avgCadence: input.avgCadence ?? null,
+    maxCadence: input.maxCadence ?? null,
+    calories: input.calories ?? null,
+    elapsedTimeSeconds: input.elapsedTimeSeconds ?? null,
+    movingTimeSeconds: input.movingTimeSeconds ?? null,
+    stoppedTimeSeconds: input.stoppedTimeSeconds ?? null,
+    avgSpeed: input.avgSpeed ?? null,
+    maxSpeed: input.maxSpeed ?? null,
+    bestPaceMinPerMile: input.bestPaceMinPerMile ?? null,
+    trainingEffect: input.trainingEffect ?? null,
+    temperatureC: input.temperatureC ?? null,
+    device: input.device ?? null,
+    laps: input.laps ?? [],
+    dataQualityNotes: input.dataQualityNotes ?? [],
     steps: input.steps ?? null,
     notes: input.notes ?? "Parsed from local export; route details omitted.",
   };

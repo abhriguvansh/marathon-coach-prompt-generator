@@ -87,14 +87,28 @@ export function createWeeklySummary(input: {
       ),
       longestRun: longestByDistance(groups.runs),
       longestWalk: longestByDistance(groups.walks),
-      runElevationGainFt: sumNullable(
-        groups.runs.map((activity) => activity.elevationFt),
+      runElevationGainFt: sumNullable(groups.runs.map(activityElevationGain)),
+      walkElevationGainFt: sumNullable(groups.walks.map(activityElevationGain)),
+      totalElevationGainFt: sumNullable(
+        [...groups.runs, ...groups.walks].map(activityElevationGain),
       ),
       averageRunPaceSecondsPerMile:
         runningMileage > 0 && runningDurationMinutes > 0
           ? (runningDurationMinutes * 60) / runningMileage
           : null,
+      averageWalkPaceSecondsPerMile:
+        walkingMileage > 0 && walkingDurationMinutes > 0
+          ? (walkingDurationMinutes * 60) / walkingMileage
+          : null,
       averageRunHr: weightedAverageHr(groups.runs),
+      averageWalkHr: weightedAverageHr(groups.walks),
+      totalCalories: sumNullable(
+        activitiesForTotals.map((activity) => activity.calories ?? null),
+      ),
+      higherLoadActivities: higherLoadActivities([
+        ...groups.runs,
+        ...groups.walks,
+      ]),
     },
     recovery: {
       sorenessAverage: averageNullable(
@@ -390,6 +404,20 @@ function weightedAverageHr(activities: ManualActivity[]): number | null {
   );
 
   return durationTotal === 0 ? null : weightedTotal / durationTotal;
+}
+
+function activityElevationGain(activity: ManualActivity): number | null {
+  return activity.elevationGainFt ?? activity.elevationFt;
+}
+
+function higherLoadActivities(activities: ManualActivity[]): ManualActivity[] {
+  return activities.filter((activity) => {
+    const distance = activity.distanceMiles ?? 0;
+    const duration = activity.durationMinutes ?? 0;
+    const calories = activity.calories ?? 0;
+
+    return distance >= 4 || duration >= 60 || calories >= 500;
+  });
 }
 
 function containsConcern(value: string | null, terms: string[]): boolean {

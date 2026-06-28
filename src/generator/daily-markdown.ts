@@ -29,13 +29,13 @@ export function renderDailyCheckIn(summary: DailySummary): string {
     "",
     "## Yesterday's Logged Activities",
     "",
-    `- Runs: ${formatActivities(summary.runs)}`,
-    `- Walks: ${formatActivities(summary.walks)}`,
-    `- Rock climbing: ${formatActivities(summary.rockClimbing)}`,
-    `- Tennis: ${formatActivities(summary.tennis)}`,
-    `- Weights/strength: ${formatActivities(summary.weights)}`,
-    `- Mobility: ${formatActivities(summary.mobility)}`,
-    `- Rest/other activity: ${formatActivities(summary.restOrOther)}`,
+    ...formatActivityGroup("Runs", summary.runs),
+    ...formatActivityGroup("Walks", summary.walks),
+    ...formatActivityGroup("Rock climbing", summary.rockClimbing),
+    ...formatActivityGroup("Tennis", summary.tennis),
+    ...formatActivityGroup("Weights/strength", summary.weights),
+    ...formatActivityGroup("Mobility", summary.mobility),
+    ...formatActivityGroup("Rest/other activity", summary.restOrOther),
     "",
     "## Mileage And Load",
     "",
@@ -202,32 +202,192 @@ function formatCrossTraining(config: DailySummary["athleteConfig"]): string {
     .join("; ");
 }
 
-function formatActivities(activities: ManualActivity[]): string {
+function formatActivityGroup(
+  label: string,
+  activities: ManualActivity[],
+): string[] {
   if (activities.length === 0) {
-    return "not provided";
+    return [`- ${label}: not provided`];
   }
 
-  return activities
-    .map((activity) =>
-      [
-        activity.activityType,
-        activity.distanceMiles === null
-          ? null
-          : `${Number(activity.distanceMiles.toFixed(2))} mi`,
-        activity.durationMinutes === null
-          ? null
-          : formatDuration(activity.durationMinutes),
-        activity.paceMinPerMile === null
-          ? null
-          : `${activity.paceMinPerMile} min/mi`,
-        activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
-        activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
-        activity.notes,
-      ]
-        .filter((value): value is string => value !== null)
-        .join(", "),
+  if (activities.every((activity) => !activity.laps?.length)) {
+    return [`- ${label}: ${activities.map(formatActivitySummary).join("; ")}`];
+  }
+
+  return [
+    `- ${label}:`,
+    ...activities.flatMap((activity) => [
+      `  - ${formatActivitySummary(activity)}`,
+      ...formatLapLines(activity),
+    ]),
+  ];
+}
+
+function formatActivitySummary(activity: ManualActivity): string {
+  return [
+    activity.activityType,
+    activity.distanceMiles === null
+      ? null
+      : `${Number(activity.distanceMiles.toFixed(2))} mi`,
+    ...formatTimeDetails(activity),
+    activity.paceMinPerMile === null
+      ? null
+      : `${activity.paceMinPerMile} min/mi`,
+    activity.bestPaceMinPerMile === null ||
+    activity.bestPaceMinPerMile === undefined
+      ? null
+      : `Best pace ${activity.bestPaceMinPerMile} min/mi`,
+    activity.avgSpeed === null || activity.avgSpeed === undefined
+      ? null
+      : `Avg speed ${Number(activity.avgSpeed.toFixed(1))} mph`,
+    activity.maxSpeed === null || activity.maxSpeed === undefined
+      ? null
+      : `Max speed ${Number(activity.maxSpeed.toFixed(1))} mph`,
+    activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+    activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
+    formatElevation(activity),
+    activity.avgCadence === null || activity.avgCadence === undefined
+      ? null
+      : `Cadence ${Math.round(activity.avgCadence)} spm`,
+    activity.maxCadence === null || activity.maxCadence === undefined
+      ? null
+      : `Max cadence ${Math.round(activity.maxCadence)} spm`,
+    activity.calories === null || activity.calories === undefined
+      ? null
+      : `${Math.round(activity.calories)} calories`,
+    activity.trainingEffect === null || activity.trainingEffect === undefined
+      ? null
+      : `Training effect ${Number(activity.trainingEffect.toFixed(1))}`,
+    activity.temperatureC === null || activity.temperatureC === undefined
+      ? null
+      : `Temp ${Math.round(activity.temperatureC)} C`,
+    activity.device === null || activity.device === undefined
+      ? null
+      : `Device ${activity.device}`,
+    activity.notes,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(", ");
+}
+
+function formatTimeDetails(activity: ManualActivity): string[] {
+  if (
+    activity.elapsedTimeSeconds !== null &&
+    activity.elapsedTimeSeconds !== undefined
+  ) {
+    return [
+      `${secondsToReadableDuration(activity.elapsedTimeSeconds)} elapsed`,
+      activity.movingTimeSeconds === null ||
+      activity.movingTimeSeconds === undefined
+        ? null
+        : `${secondsToReadableDuration(activity.movingTimeSeconds)} moving`,
+      activity.stoppedTimeSeconds === null ||
+      activity.stoppedTimeSeconds === undefined ||
+      activity.stoppedTimeSeconds <= 0
+        ? null
+        : `${secondsToReadableDuration(activity.stoppedTimeSeconds)} stopped/paused`,
+    ].filter((value): value is string => value !== null);
+  }
+
+  return [
+    activity.durationMinutes === null
+      ? null
+      : formatDuration(activity.durationMinutes),
+  ].filter((value): value is string => value !== null);
+}
+
+function formatElevation(activity: ManualActivity): string | null {
+  const gain = activity.elevationGainFt ?? activity.elevationFt;
+  const loss = activity.elevationLossFt;
+
+  if (gain === null && (loss === null || loss === undefined)) {
+    return null;
+  }
+
+  return [
+    gain === null || gain === undefined
+      ? null
+      : `Elevation gain ${Math.round(gain)} ft`,
+    loss === null || loss === undefined ? null : `loss ${Math.round(loss)} ft`,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(", ");
+}
+
+function formatLapLines(activity: ManualActivity): string[] {
+  if (!activity.laps || activity.laps.length === 0) {
+    return [];
+  }
+
+  return [
+    `    - Splits / Laps (${paceVariability(activity.laps)}):`,
+    ...activity.laps.map((lap, index) => {
+      const distanceMiles = lap.distanceMiles;
+      const isFinal =
+        index === (activity.laps?.length ?? 0) - 1 &&
+        distanceMiles !== null &&
+        Math.abs(distanceMiles - Math.round(distanceMiles)) > 0.05;
+      const label = isFinal
+        ? `Final ${formatLapMiles(distanceMiles ?? 0)}`
+        : `Lap ${lap.lapNumber}`;
+
+      return `      - ${label}: ${formatLap(lap, !isFinal)}`;
+    }),
+  ];
+}
+
+function formatLap(
+  lap: NonNullable<ManualActivity["laps"]>[number],
+  includeDistance: boolean,
+): string {
+  return [
+    !includeDistance || lap.distanceMiles === null
+      ? null
+      : formatLapMiles(lap.distanceMiles),
+    lap.paceMinPerMile === null ? null : `${lap.paceMinPerMile} min/mi`,
+    lap.avgHr === null ? null : `Avg HR ${lap.avgHr}`,
+    lap.maxHr === null ? null : `Max HR ${lap.maxHr}`,
+    lap.elevationGainFt === null
+      ? null
+      : `Elevation gain ${Math.round(lap.elevationGainFt)} ft`,
+    lap.avgCadence === null
+      ? null
+      : `Cadence ${Math.round(lap.avgCadence)} spm`,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(", ");
+}
+
+function formatLapMiles(miles: number): string {
+  return `${Number(miles.toFixed(2))} mi`;
+}
+
+function paceVariability(laps: NonNullable<ManualActivity["laps"]>): string {
+  const paces = laps
+    .map((lap) =>
+      lap.distanceMiles && lap.durationSeconds
+        ? lap.durationSeconds / lap.distanceMiles
+        : null,
     )
-    .join("; ");
+    .filter((value): value is number => value !== null);
+
+  if (paces.length < 2) {
+    return "pace variability unknown";
+  }
+
+  const first = paces[0];
+  const last = paces[paces.length - 1];
+  const range = Math.max(...paces) - Math.min(...paces);
+
+  if (range <= 20) {
+    return "pace variability: steady";
+  }
+
+  if (last - first >= 30 || Math.max(...paces) - first >= 30) {
+    return "pace variability: mild fade";
+  }
+
+  return "pace variability: uneven / stop-start";
 }
 
 function formatDuration(minutes: number): string {

@@ -231,7 +231,7 @@ The command prints safe counts and summaries. It does not print raw route points
 
 ## FIT Support
 
-FIT parsing uses a small local summary parser instead of an added dependency. It reads session/lap-level summary fields such as date, activity type, distance, duration, pace, elevation, heart rate, and cadence when those fields are present. Route details, GPS points, coordinates, and raw binary contents are intentionally omitted.
+FIT parsing uses a small local summary parser instead of an added dependency. It reads session/lap-level summary fields such as date, activity type, distance, elapsed time, moving time, pace, speed, elevation gain/loss, heart rate, cadence, calories, training effect, temperature, device labels, and lap/split summaries when those fields are present. Route details, GPS points, coordinates, and raw binary contents are intentionally omitted.
 
 If a FIT file is corrupt or uses unsupported message layouts, the tool warns and skips it instead of printing private contents.
 
