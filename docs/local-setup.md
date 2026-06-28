@@ -18,23 +18,29 @@ cp config/athlete.example.json private/athlete.config.local.json
 
 Edit `private/athlete.config.local.json` with your real race, goal, training background, lifestyle activity, cross-training, and unit preferences.
 
-## 2. Create Your First Daily Journal
+## 2. Run Your First Daily Coach Workflow
 
-The recommended workflow uses one ignored Markdown journal for the day that just happened. This is the completed evidence day.
+The recommended workflow uses one ignored Markdown journal for the completed evidence day and generates a check-in for the coaching day.
 
-```bash
-npm run journal
-```
-
-For a specific date:
+At night:
 
 ```bash
-npm run journal -- --date YYYY-MM-DD
+npm run coach:tonight
 ```
 
-This creates `input/journal/YYYY-MM-DD.md` without overwriting an existing journal. Fill it in with recovery, nutrition, gear, coach notes, questions, and manual-only activities.
+In the morning:
 
-Do not create the journal for the coaching day unless you are actually logging that day's completed activity.
+```bash
+npm run coach:morning
+```
+
+For a specific completed evidence day:
+
+```bash
+npm run coach -- --evidence-date YYYY-MM-DD
+```
+
+The command creates or reuses `input/journal/YYYY-MM-DD.md` without overwriting an existing journal, then generates `output/daily-checkin.md`. Fill the journal in with recovery, nutrition, gear, coach notes, questions, and manual-only activities, then rerun the same command.
 
 ## 3. Optional Legacy Manual CSV Files
 
@@ -82,20 +88,26 @@ If you use local Garmin or Strava exports, place them in `input/garmin/` or `inp
 
 ## 6. Generate Daily And Weekly Files
 
-Daily:
+Daily recommended:
 
 ```bash
-npm run generate:daily -- --date YYYY-MM-DD
+npm run coach:tonight
 ```
 
-The daily generation date is the coaching day. The generator uses the previous day as evidence.
+Daily explicit:
 
-End-of-day example:
+```bash
+npm run coach -- --evidence-date YYYY-MM-DD
+```
+
+Manual lower-level commands:
 
 ```bash
 npm run journal -- --date 2026-06-27
 npm run generate:daily -- --date 2026-06-28
 ```
+
+The journal date is the completed evidence day. The daily generation date is the coaching day.
 
 Weekly:
 

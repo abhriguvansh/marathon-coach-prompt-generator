@@ -1,38 +1,64 @@
 # Daily Workflow
 
-Use this routine at the end of each day to prepare a coaching prompt for the next day.
+Use the coach workflow commands so evidence dates and coaching dates are calculated for you.
 
-## 1. Export Activities If Available
+Definitions:
+
+- Evidence date: the completed day whose activities and journal are summarized.
+- Coaching date: the day you want coaching for.
+- Daily generation always uses evidence date = coaching date minus one day.
+
+## Night Workflow
+
+At the end of the day:
+
+```bash
+npm run coach:tonight
+```
+
+This uses today as the evidence date and tomorrow as the coaching date. The command creates or reuses `input/journal/YYYY-MM-DD.md`, then generates `output/daily-checkin.md`.
+
+If a journal is created or reused, add subjective details such as soreness, pain, steps, energy, shoes, fueling, and tomorrow constraints. Then rerun:
+
+```bash
+npm run coach:tonight
+```
+
+Paste `output/daily-checkin.md` into ChatGPT that night to plan tomorrow.
+
+## Morning Workflow
+
+If you did not check in the night before:
+
+```bash
+npm run coach:morning
+```
+
+This uses yesterday as the evidence date and today as the coaching date.
+
+## Explicit Workflow
+
+When catching up or regenerating a specific evidence day:
+
+```bash
+npm run coach -- --evidence-date YYYY-MM-DD
+```
+
+You can also specify the coaching day:
+
+```bash
+npm run coach -- --coaching-date YYYY-MM-DD
+```
+
+If both dates are provided, they must be exactly one day apart.
+
+## Activities And Journals
 
 Put Garmin exports in `input/garmin/` and Strava exports in `input/strava/`.
 
-Imported activities should be the source for runs, walks, and other tracked activities whenever possible.
-
 FIT, TCX, or CSV exports are preferred when available because they usually include better summary data than GPX. GPX remains a fallback when summary exports are not available.
 
-## 2. Create Or Open The Journal
-
-```bash
-npm run journal
-```
-
-For a specific date:
-
-```bash
-npm run journal -- --date YYYY-MM-DD
-```
-
-The journal date is the completed evidence day: the day that just happened. The command creates `input/journal/YYYY-MM-DD.md` and does not overwrite an existing journal.
-
-Do not create the journal for the coaching day unless you are actually logging that day's completed activity.
-
-## 3. Fill Out The Journal
-
-Add recovery, soreness, pain, gait changes, fatigue, sleep, stress, nutrition, gear notes, coach notes, and questions.
-
-The imported activity section is reference-only. Do not manually re-enter imported runs, walks, or other exported activities.
-
-## 4. Add Manual-Only Activities
+Imported activities should be the source for runs, walks, and other tracked activities whenever possible. The imported activity section in the journal is reference-only. Do not manually re-enter imported runs, walks, or other exported activities.
 
 Use the journal's `Manual Activities` section for activities that were not imported:
 
@@ -45,44 +71,16 @@ Use the journal's `Manual Activities` section for activities that were not impor
 
 Walking mileage stays separate from running mileage. Cross-training is context, not running mileage.
 
-## 5. Run The Daily Generator
+## Manual Commands
+
+The lower-level commands still work:
 
 ```bash
+npm run journal -- --date YYYY-MM-DD
 npm run generate:daily -- --date YYYY-MM-DD
 ```
 
-The daily generator date is the coaching day. It uses the previous day as evidence.
-
-Example end-of-day flow:
-
-```bash
-npm run journal -- --date 2026-06-27
-npm run generate:daily -- --date 2026-06-28
-```
-
-This creates/fills the journal for June 27, 2026, then generates a coaching check-in for June 28, 2026.
-
-This writes:
-
-```txt
-output/daily-checkin.md
-```
-
-## 6. Paste Into ChatGPT
-
-Open `output/daily-checkin.md`, copy the Markdown, and paste it into ChatGPT.
-
-Paste it into ChatGPT on the night of the evidence day to plan tomorrow, or on the morning of the coaching day to plan the current day. Ask ChatGPT to recommend the day while prioritizing injury prevention, consistency, and the distinction between running, walking, and cross-training.
-
-## 7. Review And Update Notes
-
-If the coaching response changes the plan, update future journal notes or:
-
-```txt
-input/manual/plan-notes.md
-```
-
-`plan-notes.md` is part of the legacy manual workflow but remains supported.
+`journal -- --date` is the evidence day. `generate:daily -- --date` is the coaching day. Prefer the `coach:*` commands for daily use.
 
 ## Legacy CSV Workflow
 

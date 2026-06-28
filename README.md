@@ -95,14 +95,14 @@ PowerShell:
 
 ```powershell
 Copy-Item config/athlete.example.json private/athlete.config.local.json
-npm run journal
+npm run coach:tonight
 ```
 
 macOS/Linux shell:
 
 ```bash
 cp config/athlete.example.json private/athlete.config.local.json
-npm run journal
+npm run coach:tonight
 ```
 
 Then run:
@@ -117,7 +117,41 @@ Edit `private/athlete.config.local.json` with your real local race and training 
 
 Keep public config files fake. Do not put real athlete names, real race logistics, private travel, or health details in `config/athlete.example.json`.
 
-## Creating Daily Journals
+## Daily Coaching Workflow
+
+Use the one-command coach workflow for normal daily use. It prints the evidence date and coaching date before doing work.
+
+Night workflow:
+
+```bash
+npm run coach:tonight
+```
+
+This uses today as the completed evidence day and tomorrow as the coaching day. It creates or reuses `input/journal/YYYY-MM-DD.md`, then generates `output/daily-checkin.md`.
+
+Morning workflow:
+
+```bash
+npm run coach:morning
+```
+
+This uses yesterday as the completed evidence day and today as the coaching day.
+
+Explicit catch-up workflow:
+
+```bash
+npm run coach -- --evidence-date YYYY-MM-DD
+```
+
+You can also provide the coaching day directly:
+
+```bash
+npm run coach -- --coaching-date YYYY-MM-DD
+```
+
+If the command creates or reuses a journal, add subjective details such as soreness, pain, steps, energy, shoes, and tomorrow constraints. Then rerun the same command to regenerate the check-in.
+
+## Creating Daily Journals Manually
 
 The recommended daily workflow uses one readable Markdown file for the day that just happened. This is the evidence day: the completed day you are logging at the end of the day.
 
@@ -143,7 +177,7 @@ The command does not overwrite an existing journal. When Garmin or Strava export
 
 Daily journals capture recovery, sleep, stress, nutrition, gear notes, coach notes, questions for ChatGPT, and manual-only activities such as climbing, weights, mobility, tennis, yoga, or anything that was not imported.
 
-Example end-of-day flow:
+Manual end-of-day flow:
 
 ```bash
 npm run journal -- --date 2026-06-27
@@ -235,7 +269,7 @@ FIT parsing uses a small local summary parser instead of an added dependency. It
 
 If a FIT file is corrupt or uses unsupported message layouts, the tool warns and skips it instead of printing private contents.
 
-## Generating Daily Check-In
+## Generating Daily Check-In Manually
 
 Run:
 
@@ -245,7 +279,7 @@ npm run generate:daily -- --date YYYY-MM-DD
 
 `npm run generate:daily -- --date YYYY-MM-DD` means: generate the coaching check-in for that coaching day. The daily generator uses the previous day as evidence.
 
-Example:
+Manual example:
 
 ```bash
 npm run journal -- --date 2026-06-27
@@ -370,9 +404,9 @@ npm test
 ## Recommended Daily Workflow
 
 1. Export Garmin/Strava activities if available.
-2. At the end of the day, run `npm run journal` or `npm run journal -- --date YYYY-MM-DD` for the day that just happened.
-3. Fill out the journal in under one minute.
-4. Run `npm run generate:daily -- --date YYYY-MM-DD` for the next coaching day.
+2. At night, run `npm run coach:tonight`.
+3. Fill out the evidence-day journal if the command created or reused one.
+4. Rerun `npm run coach:tonight` to regenerate the check-in with your subjective notes.
 5. Open `output/daily-checkin.md`.
 6. Paste the Markdown into ChatGPT that night to plan tomorrow, or the next morning to plan the current day.
 7. Review the coaching response and update future journal notes or plan notes if needed.
@@ -380,9 +414,10 @@ npm test
 For example, on the night of June 27, 2026:
 
 ```bash
-npm run journal -- --date 2026-06-27
-npm run generate:daily -- --date 2026-06-28
+npm run coach:tonight
 ```
+
+If you missed the night check-in, run `npm run coach:morning` the next morning. When catching up or regenerating a specific day, run `npm run coach -- --evidence-date YYYY-MM-DD`.
 
 ## Recommended Weekly Workflow
 

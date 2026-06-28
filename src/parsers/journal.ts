@@ -8,7 +8,7 @@ import {
 import { basename, dirname, join } from "node:path";
 import type { DailyNote, JournalEntry, ManualActivity } from "../types";
 import { parseOptionalBoolean, parseOptionalNumber } from "../utils/csv";
-import { formatDate, parseDate } from "../utils/dates";
+import { formatDate, parseDate, todayLocalDate } from "../utils/dates";
 import { secondsToReadableDuration } from "../utils/units";
 
 export interface JournalInputs {
@@ -393,15 +393,6 @@ function journalDateFromFileName(fileName: string): string | null {
   const match = basename(fileName).match(/^(\d{4}-\d{2}-\d{2})\.md$/);
 
   return match ? match[1] : null;
-}
-
-function todayLocalDate(): string {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
 }
 
 function emptyJournalInputs(): JournalInputs {

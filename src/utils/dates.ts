@@ -61,6 +61,18 @@ export function addDays(date: Date, days: number): Date {
   return next;
 }
 
+export function subtractDays(date: Date, days: number): Date {
+  return addDays(date, -days);
+}
+
+export function todayLocalDate(now = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 export function isDateWithinRange(
   date: string,
   startDate: string,
