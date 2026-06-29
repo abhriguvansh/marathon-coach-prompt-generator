@@ -1,5 +1,6 @@
 export type Unknownish = string | number | boolean | null | undefined;
 export type RecoveryValue = string | number | null;
+export type StepValue = string | number | null;
 
 export interface WeekRange {
   start: Date;
@@ -47,7 +48,7 @@ export interface AthleteConfig {
 
 export interface DailyNote {
   date: string;
-  totalSteps: number | null;
+  totalSteps: StepValue;
   legSoreness: RecoveryValue;
   pain: RecoveryValue;
   painLocation: string | null;
@@ -211,6 +212,7 @@ export interface DailySummary {
   restOrOther: ManualActivity[];
   safetyFlags: SafetyFlag[];
   missingDataFlags: MissingDataFlag[];
+  recentCoachingContext: string[];
   checkInCompleteness: CheckInCompleteness;
 }
 

@@ -14,6 +14,7 @@ import { numericRecoveryValue } from "../utils/recovery";
 import { classifyActivities, sumMileage } from "./activity-classification";
 import { evaluateCheckInCompleteness } from "./checkin-completeness";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
+import { buildRecentCoachingContext } from "./recent-context";
 
 export function previousDate(date: string): string {
   const parsed = parseDate(date);
@@ -85,6 +86,11 @@ export function createDailySummary(input: {
       exportWarnings: input.exportWarnings ?? [],
       duplicateWarnings: duplicateAnalysis.warnings,
       journalEntry,
+    }),
+    recentCoachingContext: buildRecentCoachingContext({
+      evidenceDate,
+      dailyNotes: input.dailyNotes,
+      manualActivities: input.manualActivities,
     }),
   };
 

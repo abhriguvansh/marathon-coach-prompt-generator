@@ -34,3 +34,5 @@ output/weekly-checkin.md
 ```
 
 Weekly output is compact by default. It summarizes recent running, walking, cross-training, recovery, load/risk flags, upcoming constraints, and the current plan context. It does not include raw route data, GPS coordinates, raw exports, or full journal contents.
+
+Daily check-ins also include a smaller recent-context section for the last 7-14 days from the daily evidence date. Use weekly planning for broader plan changes; use the daily context to help ChatGPT adjust the next coaching day.

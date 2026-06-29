@@ -15,6 +15,7 @@ import {
   parseDate,
 } from "../utils/dates";
 import { numericRecoveryValue } from "../utils/recovery";
+import { numericStepCount } from "../utils/steps";
 import {
   classifyActivities,
   sumDurationMinutes,
@@ -86,9 +87,11 @@ export function createWeeklySummary(input: {
       weightsCount: groups.weights.length,
       mobilityRestOtherCount:
         groups.mobility.length + groups.restOrOther.length,
-      totalSteps: sumNullable(dailyNotes.map((note) => note.totalSteps)),
+      totalSteps: sumNullable(
+        dailyNotes.map((note) => numericStepCount(note.totalSteps)),
+      ),
       averageDailySteps: averageNullable(
-        dailyNotes.map((note) => note.totalSteps),
+        dailyNotes.map((note) => numericStepCount(note.totalSteps)),
       ),
       longestRun: longestByDistance(groups.runs),
       longestWalk: longestByDistance(groups.walks),

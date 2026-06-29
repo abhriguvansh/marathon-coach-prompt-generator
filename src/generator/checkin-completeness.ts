@@ -1,5 +1,6 @@
 import type { CheckInCompleteness, DailySummary } from "../types";
 import { isNoPain, isProvidedRecoveryValue } from "../utils/recovery";
+import { isProvidedStepValue } from "../utils/steps";
 
 export function evaluateCheckInCompleteness(
   summary: Omit<DailySummary, "checkInCompleteness">,
@@ -33,7 +34,7 @@ export function evaluateCheckInCompleteness(
   addMissing(
     missingHighValueFields,
     "steps",
-    typeof summary.dailyNote?.totalSteps === "number",
+    isProvidedStepValue(summary.dailyNote?.totalSteps),
   );
   addMissing(
     missingHighValueFields,

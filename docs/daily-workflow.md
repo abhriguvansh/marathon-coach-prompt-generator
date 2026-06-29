@@ -40,6 +40,17 @@ For a standalone check-in or a new ChatGPT coaching thread, add the full backgro
 npm run coach:tonight -- --include-athlete-background
 ```
 
+## Recent Coaching Context
+
+Daily check-ins include a compact `## Recent Coaching Context` section after mileage and load. It looks back from the evidence date:
+
+- Last 7 days: evidence date minus 6 days through the evidence date.
+- Last 14 days: evidence date minus 13 days through the evidence date.
+
+The section summarizes recent running, walking, high-step days, climbing, strength, tennis, mobility, rest days when inferable, recovery trend, and the last run when available. Steps are load context only and are not counted as walking mileage.
+
+If prior journals or activities are missing, the section says recent context is limited. It never includes raw route points, GPS coordinates, raw export contents, or full journal contents.
+
 ## Morning Workflow
 
 If you did not check in the night before:

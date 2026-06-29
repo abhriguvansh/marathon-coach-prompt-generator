@@ -22,6 +22,7 @@ This project keeps the workflow local, explicit, and easy to audit before anythi
 - Reads supported local Garmin and Strava export files from ignored folders.
 - Keeps running mileage separate from walking mileage.
 - Treats cross-training, steps, climbing, weights, tennis, and mobility as context, not running mileage.
+- Adds compact recent coaching context to daily check-ins from the last 7-14 days of local journals and parsed activities.
 - Generates `output/daily-checkin.md` and `output/weekly-summary.md`.
 - Provides fake demo outputs that are safe for public GitHub.
 - Provides privacy checks before committing or publishing.
@@ -153,6 +154,8 @@ If the command creates or reuses a journal, add subjective details such as soren
 
 The coach workflow automatically runs a check-in completeness validator. It warns about missing subjective details that exports cannot know, such as soreness, pain, gait changes, energy, steps, shoes, fueling, and tomorrow constraints. These warnings do not block generation.
 
+Daily check-ins also include a compact `## Recent Coaching Context` section. It summarizes recent running volume, walking volume, high-step days, cross-training, recovery trend, and the last run when available. Steps are treated as load context only; they are never counted as walking mileage. Raw route data and export contents are omitted.
+
 To run the validator by itself:
 
 ```bash
@@ -199,6 +202,8 @@ npm run generate:daily -- --date 2026-06-28
 ```
 
 That creates/fills the journal for June 27, 2026, then generates the coaching check-in for June 28, 2026. You can paste the output into ChatGPT on the night of June 27 to plan tomorrow, or on the morning of June 28 to plan the current day.
+
+The daily check-in uses June 27 as the evidence day and also looks back from that evidence day for recent coaching context. The last 7 days are June 21 through June 27 inclusive, and the last 14 days are June 14 through June 27 inclusive.
 
 Real daily journals are ignored by Git. Only `input/journal/template.md` is committed.
 
@@ -292,6 +297,8 @@ npm run generate:daily -- --date YYYY-MM-DD
 ```
 
 `npm run generate:daily -- --date YYYY-MM-DD` means: generate the coaching check-in for that coaching day. The daily generator uses the previous day as evidence.
+
+The generated daily prompt includes a compact recent-context section after mileage and load. Review it before pasting into ChatGPT, especially when recent journals are missing or manual entries may overlap imported Garmin/Strava exports.
 
 Daily output is compact by default and omits the full `## Athlete Background` section. Use this when the ongoing coaching thread already knows your background.
 

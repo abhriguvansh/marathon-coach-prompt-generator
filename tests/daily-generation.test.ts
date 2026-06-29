@@ -66,6 +66,17 @@ describe("manual CSV parsing", () => {
     assert.equal(notes[0].pain, 4);
   });
 
+  it("parses compact step text as step load", () => {
+    const notes = parseDailyNotes(
+      [
+        "date,total_steps,leg_soreness_0_10,pain_0_10,pain_location,pain_type,gait_changed,fatigue_0_10,energy_0_10,sleep_quality_0_10,stress_0_10,motivation_0_10,notes",
+        "2026-06-26,about 11k,1,0,none,none,no,2,8,7,3,9,Fake note",
+      ].join("\n"),
+    );
+
+    assert.equal(notes[0].totalSteps, 11000);
+  });
+
   it("parses activity notes", () => {
     const notes = parseActivityNotes(
       [
@@ -170,12 +181,130 @@ describe("daily summary generation", () => {
     assert.match(markdown, /Rock climbing:/);
     assert.match(markdown, /Gear notes: Demo shoes/);
     assert.match(markdown, /## Missing Data Flags/);
+    assert.match(markdown, /## Recent Coaching Context/);
     assert.match(markdown, /## Check-In Completeness/);
     assert.match(markdown, /Missing high-value subjective fields: steps/);
     assert.match(markdown, /## Data Quality Notes/);
     assert.match(markdown, /## Safety Flags/);
     assert.match(markdown, /## Plan Notes\s+not provided/);
     assert.match(markdown, /what should I do today/i);
+  });
+
+  it("renders compact recent coaching context from recent local data", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-29",
+        athleteConfig: fakeConfig,
+        dailyNotes: [
+          fakeDailyNote("2026-06-22", 8000, 3, 0),
+          fakeDailyNote("2026-06-23", "about 11k", 2, "none"),
+          fakeDailyNote("2026-06-24", 12000, 2, 0),
+          fakeDailyNote("2026-06-27", 9000, 1, 0),
+          fakeDailyNote("2026-06-28", 7000, 1, 0),
+        ],
+        activityNotes: [],
+        manualActivities: [
+          fakeActivityOn("2026-06-16", "run", 2),
+          fakeActivityOn("2026-06-23", "run", 3.1),
+          fakeActivityOn("2026-06-24", "walk", 2.2),
+          fakeActivityOn("2026-06-27", "rock_climbing", null),
+          {
+            ...fakeActivityOn("2026-06-27", "run", 4),
+            source: "strava_fit_export",
+            durationMinutes: 44,
+            paceMinPerMile: "11:00",
+            notes:
+              "Synthetic route-like note 40.123,-75.456 should stay out of recent context",
+          },
+        ],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(markdown, /Last 7 days: 2 run days/);
+    assert.match(markdown, /7.1 running/);
+    assert.match(markdown, /1 tracked walk/);
+    assert.match(markdown, /2.2 walking/);
+    assert.match(markdown, /2 high-step days/);
+    assert.match(markdown, /1 climbing session/);
+    assert.match(markdown, /Steps are load context, not walking mileage/);
+    assert.match(markdown, /Last 14 days: running volume increased/);
+    assert.match(markdown, /Recent recovery trend: improving soreness/);
+    assert.match(markdown, /Last run: 2026-06-27, 4 mi, 44:00, 11:00 min\/mi/);
+    assert.match(markdown, /recovery response soreness 1; pain 0; gait No/);
+    assert.match(
+      markdown,
+      /Load note: climbing on 2026-06-27 occurred on the same day as the 2026-06-27 run/,
+    );
+    assert.match(markdown, /Route details omitted/);
+    assert.doesNotMatch(markdown, /40\.123,-75\.456/);
+  });
+
+  it("uses cautious 14-day trend wording with fewer than three runs", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-29",
+        athleteConfig: fakeConfig,
+        dailyNotes: [
+          fakeDailyNote("2026-06-27", 9000, 1, 0),
+          fakeDailyNote("2026-06-28", 11000, 1, 0),
+        ],
+        activityNotes: [],
+        manualActivities: [
+          fakeActivityOn("2026-06-16", "run", 3.1),
+          fakeActivityOn("2026-06-27", "run", 3.25),
+        ],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(markdown, /Last 14 days: limited running history/);
+    assert.doesNotMatch(markdown, /running volume looks roughly stable/);
+    assert.doesNotMatch(markdown, /running volume increased/);
+  });
+
+  it("includes date-aware high-step load after a run without counting it as walking", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-29",
+        athleteConfig: fakeConfig,
+        dailyNotes: [
+          fakeDailyNote("2026-06-27", 7000, 1, 0),
+          fakeDailyNote("2026-06-28", "11k", 1, 0),
+        ],
+        activityNotes: [],
+        manualActivities: [
+          fakeActivityOn("2026-06-27", "run", 3.25),
+          fakeActivityOn("2026-06-29", "rock_climbing", null),
+        ],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(
+      markdown,
+      /11k steps on 2026-06-28 added recovery load after the 2026-06-27 run/,
+    );
+    assert.match(markdown, /Steps are load context, not walking mileage/);
+    assert.doesNotMatch(markdown, /2026-06-29.*climbing/);
+  });
+
+  it("renders limited recent context when recent data is missing", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-29",
+        athleteConfig: fakeConfig,
+        dailyNotes: [],
+        activityNotes: [],
+        manualActivities: [],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(
+      markdown,
+      /Recent context limited: not enough prior activity or journal data found/,
+    );
   });
 
   it("can render the full Athlete Background section when requested", () => {
@@ -302,6 +431,40 @@ function fakeActivity(activityType: string, distanceMiles: number | null) {
     maxHr: null,
     steps: null,
     notes: `Fake ${activityType}`,
+  };
+}
+
+function fakeActivityOn(
+  date: string,
+  activityType: string,
+  distanceMiles: number | null,
+) {
+  return {
+    ...fakeActivity(activityType, distanceMiles),
+    date,
+  };
+}
+
+function fakeDailyNote(
+  date: string,
+  totalSteps: number | string | null,
+  legSoreness: number | string | null,
+  pain: number | string | null,
+) {
+  return {
+    date,
+    totalSteps,
+    legSoreness,
+    pain,
+    painLocation: null,
+    painType: null,
+    gaitChanged: false,
+    fatigue: 2,
+    energy: 7,
+    sleepQuality: 7,
+    stress: 3,
+    motivation: 8,
+    notes: null,
   };
 }
 

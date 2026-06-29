@@ -6,6 +6,7 @@ import {
   parseOptionalNumber,
   parseOptionalString,
 } from "../utils/csv";
+import { parseStepValue } from "../utils/steps";
 
 export interface ManualInputs {
   dailyNotes: DailyNote[];
@@ -48,7 +49,7 @@ export function loadManualInputs(paths: {
 export function parseDailyNotes(content: string): DailyNote[] {
   return parseCsv(content).map((record) => ({
     date: record.date,
-    totalSteps: parseOptionalNumber(record.total_steps),
+    totalSteps: parseStepValue(record.total_steps),
     legSoreness: parseOptionalNumber(record.leg_soreness_0_10),
     pain: parseOptionalNumber(record.pain_0_10),
     painLocation: parseOptionalString(record.pain_location),

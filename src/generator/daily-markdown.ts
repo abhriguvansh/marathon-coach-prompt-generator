@@ -42,6 +42,10 @@ export function renderDailyCheckIn(
     `- Walking mileage: ${formatMiles(summary.walkingMileage)}`,
     `- Steps: ${formatUnknown(daily?.totalSteps, "unknown")}`,
     "",
+    "## Recent Coaching Context",
+    "",
+    ...formatRecentCoachingContext(summary),
+    "",
     "## Recovery Notes",
     "",
     `- Soreness: ${formatRecoveryValue(daily?.legSoreness, "unknown")}`,
@@ -483,6 +487,16 @@ function formatFlags(flags: string[]): string {
   }
 
   return flags.map((flag) => `- ${flag}`).join("\n");
+}
+
+function formatRecentCoachingContext(summary: DailySummary): string[] {
+  if (summary.recentCoachingContext.length === 0) {
+    return [
+      "- Recent context limited: not enough prior activity or journal data found.",
+    ];
+  }
+
+  return summary.recentCoachingContext;
 }
 
 function formatExportWarnings(warnings: Array<{ message: string }>): string[] {

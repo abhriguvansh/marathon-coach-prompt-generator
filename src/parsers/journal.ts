@@ -14,6 +14,7 @@ import {
   parseGaitChangedValue,
   parseRecoveryValue,
 } from "../utils/recovery";
+import { parseStepValue } from "../utils/steps";
 import { secondsToReadableDuration } from "../utils/units";
 
 export interface JournalInputs {
@@ -106,9 +107,7 @@ export function parseJournal(
   return {
     dailyNote: {
       date,
-      totalSteps: parseOptionalNumber(
-        fieldValue(recovery, "Total Steps") ?? undefined,
-      ),
+      totalSteps: parseStepValue(fieldValue(recovery, "Total Steps")),
       legSoreness: parseRecoveryValue(
         fieldValue(recovery, "Soreness (0-10 or words)") ??
           fieldValue(recovery, "Soreness (0-10)"),
