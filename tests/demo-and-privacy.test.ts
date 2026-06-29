@@ -26,7 +26,8 @@ describe("demo generation", () => {
       "utf8",
     );
 
-    assert.match(markdown, /Sample Runner/);
+    assert.doesNotMatch(markdown, /## Athlete Background/);
+    assert.doesNotMatch(markdown, /Sample Runner/);
     assert.match(markdown, /Example City Marathon/);
     assert.match(written, /Public-safe fake demo output/);
     assert.match(written, /Fake public demo recovery note/);
@@ -201,7 +202,7 @@ describe("public documentation", () => {
     const weekly = readProjectFile("examples/demo-weekly-summary.md");
 
     assert.match(daily, /Public-safe fake demo output/);
-    assert.match(daily, /Sample Runner/);
+    assert.doesNotMatch(daily, /## Athlete Background/);
     assert.match(daily, /Example City Marathon/);
     assert.match(weekly, /Public-safe fake demo output/);
     assert.match(weekly, /Sample Runner/);

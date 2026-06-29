@@ -10,20 +10,10 @@
 - Race goal: 4:30 stretch goal
 - Goal pace: 10:18 min/mi
 
-## Athlete Background
-
-- Athlete: Sample Runner
-- Experience: beginner
-- Running background: Sample Runner is building consistency with easy run-walk training and conservative mileage increases.
-- Baseline run: 2026-06-01, 3.1 mi, 36 min, Comfortable fake baseline effort on a flat demo route.
-- Travel/no-running break: 2026-07-06 to 2026-07-10: Fake planned travel week with walking only.
-- Normal lifestyle activity: 8500 average daily steps; Moderate fake walking during a normal demo week.
-- Recurring cross-training: mobility 2 times per week (Light fake mobility routine.); weights 1 time per week (Short fake full-body strength session.)
-
 ## Yesterday's Logged Activities
 
 - Runs: not provided
-- Walks: walk, 2 mi, 38 min, 19:00 min/mi, Fake relaxed walk.
+- Walks: walk, 2 mi, 38 min, 19:00 min/mi, Elevation gain 60 ft, Fake relaxed walk.
 - Rock climbing: not provided
 - Tennis: not provided
 - Weights/strength: not provided

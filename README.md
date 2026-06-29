@@ -119,7 +119,7 @@ Keep public config files fake. Do not put real athlete names, real race logistic
 
 ## Daily Coaching Workflow
 
-Use the one-command coach workflow for normal daily use. It prints the evidence date and coaching date before doing work.
+Use the one-command coach workflow for normal daily use. It prints the evidence date and coaching date before doing work. Daily check-ins are compact by default, so they keep the race header and omit the full `## Athlete Background` section.
 
 Night workflow:
 
@@ -150,6 +150,12 @@ npm run coach -- --coaching-date YYYY-MM-DD
 ```
 
 If the command creates or reuses a journal, add subjective details such as soreness, pain, steps, energy, shoes, and tomorrow constraints. Then rerun the same command to regenerate the check-in.
+
+For a standalone check-in or a new ChatGPT coaching thread, include the full background explicitly:
+
+```bash
+npm run coach -- --evidence-date YYYY-MM-DD --include-athlete-background
+```
 
 ## Creating Daily Journals Manually
 
@@ -279,6 +285,8 @@ npm run generate:daily -- --date YYYY-MM-DD
 
 `npm run generate:daily -- --date YYYY-MM-DD` means: generate the coaching check-in for that coaching day. The daily generator uses the previous day as evidence.
 
+Daily output is compact by default and omits the full `## Athlete Background` section. Use this when the ongoing coaching thread already knows your background.
+
 Manual example:
 
 ```bash
@@ -293,6 +301,12 @@ output/daily-checkin.md
 ```
 
 This uses the June 27 journal/export data as evidence and writes a June 28 coaching check-in. The output can be pasted into ChatGPT on the night of June 27 or the morning of June 28.
+
+For standalone/full context:
+
+```bash
+npm run generate:daily -- --date 2026-06-28 --include-athlete-background
+```
 
 To print the generated Markdown to the terminal:
 

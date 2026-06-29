@@ -20,7 +20,7 @@ Edit `private/athlete.config.local.json` with your real race, goal, training bac
 
 ## 2. Run Your First Daily Coach Workflow
 
-The recommended workflow uses one ignored Markdown journal for the completed evidence day and generates a check-in for the coaching day.
+The recommended workflow uses one ignored Markdown journal for the completed evidence day and generates a compact check-in for the coaching day.
 
 At night:
 
@@ -41,6 +41,8 @@ npm run coach -- --evidence-date YYYY-MM-DD
 ```
 
 The command creates or reuses `input/journal/YYYY-MM-DD.md` without overwriting an existing journal, then generates `output/daily-checkin.md`. Fill the journal in with recovery, nutrition, gear, coach notes, questions, and manual-only activities, then rerun the same command.
+
+Compact daily check-ins omit the full `## Athlete Background` section. For a standalone check-in or a new ChatGPT coaching thread, add `--include-athlete-background`.
 
 ## 3. Optional Legacy Manual CSV Files
 
@@ -94,6 +96,12 @@ Daily recommended:
 npm run coach:tonight
 ```
 
+Standalone/full context:
+
+```bash
+npm run coach:tonight -- --include-athlete-background
+```
+
 Daily explicit:
 
 ```bash
@@ -108,6 +116,8 @@ npm run generate:daily -- --date 2026-06-28
 ```
 
 The journal date is the completed evidence day. The daily generation date is the coaching day.
+
+Direct daily generation is compact by default. Use `npm run generate:daily -- --date YYYY-MM-DD --include-athlete-background` when you need the full background.
 
 Weekly:
 

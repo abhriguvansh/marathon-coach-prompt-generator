@@ -223,6 +223,7 @@ describe("daily journal workflow", () => {
     const result = generateDailyCheckIn(dir, {
       date: "2026-06-28",
       preview: false,
+      includeAthleteBackground: false,
     });
 
     assert.equal(result.missingFiles.length, 0);

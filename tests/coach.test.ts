@@ -111,8 +111,10 @@ describe("coach workflow CLI", () => {
     assert.equal(existsSync(journalPath), true);
     assert.match(output, /- Date: 2026-06-28/);
     assert.match(output, /- Evidence date: 2026-06-27/);
+    assert.doesNotMatch(output, /## Athlete Background/);
     assert.match(consoleOutput, /Evidence date: 2026-06-27/);
     assert.match(consoleOutput, /Coaching date: 2026-06-28/);
+    assert.match(consoleOutput, /Daily check-in mode: compact/);
     assert.match(
       consoleOutput,
       /Create or reuse input\/journal\/2026-06-27\.md/,
@@ -143,6 +145,25 @@ describe("coach workflow CLI", () => {
     assert.match(
       readFileSync(join(dir, "output/daily-checkin.md"), "utf8"),
       /Evidence date: 2026-06-27/,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("can include athlete background through the coach workflow flag", () => {
+    const dir = makeCoachProject();
+
+    runCoachWorkflow({
+      cwd: dir,
+      args: parseCoachArgs([
+        "--evidence-date",
+        "2026-06-27",
+        "--include-athlete-background",
+      ]),
+    });
+
+    assert.match(
+      readFileSync(join(dir, "output/daily-checkin.md"), "utf8"),
+      /## Athlete Background/,
     );
     rmSync(dir, { recursive: true, force: true });
   });

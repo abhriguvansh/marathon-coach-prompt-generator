@@ -2,7 +2,14 @@ import type { ActivityNote, DailySummary, ManualActivity } from "../types";
 import { formatUnknown } from "../utils/format";
 import { secondsToReadableDuration } from "../utils/units";
 
-export function renderDailyCheckIn(summary: DailySummary): string {
+export interface DailyCheckInRenderOptions {
+  includeAthleteBackground?: boolean;
+}
+
+export function renderDailyCheckIn(
+  summary: DailySummary,
+  options: DailyCheckInRenderOptions = {},
+): string {
   const config = summary.athleteConfig;
   const daily = summary.dailyNote;
 
@@ -17,16 +24,7 @@ export function renderDailyCheckIn(summary: DailySummary): string {
     `- Race goal: ${config.race.goalTime}`,
     `- Goal pace: ${config.race.goalPace}`,
     "",
-    "## Athlete Background",
-    "",
-    `- Athlete: ${formatUnknown(config.athleteName)}`,
-    `- Experience: ${formatUnknown(config.background.experienceLevel)}`,
-    `- Running background: ${formatUnknown(config.background.runningBackground, "not provided")}`,
-    `- Baseline run: ${formatBaselineRun(config)}`,
-    `- Travel/no-running break: ${formatTravelBreak(config)}`,
-    `- Normal lifestyle activity: ${formatLifestyleActivity(config)}`,
-    `- Recurring cross-training: ${formatCrossTraining(config)}`,
-    "",
+    ...formatAthleteBackground(summary, options),
     "## Yesterday's Logged Activities",
     "",
     ...formatActivityGroup("Runs", summary.runs),
@@ -514,4 +512,28 @@ function formatActivityDataQuality(activities: ManualActivity[]): string[] {
   }
 
   return [...notes].map((note) => `- ${note}`);
+}
+
+function formatAthleteBackground(
+  summary: DailySummary,
+  options: DailyCheckInRenderOptions,
+): string[] {
+  if (!options.includeAthleteBackground) {
+    return [];
+  }
+
+  const config = summary.athleteConfig;
+
+  return [
+    "## Athlete Background",
+    "",
+    `- Athlete: ${formatUnknown(config.athleteName)}`,
+    `- Experience: ${formatUnknown(config.background.experienceLevel)}`,
+    `- Running background: ${formatUnknown(config.background.runningBackground, "not provided")}`,
+    `- Baseline run: ${formatBaselineRun(config)}`,
+    `- Travel/no-running break: ${formatTravelBreak(config)}`,
+    `- Normal lifestyle activity: ${formatLifestyleActivity(config)}`,
+    `- Recurring cross-training: ${formatCrossTraining(config)}`,
+    "",
+  ];
 }

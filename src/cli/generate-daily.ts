@@ -14,6 +14,7 @@ import { parseDate } from "../utils/dates";
 interface Args {
   date: string | null;
   preview: boolean;
+  includeAthleteBackground: boolean;
 }
 
 const OUTPUT_PATH = "output/daily-checkin.md";
@@ -21,6 +22,7 @@ const OUTPUT_PATH = "output/daily-checkin.md";
 export function parseGenerateDailyArgs(argv: string[]): Args {
   let date: string | null = null;
   let preview = false;
+  let includeAthleteBackground = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -33,10 +35,15 @@ export function parseGenerateDailyArgs(argv: string[]): Args {
 
     if (arg === "--preview") {
       preview = true;
+      continue;
+    }
+
+    if (arg === "--include-athlete-background") {
+      includeAthleteBackground = true;
     }
   }
 
-  return { date, preview };
+  return { date, preview, includeAthleteBackground };
 }
 
 export function generateDailyCheckIn(
@@ -95,7 +102,9 @@ export function generateDailyCheckIn(
       file.replace(`${cwd}\\`, "").replace(`${cwd}/`, ""),
     ),
   });
-  const markdown = renderDailyCheckIn(summary);
+  const markdown = renderDailyCheckIn(summary, {
+    includeAthleteBackground: args.includeAthleteBackground,
+  });
   const outputPath = join(cwd, OUTPUT_PATH);
 
   mkdirSync(dirname(outputPath), { recursive: true });
@@ -137,6 +146,11 @@ if (require.main === module) {
     if (args.preview) {
       console.log(result.markdown);
     } else {
+      console.log(
+        args.includeAthleteBackground
+          ? "Daily check-in mode: full athlete background."
+          : "Daily check-in mode: compact. Use --include-athlete-background for standalone/full context.",
+      );
       console.log(
         `Generated ${OUTPUT_PATH} for coaching day ${result.coachingDate} using evidence day ${result.evidenceDate}.`,
       );

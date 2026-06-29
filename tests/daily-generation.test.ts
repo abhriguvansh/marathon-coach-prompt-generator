@@ -160,12 +160,35 @@ describe("daily summary generation", () => {
     const markdown = renderDailyCheckIn(summary);
 
     assert.match(markdown, /# Daily Marathon Coach Check-In/);
+    assert.doesNotMatch(markdown, /## Athlete Background/);
+    assert.match(markdown, /Race: Example City Marathon/);
+    assert.match(markdown, /Race date: 2026-11-29/);
+    assert.match(markdown, /Race goal: 4:30 stretch goal/);
+    assert.match(markdown, /Goal pace: 10:18 min\/mi/);
     assert.match(markdown, /Running mileage: 3 mi/);
     assert.match(markdown, /Walking mileage: 2 mi/);
     assert.match(markdown, /Rock climbing:/);
     assert.match(markdown, /Gear notes: Demo shoes/);
+    assert.match(markdown, /## Missing Data Flags/);
+    assert.match(markdown, /## Data Quality Notes/);
+    assert.match(markdown, /## Safety Flags/);
     assert.match(markdown, /## Plan Notes\s+not provided/);
     assert.match(markdown, /what should I do today/i);
+  });
+
+  it("can render the full Athlete Background section when requested", () => {
+    const markdown = renderDailyCheckIn(buildFakeSummary(), {
+      includeAthleteBackground: true,
+    });
+
+    assert.match(markdown, /## Athlete Background/);
+    assert.match(markdown, /Athlete: Sample Runner/);
+    assert.match(
+      markdown,
+      /Running background: Fake consistent run-walk background/,
+    );
+    assert.match(markdown, /Baseline run:/);
+    assert.match(markdown, /Recurring cross-training:/);
   });
 
   it("loads and summarizes fake files without printing raw private input", () => {

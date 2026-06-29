@@ -1,6 +1,6 @@
 # Daily Workflow
 
-Use the coach workflow commands so evidence dates and coaching dates are calculated for you.
+Use the coach workflow commands so evidence dates and coaching dates are calculated for you. Daily check-ins are compact by default and omit the full `## Athlete Background` section.
 
 Definitions:
 
@@ -25,6 +25,12 @@ npm run coach:tonight
 ```
 
 Paste `output/daily-checkin.md` into ChatGPT that night to plan tomorrow.
+
+For a standalone check-in or a new ChatGPT coaching thread, add the full background explicitly:
+
+```bash
+npm run coach:tonight -- --include-athlete-background
+```
 
 ## Morning Workflow
 
@@ -51,6 +57,8 @@ npm run coach -- --coaching-date YYYY-MM-DD
 ```
 
 If both dates are provided, they must be exactly one day apart.
+
+Use `--include-athlete-background` with any coach command when you want the full background section included.
 
 ## Activities And Journals
 
@@ -81,6 +89,12 @@ npm run generate:daily -- --date YYYY-MM-DD
 ```
 
 `journal -- --date` is the evidence day. `generate:daily -- --date` is the coaching day. Prefer the `coach:*` commands for daily use.
+
+`generate:daily` is also compact by default. For standalone/full context:
+
+```bash
+npm run generate:daily -- --date YYYY-MM-DD --include-athlete-background
+```
 
 ## Legacy CSV Workflow
 

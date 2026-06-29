@@ -16,6 +16,7 @@ interface CoachArgs {
   mode: CoachMode;
   evidenceDate: string | null;
   coachingDate: string | null;
+  includeAthleteBackground: boolean;
 }
 
 export interface CoachWorkflowResult {
@@ -31,6 +32,7 @@ export function parseCoachArgs(argv: string[]): CoachArgs {
   let mode: CoachMode = "explicit";
   let evidenceDate: string | null = null;
   let coachingDate: string | null = null;
+  let includeAthleteBackground = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -56,10 +58,15 @@ export function parseCoachArgs(argv: string[]): CoachArgs {
     if (arg === "--coaching-date") {
       coachingDate = argv[index + 1] ?? null;
       index += 1;
+      continue;
+    }
+
+    if (arg === "--include-athlete-background") {
+      includeAthleteBackground = true;
     }
   }
 
-  return { mode, evidenceDate, coachingDate };
+  return { mode, evidenceDate, coachingDate, includeAthleteBackground };
 }
 
 export function resolveCoachDates(
@@ -123,6 +130,11 @@ export function runCoachWorkflow(input: {
   log("This will:");
   log(`1. Create or reuse input/journal/${evidenceDate}.md`);
   log(`2. Generate output/daily-checkin.md for ${coachingDate}`);
+  log(
+    input.args.includeAthleteBackground
+      ? "Daily check-in mode: full athlete background."
+      : "Daily check-in mode: compact. Use --include-athlete-background for standalone/full context.",
+  );
   log("");
 
   const exports = parseLocalExports(input.cwd);
@@ -152,6 +164,7 @@ export function runCoachWorkflow(input: {
   const daily = generateDailyCheckIn(input.cwd, {
     date: coachingDate,
     preview: false,
+    includeAthleteBackground: input.args.includeAthleteBackground,
   });
 
   log(
