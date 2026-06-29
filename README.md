@@ -151,6 +151,14 @@ npm run coach -- --coaching-date YYYY-MM-DD
 
 If the command creates or reuses a journal, add subjective details such as soreness, pain, steps, energy, shoes, and tomorrow constraints. Then rerun the same command to regenerate the check-in.
 
+The coach workflow automatically runs a check-in completeness validator. It warns about missing subjective details that exports cannot know, such as soreness, pain, gait changes, energy, steps, shoes, fueling, and tomorrow constraints. These warnings do not block generation.
+
+To run the validator by itself:
+
+```bash
+npm run validate:checkin -- --evidence-date YYYY-MM-DD
+```
+
 For a standalone check-in or a new ChatGPT coaching thread, include the full background explicitly:
 
 ```bash
@@ -419,7 +427,7 @@ npm test
 
 1. Export Garmin/Strava activities if available.
 2. At night, run `npm run coach:tonight`.
-3. Fill out the evidence-day journal if the command created or reused one.
+3. Fill out the evidence-day journal if the command created or if the validator warns about missing subjective details.
 4. Rerun `npm run coach:tonight` to regenerate the check-in with your subjective notes.
 5. Open `output/daily-checkin.md`.
 6. Paste the Markdown into ChatGPT that night to plan tomorrow, or the next morning to plan the current day.

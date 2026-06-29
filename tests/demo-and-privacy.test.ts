@@ -185,6 +185,7 @@ describe("public documentation", () => {
       "generate:daily",
       "generate:weekly",
       "parse:exports",
+      "validate:checkin",
       "demo:daily",
       "demo:weekly",
       "privacy:check",

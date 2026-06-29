@@ -11,6 +11,7 @@ import type {
 } from "../types";
 import { daysUntilRace, formatDate, parseDate } from "../utils/dates";
 import { classifyActivities, sumMileage } from "./activity-classification";
+import { evaluateCheckInCompleteness } from "./checkin-completeness";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
 
 export function previousDate(date: string): string {
@@ -49,7 +50,7 @@ export function createDailySummary(input: {
   const runningMileage = sumMileage(groups.runs);
   const walkingMileage = sumMileage(groups.walks);
 
-  return {
+  const summaryWithoutCompleteness = {
     date: input.date,
     evidenceDate,
     athleteConfig: input.athleteConfig,
@@ -84,6 +85,13 @@ export function createDailySummary(input: {
       duplicateWarnings: duplicateAnalysis.warnings,
       journalEntry,
     }),
+  };
+
+  return {
+    ...summaryWithoutCompleteness,
+    checkInCompleteness: evaluateCheckInCompleteness(
+      summaryWithoutCompleteness,
+    ),
   };
 }
 

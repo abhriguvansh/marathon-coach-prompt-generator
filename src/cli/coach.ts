@@ -1,5 +1,9 @@
 import { relative } from "node:path";
 import { generateDailyCheckIn } from "./generate-daily";
+import {
+  formatCheckInValidationReport,
+  validateCheckIn,
+} from "./validate-checkin";
 import { parseLocalExports } from "../exports/export-scanner";
 import { createJournal } from "../parsers/journal";
 import {
@@ -159,6 +163,10 @@ export function runCoachWorkflow(input: {
     "Add subjective details such as soreness, pain, steps, energy, shoes, and tomorrow constraints.",
   );
   log("Then rerun this command to regenerate the check-in.");
+  log("");
+
+  const validation = validateCheckIn(input.cwd, { evidenceDate });
+  log(formatCheckInValidationReport(validation));
   log("");
 
   const daily = generateDailyCheckIn(input.cwd, {

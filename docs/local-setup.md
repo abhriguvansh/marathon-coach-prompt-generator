@@ -44,6 +44,8 @@ The command creates or reuses `input/journal/YYYY-MM-DD.md` without overwriting 
 
 Compact daily check-ins omit the full `## Athlete Background` section. For a standalone check-in or a new ChatGPT coaching thread, add `--include-athlete-background`.
 
+The coach workflow also runs check-in completeness validation automatically. It warns about missing subjective fields such as soreness, pain, gait changes, energy, steps, sleep, shoes, fueling, and tomorrow constraints. These warnings do not block generation.
+
 ## 3. Optional Legacy Manual CSV Files
 
 The legacy CSV workflow still works. Use these only if you prefer CSVs or need bulk editing.
@@ -106,6 +108,12 @@ Daily explicit:
 
 ```bash
 npm run coach -- --evidence-date YYYY-MM-DD
+```
+
+Check completeness only:
+
+```bash
+npm run validate:checkin -- --evidence-date YYYY-MM-DD
 ```
 
 Manual lower-level commands:

@@ -74,6 +74,10 @@ export function renderDailyCheckIn(
     "",
     formatFlags(summary.missingDataFlags.map((flag) => flag.message)),
     "",
+    "## Check-In Completeness",
+    "",
+    ...formatCheckInCompleteness(summary),
+    "",
     "## Data Quality Notes",
     "",
     "- Walking mileage is reported separately and is not counted as running mileage.",
@@ -512,6 +516,22 @@ function formatActivityDataQuality(activities: ManualActivity[]): string[] {
   }
 
   return [...notes].map((note) => `- ${note}`);
+}
+
+function formatCheckInCompleteness(summary: DailySummary): string[] {
+  const completeness = summary.checkInCompleteness;
+  const lines =
+    completeness.missingHighValueFields.length === 0
+      ? ["- Key subjective fields provided."]
+      : [
+          `- Missing high-value subjective fields: ${completeness.missingHighValueFields.join(", ")}.`,
+        ];
+
+  if (completeness.manualOnlyActivityReminder) {
+    lines.push(`- ${completeness.manualOnlyActivityReminder}`);
+  }
+
+  return lines;
 }
 
 function formatAthleteBackground(

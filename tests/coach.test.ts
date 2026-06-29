@@ -117,6 +117,11 @@ describe("coach workflow CLI", () => {
     assert.match(consoleOutput, /Daily check-in mode: compact/);
     assert.match(
       consoleOutput,
+      /Check-in completeness for evidence date 2026-06-27/,
+    );
+    assert.match(consoleOutput, /Status: needs subjective details/);
+    assert.match(
+      consoleOutput,
       /Create or reuse input\/journal\/2026-06-27\.md/,
     );
     assert.doesNotMatch(
@@ -204,6 +209,8 @@ function journalTemplate(): string {
     "{{IMPORTED_ACTIVITIES}}",
     "",
     "## Recovery",
+    "",
+    "Total Steps:",
     "",
     "Soreness (0-10):",
     "",

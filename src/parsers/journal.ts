@@ -95,7 +95,9 @@ export function parseJournal(
   return {
     dailyNote: {
       date,
-      totalSteps: null,
+      totalSteps: parseOptionalNumber(
+        fieldValue(recovery, "Total Steps") ?? undefined,
+      ),
       legSoreness: parseOptionalNumber(
         fieldValue(recovery, "Soreness (0-10)") ?? undefined,
       ),
@@ -416,6 +418,8 @@ function defaultJournalTemplate(): string {
     "---",
     "",
     "## Recovery",
+    "",
+    "Total Steps:",
     "",
     "Soreness (0-10):",
     "",

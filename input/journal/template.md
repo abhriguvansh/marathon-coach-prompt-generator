@@ -14,6 +14,8 @@ These activities were imported automatically from Garmin or Strava exports. Do n
 
 ## Recovery
 
+Total Steps:
+
 Soreness (0-10):
 
 Pain (0-10):

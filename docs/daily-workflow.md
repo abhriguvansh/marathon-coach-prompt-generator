@@ -26,6 +26,14 @@ npm run coach:tonight
 
 Paste `output/daily-checkin.md` into ChatGPT that night to plan tomorrow.
 
+The coach workflow runs a check-in completeness validator automatically. If it warns about missing subjective details, edit the evidence-day journal and rerun the same coach command before pasting the output into ChatGPT.
+
+To run the validator separately:
+
+```bash
+npm run validate:checkin -- --evidence-date YYYY-MM-DD
+```
+
 For a standalone check-in or a new ChatGPT coaching thread, add the full background explicitly:
 
 ```bash

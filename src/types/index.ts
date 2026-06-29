@@ -179,6 +179,14 @@ export interface MissingDataFlag {
   message: string;
 }
 
+export interface CheckInCompleteness {
+  status: "complete" | "needs_subjective_details";
+  activityContext: "run" | "non_run_activity" | "no_activity";
+  missingHighValueFields: string[];
+  optionalReminders: string[];
+  manualOnlyActivityReminder: string | null;
+}
+
 export interface DailySummary {
   date: string;
   evidenceDate: string;
@@ -202,6 +210,7 @@ export interface DailySummary {
   restOrOther: ManualActivity[];
   safetyFlags: SafetyFlag[];
   missingDataFlags: MissingDataFlag[];
+  checkInCompleteness: CheckInCompleteness;
 }
 
 export interface WeeklyActivityTotals {

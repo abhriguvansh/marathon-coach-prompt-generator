@@ -59,6 +59,11 @@ Fake plan note: keep easy days easy, separate walking from running mileage, and 
 
 - None.
 
+## Check-In Completeness
+
+- Missing high-value subjective fields: tomorrow constraints / coach notes.
+- Manual-only activities are not detected from exports. Add climbing, weights, tennis, mobility, or other untracked activity if they happened.
+
 ## Data Quality Notes
 
 - Walking mileage is reported separately and is not counted as running mileage.
