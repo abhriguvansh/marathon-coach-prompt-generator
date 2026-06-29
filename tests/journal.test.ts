@@ -114,6 +114,32 @@ describe("daily journal workflow", () => {
     assert.equal(parsed.manualActivities[0].durationMinutes, 60);
   });
 
+  it("parses natural-language recovery values from journals", () => {
+    const parsed = parseJournal(naturalLanguageRecoveryJournal(), "2026-06-27");
+
+    assert.equal(parsed.dailyNote.legSoreness, "1-2");
+    assert.equal(parsed.dailyNote.pain, 0);
+    assert.equal(parsed.dailyNote.painLocation, "na");
+    assert.equal(parsed.dailyNote.painType, "na");
+    assert.equal(parsed.dailyNote.gaitChanged, false);
+    assert.equal(parsed.dailyNote.fatigue, "no fatigue problems");
+    assert.equal(parsed.dailyNote.energy, "average");
+    assert.equal(parsed.dailyNote.sleepQuality, "average");
+    assert.equal(parsed.dailyNote.stress, "average");
+  });
+
+  it("treats placeholder recovery values as missing", () => {
+    const parsed = parseJournal(placeholderRecoveryJournal(), "2026-06-27");
+
+    assert.equal(parsed.dailyNote.legSoreness, null);
+    assert.equal(parsed.dailyNote.pain, null);
+    assert.equal(parsed.dailyNote.gaitChanged, null);
+    assert.equal(parsed.dailyNote.fatigue, null);
+    assert.equal(parsed.dailyNote.energy, null);
+    assert.equal(parsed.dailyNote.sleepQuality, null);
+    assert.equal(parsed.dailyNote.stress, null);
+  });
+
   it("ignores missing optional fields and sections gracefully", () => {
     const parsed = parseJournal("# Daily Journal\n\nDate: 2026-06-27\n");
 
@@ -140,6 +166,30 @@ describe("daily journal workflow", () => {
     assert.match(markdown, /Journal gear: not provided/);
     assert.doesNotMatch(markdown, /Hydration: Fueling:/);
     assert.doesNotMatch(markdown, /Shoes: Equipment:/);
+  });
+
+  it("renders natural-language recovery values in daily Markdown", () => {
+    const parsed = parseJournal(naturalLanguageRecoveryJournal(), "2026-06-27");
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [parsed.dailyNote],
+        activityNotes: [],
+        manualActivities: [],
+        planNotes: null,
+        journalEntries: [parsed.journalEntry],
+      }),
+    );
+
+    assert.match(markdown, /Soreness: 1-2/);
+    assert.match(markdown, /Pain: 0/);
+    assert.match(markdown, /Pain location\/type: na \/ na/);
+    assert.match(markdown, /Gait changed: No/);
+    assert.match(markdown, /Fatigue: no fatigue problems/);
+    assert.match(markdown, /Energy: average/);
+    assert.match(markdown, /Sleep: average/);
+    assert.match(markdown, /Stress: average/);
   });
 
   it("warns when a journal activity may duplicate an imported activity", () => {
@@ -285,6 +335,53 @@ function fakeJournalMarkdown(): string {
     "",
     "Should tomorrow be easy run or rest?",
     "",
+  ].join("\n");
+}
+
+function naturalLanguageRecoveryJournal(): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Recovery",
+    "",
+    "Total Steps: 1234",
+    "Soreness (0-10 or words): 1-2",
+    "Pain (0-10 or words): 0",
+    "Pain Location: na",
+    "Pain Type: na",
+    "Did pain change gait? (Yes/No): na",
+    "Energy (0-10 or words): average",
+    "Fatigue (0-10 or words): no fatigue problems",
+    "Sleep: average",
+    "Stress (0-10 or words): average",
+    "",
+    "## Gear Notes",
+    "",
+    "Shoes: none / no run",
+    "",
+    "## Coach Notes",
+    "",
+    "Tomorrow has fake schedule constraints.",
+  ].join("\n");
+}
+
+function placeholderRecoveryJournal(): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Recovery",
+    "",
+    "Soreness (0-10 or words): unknown",
+    "Pain (0-10 or words): not provided",
+    "Did pain change gait? (Yes/No): todo",
+    "Energy (0-10 or words): placeholder",
+    "Fatigue (0-10 or words): fill in",
+    "Sleep: TBD",
+    "Stress (0-10 or words): unknown",
   ].join("\n");
 }
 

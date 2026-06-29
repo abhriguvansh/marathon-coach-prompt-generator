@@ -7,8 +7,13 @@ import {
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { DailyNote, JournalEntry, ManualActivity } from "../types";
-import { parseOptionalBoolean, parseOptionalNumber } from "../utils/csv";
+import { parseOptionalNumber } from "../utils/csv";
 import { formatDate, parseDate, todayLocalDate } from "../utils/dates";
+import {
+  isNoPain,
+  parseGaitChangedValue,
+  parseRecoveryValue,
+} from "../utils/recovery";
 import { secondsToReadableDuration } from "../utils/units";
 
 export interface JournalInputs {
@@ -91,6 +96,12 @@ export function parseJournal(
     coachNotes,
     questionsForCoach,
   };
+  const pain = parseRecoveryValue(
+    fieldValue(recovery, "Pain (0-10 or words)") ??
+      fieldValue(recovery, "Pain (0-10)"),
+    { allowNone: true },
+  );
+  const noPain = isNoPain(pain);
 
   return {
     dailyNote: {
@@ -98,30 +109,41 @@ export function parseJournal(
       totalSteps: parseOptionalNumber(
         fieldValue(recovery, "Total Steps") ?? undefined,
       ),
-      legSoreness: parseOptionalNumber(
-        fieldValue(recovery, "Soreness (0-10)") ?? undefined,
+      legSoreness: parseRecoveryValue(
+        fieldValue(recovery, "Soreness (0-10 or words)") ??
+          fieldValue(recovery, "Soreness (0-10)"),
       ),
-      pain: parseOptionalNumber(
-        fieldValue(recovery, "Pain (0-10)") ?? undefined,
+      pain,
+      painLocation: parseRecoveryText(fieldValue(recovery, "Pain Location"), {
+        allowNone: noPain,
+        allowNotApplicable: noPain,
+      }),
+      painType: parseRecoveryText(fieldValue(recovery, "Pain Type"), {
+        allowNone: noPain,
+        allowNotApplicable: noPain,
+      }),
+      gaitChanged: parseGaitChangedValue(
+        fieldValue(recovery, "Did pain change gait? (Yes/No)"),
+        pain,
       ),
-      painLocation: fieldValue(recovery, "Pain Location"),
-      painType: fieldValue(recovery, "Pain Type"),
-      gaitChanged: parseOptionalBoolean(
-        fieldValue(recovery, "Did pain change gait? (Yes/No)") ?? undefined,
+      fatigue: parseRecoveryValue(
+        fieldValue(recovery, "Fatigue (0-10 or words)") ??
+          fieldValue(recovery, "Fatigue (0-10)"),
+        { allowNone: true },
       ),
-      fatigue: parseOptionalNumber(
-        fieldValue(recovery, "Fatigue (0-10)") ?? undefined,
+      energy: parseRecoveryValue(
+        fieldValue(recovery, "Energy (0-10 or words)") ??
+          fieldValue(recovery, "Energy (0-10)"),
       ),
-      energy: parseOptionalNumber(
-        fieldValue(recovery, "Energy (0-10)") ?? undefined,
+      sleepQuality: parseRecoveryValue(fieldValue(recovery, "Sleep")),
+      stress: parseRecoveryValue(
+        fieldValue(recovery, "Stress (0-10 or words)") ??
+          fieldValue(recovery, "Stress (0-10)"),
       ),
-      sleepQuality: parseOptionalNumber(
-        fieldValue(recovery, "Sleep") ?? undefined,
+      motivation: parseRecoveryValue(
+        fieldValue(recovery, "Motivation (0-10 or words)") ??
+          fieldValue(recovery, "Motivation (0-10)"),
       ),
-      stress: parseOptionalNumber(
-        fieldValue(recovery, "Stress (0-10)") ?? undefined,
-      ),
-      motivation: null,
       notes: combineNotes([
         journalEntry.coachNotes,
         journalEntry.questionsForCoach === null
@@ -238,6 +260,15 @@ function parseJournalManualActivities(
         ]),
       };
     });
+}
+
+function parseRecoveryText(
+  value: string | null,
+  options: { allowNone?: boolean; allowNotApplicable?: boolean },
+): string | null {
+  const parsed = parseRecoveryValue(value, options);
+
+  return parsed === null ? null : String(parsed);
 }
 
 function splitActivityBlocks(
@@ -421,9 +452,9 @@ function defaultJournalTemplate(): string {
     "",
     "Total Steps:",
     "",
-    "Soreness (0-10):",
+    "Soreness (0-10 or words):",
     "",
-    "Pain (0-10):",
+    "Pain (0-10 or words):",
     "",
     "Pain Location:",
     "",
@@ -431,13 +462,13 @@ function defaultJournalTemplate(): string {
     "",
     "Did pain change gait? (Yes/No):",
     "",
-    "Energy (0-10):",
+    "Energy (0-10 or words):",
     "",
-    "Fatigue (0-10):",
+    "Fatigue (0-10 or words):",
     "",
     "Sleep:",
     "",
-    "Stress (0-10):",
+    "Stress (0-10 or words):",
     "",
     "---",
     "",

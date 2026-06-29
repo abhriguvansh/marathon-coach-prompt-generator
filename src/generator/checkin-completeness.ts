@@ -1,12 +1,5 @@
 import type { CheckInCompleteness, DailySummary } from "../types";
-
-const PLACEHOLDER_VALUES = new Set([
-  "not provided",
-  "unknown",
-  "n/a",
-  "na",
-  "none provided",
-]);
+import { isNoPain, isProvidedRecoveryValue } from "../utils/recovery";
 
 export function evaluateCheckInCompleteness(
   summary: Omit<DailySummary, "checkInCompleteness">,
@@ -22,32 +15,30 @@ export function evaluateCheckInCompleteness(
   addMissing(
     missingHighValueFields,
     "soreness",
-    hasNumber(summary.dailyNote?.legSoreness),
+    isProvidedRecoveryValue(summary.dailyNote?.legSoreness, {
+      allowNone: true,
+    }),
   );
   addMissing(
     missingHighValueFields,
     "pain",
-    hasNumber(summary.dailyNote?.pain),
+    isProvidedRecoveryValue(summary.dailyNote?.pain, { allowNone: true }),
   );
-  addMissing(
-    missingHighValueFields,
-    "gait changed",
-    typeof summary.dailyNote?.gaitChanged === "boolean",
-  );
+  addMissing(missingHighValueFields, "gait changed", isProvidedGait(summary));
   addMissing(
     missingHighValueFields,
     "energy",
-    hasNumber(summary.dailyNote?.energy),
+    isProvidedRecoveryValue(summary.dailyNote?.energy),
   );
   addMissing(
     missingHighValueFields,
     "steps",
-    hasNumber(summary.dailyNote?.totalSteps),
+    typeof summary.dailyNote?.totalSteps === "number",
   );
   addMissing(
     missingHighValueFields,
     "sleep",
-    hasNumber(summary.dailyNote?.sleepQuality),
+    isProvidedRecoveryValue(summary.dailyNote?.sleepQuality),
   );
   addMissing(
     missingHighValueFields,
@@ -59,7 +50,7 @@ export function evaluateCheckInCompleteness(
     addMissing(
       missingHighValueFields,
       "fatigue",
-      hasNumber(summary.dailyNote?.fatigue),
+      isProvidedRecoveryValue(summary.dailyNote?.fatigue, { allowNone: true }),
     );
     addMissing(missingHighValueFields, "shoes", hasGear(summary));
   }
@@ -73,7 +64,7 @@ export function evaluateCheckInCompleteness(
     addOptional(
       optionalReminders,
       "Add fatigue if it would affect tomorrow's training.",
-      hasNumber(summary.dailyNote?.fatigue),
+      isProvidedRecoveryValue(summary.dailyNote?.fatigue, { allowNone: true }),
     );
   }
 
@@ -87,8 +78,8 @@ export function evaluateCheckInCompleteness(
   addOptional(
     optionalReminders,
     "Add stress or motivation if they affected the day.",
-    hasNumber(summary.dailyNote?.stress) ||
-      hasNumber(summary.dailyNote?.motivation),
+    isProvidedRecoveryValue(summary.dailyNote?.stress) ||
+      isProvidedRecoveryValue(summary.dailyNote?.motivation),
   );
   addOptional(
     optionalReminders,
@@ -130,10 +121,6 @@ function addOptional(
   }
 }
 
-function hasNumber(value: number | null | undefined): boolean {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
 function hasGear(summary: Omit<DailySummary, "checkInCompleteness">): boolean {
   return (
     hasText(summary.journalEntry?.shoes) ||
@@ -152,3 +139,34 @@ function hasText(value: string | null | undefined): boolean {
 
   return normalized !== "" && !PLACEHOLDER_VALUES.has(normalized);
 }
+
+function isProvidedGait(
+  summary: Omit<DailySummary, "checkInCompleteness">,
+): boolean {
+  const gaitChanged = summary.dailyNote?.gaitChanged;
+
+  if (typeof gaitChanged === "boolean") {
+    return true;
+  }
+
+  if (
+    isNoPain(summary.dailyNote?.pain) &&
+    isProvidedRecoveryValue(gaitChanged)
+  ) {
+    return true;
+  }
+
+  return isProvidedRecoveryValue(gaitChanged, { allowNotApplicable: false });
+}
+
+const PLACEHOLDER_VALUES = new Set([
+  "not provided",
+  "unknown",
+  "n/a",
+  "na",
+  "none provided",
+  "tbd",
+  "todo",
+  "fill in",
+  "placeholder",
+]);

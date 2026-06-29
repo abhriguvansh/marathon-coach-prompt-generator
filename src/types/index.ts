@@ -1,4 +1,5 @@
 export type Unknownish = string | number | boolean | null | undefined;
+export type RecoveryValue = string | number | null;
 
 export interface WeekRange {
   start: Date;
@@ -47,16 +48,16 @@ export interface AthleteConfig {
 export interface DailyNote {
   date: string;
   totalSteps: number | null;
-  legSoreness: number | null;
-  pain: number | null;
+  legSoreness: RecoveryValue;
+  pain: RecoveryValue;
   painLocation: string | null;
   painType: string | null;
-  gaitChanged: boolean | null;
-  fatigue: number | null;
-  energy: number | null;
-  sleepQuality: number | null;
-  stress: number | null;
-  motivation: number | null;
+  gaitChanged: boolean | string | null;
+  fatigue: RecoveryValue;
+  energy: RecoveryValue;
+  sleepQuality: RecoveryValue;
+  stress: RecoveryValue;
+  motivation: RecoveryValue;
   notes: string | null;
 }
 

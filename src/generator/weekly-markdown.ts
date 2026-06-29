@@ -240,7 +240,11 @@ function formatGaitFlags(summary: WeeklySummary): string {
 function formatMotivation(summary: WeeklySummary): string {
   const values = summary.dailyNotes
     .filter((note) => note.motivation !== null)
-    .map((note) => `${note.date}: ${note.motivation}/10`);
+    .map((note) =>
+      typeof note.motivation === "number"
+        ? `${note.date}: ${note.motivation}/10`
+        : `${note.date}: ${note.motivation}`,
+    );
 
   return values.length === 0 ? "unknown" : values.join("; ");
 }

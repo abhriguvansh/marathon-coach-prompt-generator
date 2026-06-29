@@ -14,6 +14,7 @@ import {
   isDateWithinRange,
   parseDate,
 } from "../utils/dates";
+import { numericRecoveryValue } from "../utils/recovery";
 import {
   classifyActivities,
   sumDurationMinutes,
@@ -121,21 +122,30 @@ export function createWeeklySummary(input: {
     },
     recovery: {
       sorenessAverage: averageNullable(
-        dailyNotes.map((note) => note.legSoreness),
+        dailyNotes.map((note) => numericRecoveryValue(note.legSoreness)),
       ),
-      sorenessHighest: maxNullable(dailyNotes.map((note) => note.legSoreness)),
+      sorenessHighest: maxNullable(
+        dailyNotes.map((note) => numericRecoveryValue(note.legSoreness)),
+      ),
       painReports: dailyNotes.filter(
         (note) =>
-          (note.pain !== null && note.pain > 0) ||
+          (numericRecoveryValue(note.pain) !== null &&
+            (numericRecoveryValue(note.pain) ?? 0) > 0) ||
           hasValue(note.painLocation) ||
           hasValue(note.painType),
       ),
-      fatigueAverage: averageNullable(dailyNotes.map((note) => note.fatigue)),
-      energyAverage: averageNullable(dailyNotes.map((note) => note.energy)),
-      sleepAverage: averageNullable(
-        dailyNotes.map((note) => note.sleepQuality),
+      fatigueAverage: averageNullable(
+        dailyNotes.map((note) => numericRecoveryValue(note.fatigue)),
       ),
-      stressAverage: averageNullable(dailyNotes.map((note) => note.stress)),
+      energyAverage: averageNullable(
+        dailyNotes.map((note) => numericRecoveryValue(note.energy)),
+      ),
+      sleepAverage: averageNullable(
+        dailyNotes.map((note) => numericRecoveryValue(note.sleepQuality)),
+      ),
+      stressAverage: averageNullable(
+        dailyNotes.map((note) => numericRecoveryValue(note.stress)),
+      ),
     },
     activityListByDay: buildActivityListByDay(
       evidenceStart,
@@ -189,7 +199,9 @@ function buildWeeklySafetyFlags(
   const flags: WeeklySummary["safetyFlags"] = [];
 
   for (const note of dailyNotes) {
-    if (note.pain !== null && note.pain >= 4) {
+    const pain = numericRecoveryValue(note.pain);
+
+    if (pain !== null && pain >= 4) {
       flags.push({
         level: "concern",
         message: `${note.date}: pain is ${note.pain}/10, which meets the concern threshold.`,

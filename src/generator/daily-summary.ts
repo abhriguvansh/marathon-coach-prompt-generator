@@ -10,6 +10,7 @@ import type {
   SafetyFlag,
 } from "../types";
 import { daysUntilRace, formatDate, parseDate } from "../utils/dates";
+import { numericRecoveryValue } from "../utils/recovery";
 import { classifyActivities, sumMileage } from "./activity-classification";
 import { evaluateCheckInCompleteness } from "./checkin-completeness";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
@@ -105,7 +106,9 @@ function buildSafetyFlags(
     return flags;
   }
 
-  if (dailyNote.pain !== null && dailyNote.pain >= 4) {
+  const pain = numericRecoveryValue(dailyNote.pain);
+
+  if (pain !== null && pain >= 4) {
     flags.push({
       level: "concern",
       message: `Pain is ${dailyNote.pain}/10, which meets the concern threshold.`,

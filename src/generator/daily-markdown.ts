@@ -1,5 +1,6 @@
 import type { ActivityNote, DailySummary, ManualActivity } from "../types";
 import { formatUnknown } from "../utils/format";
+import { formatRecoveryValue } from "../utils/recovery";
 import { secondsToReadableDuration } from "../utils/units";
 
 export interface DailyCheckInRenderOptions {
@@ -43,15 +44,15 @@ export function renderDailyCheckIn(
     "",
     "## Recovery Notes",
     "",
-    `- Soreness: ${formatUnknown(daily?.legSoreness, "unknown")}`,
-    `- Pain: ${formatUnknown(daily?.pain, "unknown")}`,
+    `- Soreness: ${formatRecoveryValue(daily?.legSoreness, "unknown")}`,
+    `- Pain: ${formatRecoveryValue(daily?.pain, "unknown")}`,
     `- Pain location/type: ${formatUnknown(daily?.painLocation, "unknown")} / ${formatUnknown(daily?.painType, "unknown")}`,
-    `- Gait changed: ${formatUnknown(daily?.gaitChanged, "unknown")}`,
-    `- Fatigue: ${formatUnknown(daily?.fatigue, "unknown")}`,
-    `- Energy: ${formatUnknown(daily?.energy, "unknown")}`,
-    `- Sleep: ${formatUnknown(daily?.sleepQuality, "unknown")}`,
-    `- Stress: ${formatUnknown(daily?.stress, "unknown")}`,
-    `- Motivation: ${formatUnknown(daily?.motivation, "unknown")}`,
+    `- Gait changed: ${formatRecoveryValue(daily?.gaitChanged, "unknown")}`,
+    `- Fatigue: ${formatRecoveryValue(daily?.fatigue, "unknown")}`,
+    `- Energy: ${formatRecoveryValue(daily?.energy, "unknown")}`,
+    `- Sleep: ${formatRecoveryValue(daily?.sleepQuality, "unknown")}`,
+    `- Stress: ${formatRecoveryValue(daily?.stress, "unknown")}`,
+    `- Motivation: ${formatRecoveryValue(daily?.motivation, "unknown")}`,
     `- Daily notes: ${formatUnknown(daily?.notes, "not provided")}`,
     "",
     "## Gear And Fueling",

@@ -16,9 +16,9 @@ These activities were imported automatically from Garmin or Strava exports. Do n
 
 Total Steps:
 
-Soreness (0-10):
+Soreness (0-10 or words):
 
-Pain (0-10):
+Pain (0-10 or words):
 
 Pain Location:
 
@@ -26,13 +26,13 @@ Pain Type:
 
 Did pain change gait? (Yes/No):
 
-Energy (0-10):
+Energy (0-10 or words):
 
-Fatigue (0-10):
+Fatigue (0-10 or words):
 
 Sleep:
 
-Stress (0-10):
+Stress (0-10 or words):
 
 ---
 

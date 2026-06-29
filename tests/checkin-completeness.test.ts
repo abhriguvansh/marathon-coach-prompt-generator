@@ -77,6 +77,20 @@ describe("check-in completeness validation", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("counts meaningful natural-language recovery values as provided", () => {
+    const dir = makeProject();
+    writeJournal(dir, "2026-06-27", naturalLanguageJournal());
+
+    const result = validateCheckIn(dir, {
+      evidenceDate: "2026-06-27",
+    });
+
+    assert.equal(result.completeness.status, "complete");
+    assert.deepEqual(result.completeness.missingHighValueFields, []);
+    assert.match(result.summary.dailyNote?.energy?.toString() ?? "", /average/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("treats blank placeholder values as missing", () => {
     const dir = makeProject();
     writeJournal(dir, "2026-06-27", placeholderJournal());
@@ -246,6 +260,35 @@ function placeholderJournal(): string {
     "## Coach Notes",
     "",
     "not provided",
+  ].join("\n");
+}
+
+function naturalLanguageJournal(): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Recovery",
+    "",
+    "Total Steps: 5000",
+    "Soreness (0-10 or words): 1-2",
+    "Pain (0-10 or words): 0",
+    "Pain Location: na",
+    "Pain Type: na",
+    "Did pain change gait? (Yes/No): No",
+    "Energy (0-10 or words): average",
+    "Fatigue (0-10 or words): no fatigue problems",
+    "Sleep: average",
+    "Stress (0-10 or words): average",
+    "",
+    "## Gear Notes",
+    "",
+    "Shoes: none / no run",
+    "",
+    "## Coach Notes",
+    "",
+    "Tomorrow has fake constraints.",
   ].join("\n");
 }
 
