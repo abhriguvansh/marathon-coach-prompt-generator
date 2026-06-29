@@ -114,3 +114,19 @@ The older CSV files still work:
 - `input/manual/plan-notes.md`
 
 Prefer the Markdown journal for normal daily logging.
+
+## Optional Cleanup
+
+Preview old local exports and generated outputs before deleting anything:
+
+```bash
+npm run cleanup -- --dry-run
+```
+
+Delete eligible old untracked exports and outputs:
+
+```bash
+npm run cleanup -- --yes
+```
+
+Journals and manual notes are kept by default. Use `--include-journals` only when you intentionally want old journals included.

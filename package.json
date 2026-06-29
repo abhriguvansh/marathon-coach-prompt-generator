@@ -12,6 +12,7 @@
     "test": "npm run build && node --test dist/tests",
     "lint": "tsc --noEmit -p tsconfig.json",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "cleanup": "npm run build && node dist/src/cli/cleanup.js",
     "demo:daily": "npm run build && node dist/src/cli/demo-daily.js",
     "demo:weekly": "npm run build && node dist/src/cli/demo-weekly.js",
     "coach": "npm run build && node dist/src/cli/coach.js",

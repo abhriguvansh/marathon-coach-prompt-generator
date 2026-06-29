@@ -392,6 +392,34 @@ npm run inspect
 
 Inspect reports whether expected folders and local files exist. It may show safe counts for export files. It does not print private file contents.
 
+## Cleaning Up Old Local Files
+
+Cleanup is dry-run by default and only targets old local exports and generated outputs:
+
+```bash
+npm run cleanup -- --dry-run
+```
+
+To delete eligible untracked files older than 14 days:
+
+```bash
+npm run cleanup -- --yes
+```
+
+To choose a different retention window:
+
+```bash
+npm run cleanup -- --older-than-days 14 --dry-run
+```
+
+Journals and manual notes are kept by default. Only clean journals when you explicitly ask for it:
+
+```bash
+npm run cleanup -- --include-journals --older-than-days 90 --dry-run
+```
+
+Cleanup never deletes tracked files, `.gitkeep` files, private config, manual notes, templates, docs, source, tests, or package files. It prints relative paths, counts, and approximate sizes only.
+
 ## Running Privacy Check
 
 Run:

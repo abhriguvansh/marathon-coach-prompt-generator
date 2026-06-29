@@ -90,7 +90,27 @@ Inspect reports file presence and safe export counts. It does not print private 
 
 If you use local Garmin or Strava exports, place them in `input/garmin/` or `input/strava/`. FIT, TCX, or CSV exports are preferred when available; GPX can be used as a fallback. Real export files remain ignored by Git.
 
-## 6. Generate Daily And Weekly Files
+## 6. Optional Cleanup
+
+Preview cleanup before deleting anything:
+
+```bash
+npm run cleanup -- --dry-run
+```
+
+Delete eligible old untracked exports and generated outputs:
+
+```bash
+npm run cleanup -- --yes
+```
+
+Journals and manual notes are kept by default. Clean journals only when explicitly desired:
+
+```bash
+npm run cleanup -- --include-journals --older-than-days 90 --dry-run
+```
+
+## 7. Generate Daily And Weekly Files
 
 Daily recommended:
 

@@ -182,6 +182,7 @@ describe("public documentation", () => {
 
     for (const script of [
       "inspect",
+      "cleanup",
       "generate:daily",
       "generate:weekly",
       "parse:exports",

@@ -69,9 +69,16 @@ declare module "node:fs" {
     name: string;
     isDirectory(): boolean;
     isFile(): boolean;
+    isSymbolicLink(): boolean;
+  }
+
+  export interface Stats {
+    mtime: Date;
+    size: number;
   }
 
   export function existsSync(path: string): boolean;
+  export function lstatSync(path: string): Stats;
   export function mkdirSync(
     path: string,
     options?: { recursive?: boolean },
@@ -91,6 +98,9 @@ declare module "node:fs" {
     path: string,
     options?: { recursive?: boolean; force?: boolean },
   ): void;
+  export function symlinkSync(target: string, path: string): void;
+  export function unlinkSync(path: string): void;
+  export function utimesSync(path: string, atime: Date, mtime: Date): void;
   export function writeFileSync(path: string, data: string | Uint8Array): void;
 }
 
@@ -100,6 +110,7 @@ declare module "node:path" {
   export function extname(path: string): string;
   export function join(...paths: string[]): string;
   export function relative(from: string, to: string): string;
+  export function resolve(...paths: string[]): string;
 }
 
 declare module "node:os" {
