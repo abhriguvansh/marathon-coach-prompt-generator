@@ -94,6 +94,8 @@ export function parseJournal(
     shoes: fieldValue(gearNotes, "Shoes"),
     equipment: fieldValue(gearNotes, "Equipment"),
     gearOtherNotes: fieldValue(gearNotes, "Other Notes"),
+    workoutStructure: fieldValue(cleanContent, "Workout Structure"),
+    runWalkFormat: fieldValue(cleanContent, "Run/Walk Format"),
     coachNotes,
     questionsForCoach,
   };
@@ -491,6 +493,8 @@ function defaultJournalTemplate(): string {
     "Stress (0-10 or words):",
     "",
     "Total Steps:",
+    "",
+    "Workout Structure:",
     "",
     "---",
     "",

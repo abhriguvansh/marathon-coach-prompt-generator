@@ -74,6 +74,7 @@ export function buildExportActivity(input: {
     temperatureC: input.temperatureC ?? null,
     device: input.device ?? null,
     laps: input.laps ?? [],
+    runWalkStructure: null,
     dataQualityNotes: input.dataQualityNotes ?? [],
     steps: input.steps ?? null,
     notes: input.notes ?? "Parsed from local export; route details omitted.",

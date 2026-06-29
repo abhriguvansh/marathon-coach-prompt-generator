@@ -202,6 +202,24 @@ Total Steps: 11k
 
 Step counts are training-load context only. They are not converted to miles and are not counted as walking mileage. Walking mileage comes only from tracked/imported walking activities or explicit manual walk distance entries. Future supported device daily-step exports may be preferred when available, with manual journal steps remaining useful fallback context.
 
+For planned run/walk workouts, put the structure in the export activity description when available, or use the journal fallback:
+
+```md
+Workout Structure: 2.5 min walk warmup + 4/1 run walk + 5 min walk cooldown
+```
+
+The generated check-in uses this only to interpret pacing context, such as planned walk breaks and cooldowns. It does not judge the workout from split variability alone, and it does not convert run/walk walk breaks into separate walking mileage.
+
+The same field can also carry lightweight structure labels for future workouts:
+
+```text
+Easy run/walk 4/1 + 4 x 20 sec relaxed strides
+Long run/walk 4/1, easy effort, fueling practice
+3 mi easy + 2 mi marathon effort
+```
+
+MCPG summarizes these as context only. It does not prescribe workouts, enforce targets, or judge performance from the label.
+
 Manual end-of-day flow:
 
 ```bash
@@ -299,6 +317,10 @@ The command prints safe counts and summaries. It does not print raw route points
 FIT parsing uses a small local summary parser instead of an added dependency. It reads session/lap-level summary fields such as date, activity type, distance, elapsed time, moving time, pace, speed, elevation gain/loss, heart rate, cadence, calories, training effect, temperature, device labels, and lap/split summaries when those fields are present. Route details, GPS points, coordinates, and raw binary contents are intentionally omitted.
 
 If a FIT file is corrupt or uses unsupported message layouts, the tool warns and skips it instead of printing private contents.
+
+For Strava or Garmin exports that preserve an activity description or notes field, a concise run/walk structure such as `2.5 min walk warmup + 4/1 run walk + 5 min walk cooldown` can be detected and rendered as coaching context. If the export does not include that text, add the same structure to the evidence-day journal's `Workout Structure:` field.
+
+Lightweight labels such as `easy run`, `recovery run`, `long run/walk`, `4 x 20 sec strides`, `tempo`, `marathon effort`, and `progression run` may also be detected when they appear in the description or journal field. These labels are used only to help ChatGPT interpret the workout structure.
 
 ## Generating Daily Check-In Manually
 

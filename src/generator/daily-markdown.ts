@@ -1,6 +1,7 @@
 import type { ActivityNote, DailySummary, ManualActivity } from "../types";
 import { formatUnknown } from "../utils/format";
 import { formatRecoveryValue } from "../utils/recovery";
+import { formatRunWalkStructure } from "../utils/run-walk";
 import { formatStepValue } from "../utils/steps";
 import { secondsToReadableDuration } from "../utils/units";
 
@@ -224,7 +225,11 @@ function formatActivityGroup(
   }
 
   if (
-    activities.every((activity) => validRenderableSplits(activity).length === 0)
+    activities.every(
+      (activity) =>
+        validRenderableSplits(activity).length === 0 &&
+        formatRunWalkStructure(activity.runWalkStructure) === null,
+    )
   ) {
     return [`- ${label}: ${activities.map(formatActivitySummary).join("; ")}`];
   }
@@ -233,6 +238,7 @@ function formatActivityGroup(
     `- ${label}:`,
     ...activities.flatMap((activity) => [
       `  - ${formatActivitySummary(activity)}`,
+      ...formatWorkoutStructureLines(activity),
       ...formatLapLines(activity),
     ]),
   ];
@@ -347,7 +353,7 @@ function formatLapLines(activity: ManualActivity): string[] {
   }
 
   return [
-    `    - Splits / Laps (${paceVariability(splits)}):`,
+    `    - Splits / Laps (${splitHeading(activity, splits)}):`,
     ...splits.map((lap, index) => {
       const distanceMiles = lap.distanceMiles;
       const isFinal =
@@ -362,7 +368,50 @@ function formatLapLines(activity: ManualActivity): string[] {
 
       return `      - ${label}: ${formatLap(lap, !isFinal)}`;
     }),
+    ...formatCooldownSplitNote(activity, splits),
   ];
+}
+
+function formatWorkoutStructureLines(activity: ManualActivity): string[] {
+  const structure = formatRunWalkStructure(activity.runWalkStructure);
+
+  if (structure === null) {
+    return [];
+  }
+
+  return [
+    `    - Workout structure: ${structure}.`,
+    "    - Pacing interpretation: planned run/walk format; split variability is expected unless effort, pain, gait, or recovery worsened.",
+  ];
+}
+
+function splitHeading(
+  activity: ManualActivity,
+  splits: NonNullable<ManualActivity["laps"]>,
+): string {
+  if (activity.runWalkStructure) {
+    return "planned run/walk; pace variability expected";
+  }
+
+  return paceVariability(splits);
+}
+
+function formatCooldownSplitNote(
+  activity: ManualActivity,
+  splits: NonNullable<ManualActivity["laps"]>,
+): string[] {
+  const last = splits[splits.length - 1];
+
+  if (
+    !activity.runWalkStructure?.cooldownMinutes ||
+    last?.distanceMiles === null ||
+    last?.distanceMiles === undefined ||
+    Math.abs(last.distanceMiles - Math.round(last.distanceMiles)) <= 0.05
+  ) {
+    return [];
+  }
+
+  return ["      - Final partial split may include cooldown/walking."];
 }
 
 function validRenderableSplits(activity: ManualActivity) {

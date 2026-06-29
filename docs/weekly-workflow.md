@@ -41,4 +41,8 @@ Weekly step context comes from daily journal step fields when available, such as
 
 Weekly output includes a compact day type summary. It separates run days, walk-only days, high-step no-run days, mixed-load days, climbing/strength/tennis days, confirmed rest/no-run days, and days with no activity data found.
 
+If run/walk structure is available from an activity description or an evidence-day journal `Workout Structure:` field, weekly activity details may show a compact ratio such as `run/walk, 3.25 mi, 42:52, 4:1`. Weekly output keeps this brief and does not include full activity descriptions.
+
+Daily output may show richer lightweight labels, such as strides, long run/walk, tempo, marathon effort, or progression, when those words appear in an activity description or journal `Workout Structure:` field. Weekly output stays compact and uses those labels only as context, not as a performance judgment.
+
 Daily check-ins also include a smaller recent-context section for the last 7-14 days from the daily evidence date. Use weekly planning for broader plan changes; use the daily context to help ChatGPT adjust the next coaching day.

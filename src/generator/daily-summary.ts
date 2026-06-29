@@ -11,6 +11,7 @@ import type {
 } from "../types";
 import { daysUntilRace, formatDate, parseDate } from "../utils/dates";
 import { numericRecoveryValue } from "../utils/recovery";
+import { enrichRunWalkStructures } from "../utils/run-walk";
 import { classifyActivities, sumMileage } from "./activity-classification";
 import { evaluateCheckInCompleteness } from "./checkin-completeness";
 import { classifyDayLoad } from "./day-classification";
@@ -40,13 +41,24 @@ export function createDailySummary(input: {
   const activityNotes = input.activityNotes.filter(
     (note) => note.date === evidenceDate,
   );
-  const manualActivities = input.manualActivities.filter(
-    (activity) => activity.date === evidenceDate,
-  );
-  const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
   const journalEntry =
     (input.journalEntries ?? []).find((entry) => entry.date === evidenceDate) ??
     null;
+  const manualActivities = enrichRunWalkStructures({
+    activities: input.manualActivities.filter(
+      (activity) => activity.date === evidenceDate,
+    ),
+    activityNotes,
+    dailyNoteText: dailyNote?.notes,
+    journalEntry,
+  });
+  const allManualActivities = enrichActivitiesByDate(
+    input.manualActivities,
+    input.activityNotes,
+    input.dailyNotes,
+    input.journalEntries ?? [],
+  );
+  const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
 
   const groups = classifyActivities(duplicateAnalysis.activitiesForTotals);
 
@@ -96,7 +108,7 @@ export function createDailySummary(input: {
     recentCoachingContext: buildRecentCoachingContext({
       evidenceDate,
       dailyNotes: input.dailyNotes,
-      manualActivities: input.manualActivities,
+      manualActivities: allManualActivities,
     }),
   };
 
@@ -106,6 +118,26 @@ export function createDailySummary(input: {
       summaryWithoutCompleteness,
     ),
   };
+}
+
+function enrichActivitiesByDate(
+  activities: ManualActivity[],
+  activityNotes: ActivityNote[],
+  dailyNotes: DailyNote[],
+  journalEntries: JournalEntry[],
+): ManualActivity[] {
+  return activities.flatMap((activity) =>
+    enrichRunWalkStructures({
+      activities: [activity],
+      activityNotes: activityNotes.filter(
+        (note) => note.date === activity.date,
+      ),
+      dailyNoteText:
+        dailyNotes.find((note) => note.date === activity.date)?.notes ?? null,
+      journalEntry:
+        journalEntries.find((entry) => entry.date === activity.date) ?? null,
+    }),
+  );
 }
 
 function buildSafetyFlags(

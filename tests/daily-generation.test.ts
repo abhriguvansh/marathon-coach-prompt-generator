@@ -216,7 +216,7 @@ describe("daily summary generation", () => {
             durationMinutes: 44,
             paceMinPerMile: "11:00",
             notes:
-              "Synthetic route-like note 40.123,-75.456 should stay out of recent context",
+              "4/1 run walk; synthetic route-like note 40.123,-75.456 should stay out of recent context",
           },
         ],
         planNotes: null,
@@ -232,7 +232,10 @@ describe("daily summary generation", () => {
     assert.match(markdown, /Steps are load context, not walking mileage/);
     assert.match(markdown, /Last 14 days: running volume increased/);
     assert.match(markdown, /Recent recovery trend: improving soreness/);
-    assert.match(markdown, /Last run: 2026-06-27, 4 mi, 44:00, 11:00 min\/mi/);
+    assert.match(
+      markdown,
+      /Last run: 2026-06-27, 4 mi run\/walk \(4:1\), 44:00, 11:00 min\/mi/,
+    );
     assert.match(markdown, /recovery response soreness 1; pain 0; gait No/);
     assert.match(
       markdown,
@@ -490,6 +493,121 @@ describe("daily summary generation", () => {
     );
   });
 
+  it("renders run/walk structure and avoids stop-start split judgment", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [fakeDailyNote("2026-06-27", 8000, 1, 0)],
+        activityNotes: [],
+        manualActivities: [
+          {
+            ...fakeActivityOn("2026-06-27", "run", 3.25),
+            source: "strava_fit_export",
+            durationMinutes: 42.86666666666667,
+            paceMinPerMile: "13:12",
+            notes: "2.5 min walk warmup + 4/1 run walk + 5 min walk cooldown",
+            laps: [
+              fakeLap(1, 1, 818),
+              fakeLap(2, 1, 727),
+              fakeLap(3, 1, 750),
+              fakeLap(4, 0.25, 281),
+            ],
+          },
+        ],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(
+      markdown,
+      /Workout structure: 2\.5 min walk warmup; 4 min run \/ 1 min walk; 5 min walk cooldown\./,
+    );
+    assert.match(markdown, /planned run\/walk; pace variability expected/);
+    assert.match(
+      markdown,
+      /planned run\/walk format; split variability is expected/,
+    );
+    assert.match(markdown, /Final partial split may include cooldown\/walking/);
+    assert.doesNotMatch(markdown, /uneven \/ stop-start/);
+  });
+
+  it("uses journal run/walk fallback and prefers activity notes when sources conflict", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [fakeDailyNote("2026-06-27", 8000, 1, 0)],
+        activityNotes: [],
+        manualActivities: [
+          {
+            ...fakeActivityOn("2026-06-27", "run", 3),
+            notes: "4/1 run walk",
+          },
+          {
+            ...fakeActivityOn("2026-06-27", "run", 2),
+            notes: null,
+          },
+          {
+            ...fakeActivityOn("2026-06-27", "walk", 1),
+            notes: null,
+          },
+        ],
+        journalEntries: [
+          fakeJournalEntry(
+            "2026-06-27",
+            "5 min warmup, 3:1 run/walk, 5 min cooldown",
+          ),
+        ],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(markdown, /Workout structure: 4 min run \/ 1 min walk\./);
+    assert.match(
+      markdown,
+      /Workout structure: 5 min walk warmup; 3 min run \/ 1 min walk; 5 min walk cooldown\./,
+    );
+    assert.match(
+      markdown,
+      /Workout structure differed between activity description and journal; using activity description\./,
+    );
+    assert.match(markdown, /- Walks: walk, 1 mi, 30 min/);
+    assert.doesNotMatch(markdown, /- Walks:\n\s+- .*Workout structure/);
+  });
+
+  it("renders lightweight future workout labels without performance judgment", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-08-11",
+        athleteConfig: fakeConfig,
+        dailyNotes: [fakeDailyNote("2026-08-10", 8500, 1, 0)],
+        activityNotes: [],
+        manualActivities: [
+          {
+            ...fakeActivityOn("2026-08-10", "run", 3),
+            notes: "Easy run/walk 4/1 + 4 x 20 sec relaxed strides",
+          },
+          {
+            ...fakeActivityOn("2026-08-09", "run", 5),
+            notes: "3 mi easy + 2 mi marathon effort",
+          },
+        ],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(
+      markdown,
+      /Workout structure: easy run\/walk; 4 min run \/ 1 min walk; 4 x 20 sec strides\./,
+    );
+    assert.match(
+      markdown,
+      /Last run: 2026-08-10, easy run\/walk with 4 x 20 sec strides, 3 mi run\/walk \(4:1\)/,
+    );
+    assert.doesNotMatch(markdown, /good|bad|failed|inappropriate/i);
+  });
+
   it("can render the full Athlete Background section when requested", () => {
     const markdown = renderDailyCheckIn(buildFakeSummary(), {
       includeAthleteBackground: true,
@@ -599,6 +717,39 @@ function buildFakeSummary() {
     ],
     planNotes: null,
   });
+}
+
+function fakeLap(
+  lapNumber: number,
+  distanceMiles: number,
+  durationSeconds: number,
+) {
+  return {
+    lapNumber,
+    distanceMiles,
+    durationSeconds,
+    paceMinPerMile: null,
+    avgHr: null,
+    maxHr: null,
+    elevationGainFt: null,
+    avgCadence: null,
+  };
+}
+
+function fakeJournalEntry(date: string, workoutStructure: string) {
+  return {
+    date,
+    hydration: null,
+    fueling: null,
+    bodyWeight: null,
+    shoes: null,
+    equipment: null,
+    gearOtherNotes: null,
+    workoutStructure,
+    runWalkFormat: null,
+    coachNotes: null,
+    questionsForCoach: null,
+  };
 }
 
 function fakeActivity(activityType: string, distanceMiles: number | null) {

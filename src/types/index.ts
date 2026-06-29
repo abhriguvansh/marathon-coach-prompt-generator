@@ -114,9 +114,38 @@ export interface ManualActivity {
   temperatureC?: number | null;
   device?: string | null;
   laps?: ActivityLap[];
+  runWalkStructure?: RunWalkStructure | null;
   dataQualityNotes?: string[];
   steps: number | null;
   notes: string | null;
+}
+
+export interface RunWalkStructure {
+  type?:
+    | "easy"
+    | "recovery"
+    | "long"
+    | "run_walk"
+    | "strides"
+    | "hill_strides"
+    | "tempo"
+    | "marathon_effort"
+    | "progression"
+    | "mixed"
+    | "unknown";
+  warmupMinutes?: number;
+  warmupType?: string;
+  runMinutes?: number;
+  walkMinutes?: number;
+  cooldownMinutes?: number;
+  cooldownType?: string;
+  strides?: {
+    count?: number;
+    seconds?: number;
+    hill?: boolean;
+  };
+  detectedLabels?: string[];
+  source?: "activity_description" | "activity_title" | "journal" | "unknown";
 }
 
 export interface ActivityLap {
@@ -140,6 +169,8 @@ export interface JournalEntry {
   shoes: string | null;
   equipment: string | null;
   gearOtherNotes: string | null;
+  workoutStructure?: string | null;
+  runWalkFormat?: string | null;
   coachNotes: string | null;
   questionsForCoach: string | null;
 }

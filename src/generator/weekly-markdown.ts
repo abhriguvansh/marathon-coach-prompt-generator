@@ -7,6 +7,7 @@ import type {
 import { formatUnknown } from "../utils/format";
 import { formatPace } from "../utils/pace";
 import { formatRecoveryValue, numericRecoveryValue } from "../utils/recovery";
+import { formatRunWalkRatio } from "../utils/run-walk";
 import { secondsToReadableDuration } from "../utils/units";
 
 export function renderWeeklySummary(summary: WeeklySummary): string {
@@ -230,18 +231,18 @@ function formatActivityDistance(activity: ManualActivity | null): string {
 
   return [
     activity.date,
-    activity.activityType,
+    formatActivityType(activity),
     activity.distanceMiles === null
       ? null
       : formatMiles(activity.distanceMiles),
     activity.durationMinutes === null
       ? null
       : formatMinutes(activity.durationMinutes),
+    formatRunWalkRatio(activity.runWalkStructure),
     activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
     activity.calories === null || activity.calories === undefined
       ? null
       : `${Math.round(activity.calories)} calories`,
-    activity.notes,
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
@@ -344,13 +345,14 @@ function formatActivityListByDay(summary: WeeklySummary): string {
 
 function formatActivity(activity: ManualActivity): string {
   return [
-    activity.activityType,
+    formatActivityType(activity),
     activity.distanceMiles === null
       ? null
       : formatMiles(activity.distanceMiles),
     activity.durationMinutes === null
       ? null
       : formatMinutes(activity.durationMinutes),
+    formatRunWalkRatio(activity.runWalkStructure),
     activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
     activity.elevationGainFt === null || activity.elevationGainFt === undefined
       ? null
@@ -363,6 +365,12 @@ function formatActivity(activity: ManualActivity): string {
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
+}
+
+function formatActivityType(activity: ManualActivity): string {
+  return formatRunWalkRatio(activity.runWalkStructure) === null
+    ? activity.activityType
+    : "run/walk";
 }
 
 function countConfirmedRestDays(summary: WeeklySummary): number {
@@ -485,13 +493,14 @@ function formatHigherLoadActivities(activities: ManualActivity[]): string {
     .map((activity) =>
       [
         activity.date,
-        activity.activityType,
+        formatActivityType(activity),
         activity.distanceMiles === null
           ? null
           : `${Number(activity.distanceMiles.toFixed(2))} mi`,
         activity.durationMinutes === null
           ? null
           : formatMinutes(activity.durationMinutes),
+        formatRunWalkRatio(activity.runWalkStructure),
         activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
         activity.calories === null || activity.calories === undefined
           ? null

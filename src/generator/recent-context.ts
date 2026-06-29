@@ -14,6 +14,10 @@ import {
 import { formatStepValue, isHighStepNote, stepApprox } from "../utils/steps";
 import { secondsToReadableDuration } from "../utils/units";
 import {
+  formatRecentWorkoutStructure,
+  formatRunWalkRatio,
+} from "../utils/run-walk";
+import {
   classifyActivities,
   normalizeActivityType,
   sumMileage,
@@ -313,11 +317,16 @@ function lastRunSummary(
   const routeNote = requiresRouteOmissionNote(lastRun)
     ? " Route details omitted."
     : "";
+  const recentWorkout = recentWorkoutContext(lastRun);
 
   return [
-    `Last run: ${lastRun.date}, ${activityDistance(lastRun)}, ${activityDuration(
-      lastRun,
-    )}`,
+    `Last run: ${lastRun.date}, ${[
+      recentWorkout,
+      activityDistance(lastRun),
+      activityDuration(lastRun),
+    ]
+      .filter((part): part is string => part !== null)
+      .join(", ")}`,
     activityPace(lastRun),
     recoveryResponse,
   ]
@@ -517,9 +526,28 @@ function longestByDistance(activities: ManualActivity[]): number | null {
 }
 
 function activityDistance(activity: ManualActivity): string {
+  const ratio = formatRunWalkRatio(activity.runWalkStructure);
+  const runWalk = ratio === null ? "" : ` run/walk (${ratio})`;
+
   return activity.distanceMiles === null
-    ? "distance unknown"
-    : `${formatMiles(activity.distanceMiles)} mi`;
+    ? `distance unknown${runWalk}`
+    : `${formatMiles(activity.distanceMiles)} mi${runWalk}`;
+}
+
+function recentWorkoutContext(activity: ManualActivity): string | null {
+  const context = formatRecentWorkoutStructure(activity.runWalkStructure);
+
+  if (context === null || context === formatRunWalkRatioOnly(activity)) {
+    return null;
+  }
+
+  return context;
+}
+
+function formatRunWalkRatioOnly(activity: ManualActivity): string | null {
+  const ratio = formatRunWalkRatio(activity.runWalkStructure);
+
+  return ratio === null ? null : `run/walk (${ratio})`;
 }
 
 function activityDuration(activity: ManualActivity): string {

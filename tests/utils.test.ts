@@ -13,6 +13,11 @@ import {
   paceSecondsPerMile,
 } from "../src/utils/pace";
 import {
+  formatRunWalkRatio,
+  formatRunWalkStructure,
+  parseRunWalkStructure,
+} from "../src/utils/run-walk";
+import {
   kilometersToMiles,
   metersToMiles,
   secondsToMinutes,
@@ -91,5 +96,115 @@ describe("missing value formatting", () => {
   it("preserves provided values", () => {
     assert.equal(formatUnknown(0), "0");
     assert.equal(formatUnknown("easy run"), "easy run");
+  });
+});
+
+describe("run/walk structure utilities", () => {
+  it("parses ratio shorthand formats", () => {
+    const structure = parseRunWalkStructure("4/1 run walk");
+
+    assert.equal(structure?.runMinutes, 4);
+    assert.equal(structure?.walkMinutes, 1);
+    assert.equal(structure?.source, "unknown");
+    assert.equal(
+      formatRunWalkRatio(parseRunWalkStructure("4:1 run/walk")),
+      "4:1",
+    );
+    assert.equal(formatRunWalkRatio(parseRunWalkStructure("3/1")), "3:1");
+  });
+
+  it("parses explicit run and walk minute formats", () => {
+    assert.equal(
+      formatRunWalkRatio(parseRunWalkStructure("4 min run / 1 min walk")),
+      "4:1",
+    );
+    assert.equal(
+      formatRunWalkRatio(parseRunWalkStructure("4m run 1m walk")),
+      "4:1",
+    );
+    assert.equal(
+      formatRunWalkRatio(
+        parseRunWalkStructure("3 minutes running, 1 minute walking"),
+      ),
+      "3:1",
+    );
+  });
+
+  it("parses warmup and cooldown details without hard-coding one ratio", () => {
+    const structure = parseRunWalkStructure(
+      "2.5 min walk warmup + 5/1 run walk + 5 min walk cooldown",
+    );
+
+    assert.equal(structure?.warmupMinutes, 2.5);
+    assert.equal(structure?.runMinutes, 5);
+    assert.equal(structure?.walkMinutes, 1);
+    assert.equal(structure?.cooldownMinutes, 5);
+    assert.equal(
+      formatRunWalkStructure(structure),
+      "2.5 min walk warmup; 5 min run / 1 min walk; 5 min walk cooldown",
+    );
+  });
+
+  it("parses concise combined warmup and cooldown wording", () => {
+    const structure = parseRunWalkStructure(
+      "5 min warmup, 3:1 run/walk, 5 min cooldown",
+    );
+
+    assert.equal(structure?.warmupMinutes, 5);
+    assert.equal(formatRunWalkRatio(structure), "3:1");
+    assert.equal(structure?.cooldownMinutes, 5);
+  });
+
+  it("parses easy, recovery, and long run labels", () => {
+    assert.deepEqual(parseRunWalkStructure("easy run")?.detectedLabels, [
+      "easy",
+    ]);
+    assert.deepEqual(parseRunWalkStructure("recovery run")?.detectedLabels, [
+      "recovery",
+    ]);
+
+    const longRunWalk = parseRunWalkStructure("long run/walk 4/1");
+
+    assert.equal(longRunWalk?.type, "mixed");
+    assert.deepEqual(longRunWalk?.detectedLabels, ["long", "run/walk"]);
+    assert.equal(
+      formatRunWalkStructure(longRunWalk),
+      "long run/walk; 4 min run / 1 min walk",
+    );
+  });
+
+  it("parses stride and hill-stride structures compactly", () => {
+    const strides = parseRunWalkStructure("easy run + 4 x 20 sec strides");
+    const hillStrides = parseRunWalkStructure("4x20s hill strides");
+
+    assert.equal(strides?.strides?.count, 4);
+    assert.equal(strides?.strides?.seconds, 20);
+    assert.equal(strides?.strides?.hill, false);
+    assert.equal(
+      formatRunWalkStructure(strides),
+      "easy run; 4 x 20 sec strides",
+    );
+    assert.equal(hillStrides?.strides?.hill, true);
+    assert.equal(
+      formatRunWalkStructure(hillStrides),
+      "4 x 20 sec hill strides",
+    );
+  });
+
+  it("parses future workout labels without judging performance", () => {
+    assert.equal(
+      formatRunWalkStructure(parseRunWalkStructure("2 x 8 min tempo")),
+      "tempo",
+    );
+    assert.equal(
+      formatRunWalkStructure(
+        parseRunWalkStructure("3 mi easy + 2 mi marathon effort"),
+      ),
+      "marathon-effort segment detected",
+    );
+    assert.equal(
+      formatRunWalkStructure(parseRunWalkStructure("progression run")),
+      "progression",
+    );
   });
 });

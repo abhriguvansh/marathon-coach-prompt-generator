@@ -34,6 +34,30 @@ Total Steps: 11k
 
 Steps are load context, not walking mileage. Walking mileage comes only from tracked/imported walking activities or explicit manual walk distance entries.
 
+For planned run/walk workouts, add a short structure note in the activity export description when available, for example:
+
+```text
+2.5 min walk warmup + 4/1 run walk + 5 min walk cooldown
+```
+
+If the export does not preserve that text, use the evidence-day journal fallback:
+
+```md
+Workout Structure: 2.5 min walk warmup + 4/1 run walk + 5 min walk cooldown
+```
+
+The daily check-in uses this to frame pacing and split variability as planned run/walk context. It does not treat planned walk breaks as separate walking mileage.
+
+The same field can carry lightweight future workout labels:
+
+```text
+Easy run/walk 4/1 + 4 x 20 sec relaxed strides
+Long run/walk 4/1, easy effort, fueling practice
+3 mi easy + 2 mi marathon effort
+```
+
+MCPG uses these labels as structure context only. It does not prescribe workouts or judge performance from the label.
+
 The coach workflow runs a check-in completeness validator automatically. If it warns about missing subjective details, edit the evidence-day journal and rerun the same coach command before pasting the output into ChatGPT.
 
 To run the validator separately:

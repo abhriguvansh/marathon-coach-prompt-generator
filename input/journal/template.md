@@ -34,6 +34,8 @@ Stress (0-10 or words):
 
 Total Steps:
 
+Workout Structure:
+
 ---
 
 ## Manual Activities

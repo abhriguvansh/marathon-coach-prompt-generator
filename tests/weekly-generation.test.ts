@@ -164,6 +164,41 @@ describe("weekly generation", () => {
     assert.doesNotMatch(markdown, /42\.86666666666667 min|61\.2 min/);
   });
 
+  it("includes compact run/walk format in weekly activity details", () => {
+    const summary = createWeeklySummary({
+      weekStart: "2026-06-29",
+      athleteConfig: fakeConfig,
+      dailyNotes: [],
+      activityNotes: [],
+      manualActivities: [
+        {
+          ...fakeActivity(
+            "2026-06-27",
+            "run",
+            3.25,
+            42.86666666666667,
+            null,
+            null,
+          ),
+          source: "strava_fit_export",
+          notes: "2.5 min walk warmup + 4/1 run walk + 5 min walk cooldown",
+        },
+      ],
+      planNotes: null,
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.match(
+      markdown,
+      /Longest run: 2026-06-27, run\/walk, 3\.25 mi, 42:52, 4:1/,
+    );
+    assert.match(
+      markdown,
+      /2026-06-27: run\/walk, 3\.25 mi, 42:52, 4:1, source strava_fit_export, route details omitted/,
+    );
+    assert.doesNotMatch(markdown, /2\.5 min walk warmup/);
+  });
+
   it("distinguishes missing activity data from confirmed rest and recovery-only days", () => {
     const summary = createWeeklySummary({
       weekStart: "2026-06-29",

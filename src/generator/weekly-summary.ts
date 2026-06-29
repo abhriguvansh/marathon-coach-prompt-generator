@@ -15,6 +15,7 @@ import {
   parseDate,
 } from "../utils/dates";
 import { numericRecoveryValue } from "../utils/recovery";
+import { enrichRunWalkStructures } from "../utils/run-walk";
 import { isHighStepNote, stepApprox } from "../utils/steps";
 import {
   classifyActivities,
@@ -44,11 +45,16 @@ export function createWeeklySummary(input: {
   const activityNotes = input.activityNotes.filter((note) =>
     isDateWithinRange(note.date, evidenceStart, evidenceEnd),
   );
-  const manualActivities = input.manualActivities.filter((activity) =>
-    isDateWithinRange(activity.date, evidenceStart, evidenceEnd),
-  );
   const journalEntries = (input.journalEntries ?? []).filter((entry) =>
     isDateWithinRange(entry.date, evidenceStart, evidenceEnd),
+  );
+  const manualActivities = enrichWeeklyRunWalkStructures(
+    input.manualActivities.filter((activity) =>
+      isDateWithinRange(activity.date, evidenceStart, evidenceEnd),
+    ),
+    activityNotes,
+    dailyNotes,
+    journalEntries,
   );
   const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
   const activitiesForTotals = duplicateAnalysis.activitiesForTotals;
@@ -176,6 +182,26 @@ export function createWeeklySummary(input: {
       journalEntries,
     }),
   };
+}
+
+function enrichWeeklyRunWalkStructures(
+  activities: ManualActivity[],
+  activityNotes: ActivityNote[],
+  dailyNotes: DailyNote[],
+  journalEntries: JournalEntry[],
+): ManualActivity[] {
+  return activities.flatMap((activity) =>
+    enrichRunWalkStructures({
+      activities: [activity],
+      activityNotes: activityNotes.filter(
+        (note) => note.date === activity.date,
+      ),
+      dailyNoteText:
+        dailyNotes.find((note) => note.date === activity.date)?.notes ?? null,
+      journalEntry:
+        journalEntries.find((entry) => entry.date === activity.date) ?? null,
+    }),
+  );
 }
 
 function buildActivityListByDay(
