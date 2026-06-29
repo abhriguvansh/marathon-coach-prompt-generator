@@ -17,6 +17,7 @@ import { evaluateCheckInCompleteness } from "./checkin-completeness";
 import { classifyDayLoad } from "./day-classification";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
 import { buildRecentCoachingContext } from "./recent-context";
+import { buildDailyRecoveryTrendFlags } from "./recovery-trends";
 
 export function previousDate(date: string): string {
   const parsed = parseDate(date);
@@ -59,6 +60,11 @@ export function createDailySummary(input: {
     input.journalEntries ?? [],
   );
   const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
+  const recoveryTrendFlags = buildDailyRecoveryTrendFlags({
+    evidenceDate,
+    dailyNotes: input.dailyNotes,
+    manualActivities: allManualActivities,
+  });
 
   const groups = classifyActivities(duplicateAnalysis.activitiesForTotals);
 
@@ -110,6 +116,7 @@ export function createDailySummary(input: {
       dailyNotes: input.dailyNotes,
       manualActivities: allManualActivities,
     }),
+    recoveryTrendFlags,
   };
 
   return {

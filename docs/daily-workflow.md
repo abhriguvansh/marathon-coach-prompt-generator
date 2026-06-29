@@ -85,6 +85,8 @@ If prior journals or activities are missing, the section says recent context is 
 
 Daily check-ins also include `## Day Type / Load Classification`. This labels the evidence day as coaching context, such as `run day`, `high-step no-run day`, `climbing day`, or `mixed-load day`. It is not a medical diagnosis or a fatigue score. Missing data is not treated as rest.
 
+Daily check-ins include `## Recovery Trend Flags` after recent context. This compact section summarizes soreness, pain, gait, and load/recovery patterns from recent journal entries. Missing pain or soreness fields are not treated as pain-free or recovered, gait changes are high-priority safety context, and worsening pain or soreness should be reviewed conservatively by the coach. Trend confidence depends on journal coverage.
+
 ## Morning Workflow
 
 If you did not check in the night before:

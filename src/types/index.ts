@@ -235,6 +235,11 @@ export interface DayLoadClassification {
   coachingInterpretation: string;
 }
 
+export interface RecoveryTrendFlags {
+  bullets: string[];
+  hasCaution: boolean;
+}
+
 export interface DailySummary {
   date: string;
   evidenceDate: string;
@@ -260,6 +265,7 @@ export interface DailySummary {
   missingDataFlags: MissingDataFlag[];
   dayLoadClassification: DayLoadClassification;
   recentCoachingContext: string[];
+  recoveryTrendFlags: RecoveryTrendFlags;
   checkInCompleteness: CheckInCompleteness;
 }
 
@@ -333,6 +339,7 @@ export interface WeeklySummary {
     dayLoadClassification: DayLoadClassification;
   }>;
   travelBreakNote: string | null;
+  recoveryTrendFlags: RecoveryTrendFlags;
   safetyFlags: WeeklySafetyFlag[];
   missingDataFlags: WeeklyMissingDataFlag[];
 }

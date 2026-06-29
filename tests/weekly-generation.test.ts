@@ -131,6 +131,7 @@ describe("weekly generation", () => {
     assert.match(markdown, /Days with no activity data found: 0/);
     assert.match(markdown, /route details omitted/);
     assert.match(markdown, /Gait-change flags: 2026-06-26/);
+    assert.match(markdown, /## Weekly Recovery Trend Flags/);
     assert.match(markdown, /Fake travel week/);
     assert.doesNotMatch(markdown, /## Athlete Background/);
     assert.doesNotMatch(markdown, /lat=|lon=|trkpt|position_lat|position_long/);

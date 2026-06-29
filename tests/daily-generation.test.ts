@@ -184,6 +184,7 @@ describe("daily summary generation", () => {
     assert.match(markdown, /Gear notes: Demo shoes/);
     assert.match(markdown, /## Missing Data Flags/);
     assert.match(markdown, /## Recent Coaching Context/);
+    assert.match(markdown, /## Recovery Trend Flags/);
     assert.match(markdown, /## Check-In Completeness/);
     assert.match(markdown, /Missing high-value subjective fields: steps/);
     assert.match(markdown, /## Data Quality Notes/);

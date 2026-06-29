@@ -156,6 +156,8 @@ The coach workflow automatically runs a check-in completeness validator. It warn
 
 Daily check-ins also include a compact `## Recent Coaching Context` section. It summarizes recent running volume, walking volume, high-step days, cross-training, recovery trend, and the last run when available. Steps are treated as load context only; they are never counted as walking mileage. Raw route data and export contents are omitted.
 
+Daily check-ins include `## Recovery Trend Flags` after recent context. These flags summarize recent soreness, pain, gait, and load/recovery patterns from local journals. Missing data is not assumed to mean pain-free, gait changes are treated as high-priority safety context, and worsening pain or soreness should be reviewed conservatively by the coach. These flags are coaching context only, not a medical diagnosis.
+
 To run the validator by itself:
 
 ```bash
@@ -232,6 +234,8 @@ That creates/fills the journal for June 27, 2026, then generates the coaching ch
 The daily check-in uses June 27 as the evidence day and also looks back from that evidence day for recent coaching context. The last 7 days are June 21 through June 27 inclusive, and the last 14 days are June 14 through June 27 inclusive.
 
 Daily check-ins include a compact day type/load classification, such as `run day`, `high-step no-run day`, `climbing day`, or `mixed-load day`. This is coaching context only, not a medical diagnosis or scientific fatigue score. Steps are load context, not walking mileage, and missing data is not treated as rest.
+
+Recovery trend confidence depends on journal coverage. If only one recent entry has soreness or pain data, MCPG reports limited context rather than inventing a trend.
 
 Real daily journals are ignored by Git. Only `input/journal/template.md` is committed.
 

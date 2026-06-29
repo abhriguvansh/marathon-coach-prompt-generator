@@ -24,6 +24,7 @@ import {
 } from "./activity-classification";
 import { classifyDayLoad, hasExplicitRest } from "./day-classification";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
+import { buildWeeklyRecoveryTrendFlags } from "./recovery-trends";
 
 export function createWeeklySummary(input: {
   weekStart: string;
@@ -63,6 +64,10 @@ export function createWeeklySummary(input: {
   const walkingMileage = sumMileage(groups.walks);
   const runningDurationMinutes = sumDurationMinutes(groups.runs);
   const walkingDurationMinutes = sumDurationMinutes(groups.walks);
+  const recoveryTrendFlags = buildWeeklyRecoveryTrendFlags({
+    dailyNotes,
+    manualActivities,
+  });
 
   return {
     weekStart: input.weekStart,
@@ -170,6 +175,7 @@ export function createWeeklySummary(input: {
       input.weekStart,
       weekEnd,
     ),
+    recoveryTrendFlags,
     safetyFlags: buildWeeklySafetyFlags(dailyNotes, activityNotes),
     missingDataFlags: buildWeeklyMissingDataFlags({
       dailyNotes,
