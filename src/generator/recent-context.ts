@@ -11,7 +11,7 @@ import {
   isNoPain,
   numericRecoveryValue,
 } from "../utils/recovery";
-import { isHighStepDay, numericStepCount } from "../utils/steps";
+import { formatStepValue, isHighStepNote, stepApprox } from "../utils/steps";
 import { secondsToReadableDuration } from "../utils/units";
 import {
   classifyActivities,
@@ -108,7 +108,7 @@ function last7Summary(
   const runningMileage = sumMileage(groups.runs);
   const walkingMileage = sumMileage(groups.walks);
   const longestRun = longestByDistance(groups.runs);
-  const highStepDays = notes.filter((note) => isHighStepDay(note.totalSteps));
+  const highStepDays = notes.filter((note) => isHighStepNote(note));
   const restDays = notes.filter(
     (note) => !activities.some((activity) => activity.date === note.date),
   );
@@ -296,7 +296,7 @@ function loadNote(
   activities: ManualActivity[],
   notes: DailyNote[],
 ): string | null {
-  const highStepNotes = notes.filter((note) => isHighStepDay(note.totalSteps));
+  const highStepNotes = notes.filter((note) => isHighStepNote(note));
   const groups = classifyActivities(activities);
   const runs = groups.runs;
   const nearbyLoadActivities = [
@@ -325,9 +325,7 @@ function loadNote(
     ),
     ...highStepNotes.flatMap((note) =>
       nearbyRuns(note.date, runs).map((run) => {
-        const steps = numericStepCount(note.totalSteps);
-
-        return `${formatStepCount(steps)} steps on ${note.date} ${timingPhrase(
+        return `${formatStepCount(note)} steps on ${note.date} ${timingPhrase(
           note.date,
           run.date,
         )} the ${run.date} run`;
@@ -344,7 +342,7 @@ function loadNote(
   if (highStepNotes.length > 0) {
     const maxSteps = Math.max(
       ...highStepNotes
-        .map((note) => numericStepCount(note.totalSteps))
+        .map((note) => stepApprox(note))
         .filter((value): value is number => value !== null),
     );
 
@@ -383,7 +381,14 @@ function timingPhrase(loadDate: string, runDate: string): string {
   return days === 1 ? "added recovery load after" : "occurred two days after";
 }
 
-function formatStepCount(steps: number | null): string {
+function formatStepCount(note: DailyNote): string {
+  const display = formatStepValue(note);
+  const steps = stepApprox(note);
+
+  if (display !== "unknown") {
+    return display;
+  }
+
   if (steps === null) {
     return "High-step";
   }

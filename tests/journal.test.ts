@@ -13,6 +13,7 @@ import { parseLocalExports } from "../src/exports/export-scanner";
 import { createDailySummary } from "../src/generator/daily-summary";
 import { renderDailyCheckIn } from "../src/generator/daily-markdown";
 import { generateDailyCheckIn } from "../src/cli/generate-daily";
+import { renderWeeklySummary } from "../src/generator/weekly-markdown";
 import { createWeeklySummary } from "../src/generator/weekly-summary";
 import {
   createJournal,
@@ -42,6 +43,10 @@ const fakeConfig: AthleteConfig = {
 };
 
 describe("daily journal workflow", () => {
+  it("journal template includes a clear Total Steps field", () => {
+    assert.match(journalTemplate, /## Recovery[\s\S]*Total Steps:/);
+  });
+
   it("creates a dated journal with imported activity references", () => {
     const dir = makeJournalProject();
     const exports = parseLocalExports(dir);
@@ -112,6 +117,40 @@ describe("daily journal workflow", () => {
     );
     assert.equal(parsed.manualActivities[0].source, "journal");
     assert.equal(parsed.manualActivities[0].durationMinutes, 60);
+  });
+
+  it("parses manual step field aliases and common compact values", () => {
+    const cases = [
+      ["Total Steps", "11000", "11000", 11000],
+      ["Total Steps", "11,000", "11,000", 11000],
+      ["Total Steps", "11k", "11k", 11000],
+      ["Steps", "about 11k", "about 11k", 11000],
+      ["Daily Steps", "~11.2k", "~11.2k", 11200],
+      ["Step Count", "around 11,000", "around 11,000", 11000],
+    ] as const;
+
+    for (const [label, value, display, approx] of cases) {
+      const parsed = parseJournal(stepJournal(label, value), "2026-06-27");
+
+      assert.equal(parsed.dailyNote.totalSteps, display);
+      assert.equal(parsed.dailyNote.stepsDisplay, display);
+      assert.equal(parsed.dailyNote.stepsApprox, approx);
+      assert.equal(parsed.dailyNote.stepsSource, "journal_manual");
+    }
+  });
+
+  it("treats blank and placeholder step fields as missing", () => {
+    for (const value of ["", "unknown", "not provided", "todo", "fill in"]) {
+      const parsed = parseJournal(
+        stepJournal("Total Steps", value),
+        "2026-06-27",
+      );
+
+      assert.equal(parsed.dailyNote.totalSteps, null);
+      assert.equal(parsed.dailyNote.stepsDisplay, null);
+      assert.equal(parsed.dailyNote.stepsApprox, null);
+      assert.equal(parsed.dailyNote.stepsSource, null);
+    }
   });
 
   it("parses natural-language recovery values from journals", () => {
@@ -192,6 +231,52 @@ describe("daily journal workflow", () => {
     assert.match(markdown, /Stress: average/);
   });
 
+  it("counts manual steps as provided and renders them without walking mileage", () => {
+    const parsed = parseJournal(
+      stepJournal("Steps", "about 11k"),
+      "2026-06-27",
+    );
+    const summary = createDailySummary({
+      date: "2026-06-28",
+      athleteConfig: fakeConfig,
+      dailyNotes: [parsed.dailyNote],
+      activityNotes: [],
+      manualActivities: [],
+      planNotes: null,
+      journalEntries: [parsed.journalEntry],
+    });
+    const markdown = renderDailyCheckIn(summary);
+
+    assert.doesNotMatch(
+      summary.checkInCompleteness.missingHighValueFields.join(","),
+      /steps/,
+    );
+    assert.match(markdown, /Steps: about 11k/);
+    assert.match(markdown, /Walking mileage: 0 mi/);
+    assert.match(markdown, /1 high-step day/);
+  });
+
+  it("keeps placeholder manual steps missing for completeness", () => {
+    const parsed = parseJournal(
+      stepJournal("Total Steps", "placeholder"),
+      "2026-06-27",
+    );
+    const summary = createDailySummary({
+      date: "2026-06-28",
+      athleteConfig: fakeConfig,
+      dailyNotes: [parsed.dailyNote],
+      activityNotes: [],
+      manualActivities: [],
+      planNotes: null,
+      journalEntries: [parsed.journalEntry],
+    });
+
+    assert.match(
+      summary.checkInCompleteness.missingHighValueFields.join(","),
+      /steps/,
+    );
+  });
+
   it("warns when a journal activity may duplicate an imported activity", () => {
     const dir = makeJournalProject();
     writeFile(join(dir, "input/journal/2026-06-27.md"), duplicateRunJournal());
@@ -263,6 +348,28 @@ describe("daily journal workflow", () => {
     assert.equal(summary.totals.rockClimbingCount, 1);
     assert.equal(summary.totals.mobilityRestOtherCount, 1);
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("includes compact weekly step context from manual journal steps", () => {
+    const parsed = parseJournal(
+      stepJournal("Total Steps", "11k"),
+      "2026-06-27",
+    );
+    const summary = createWeeklySummary({
+      weekStart: "2026-06-29",
+      athleteConfig: fakeConfig,
+      dailyNotes: [parsed.dailyNote],
+      activityNotes: [],
+      manualActivities: [],
+      planNotes: null,
+      journalEntries: [parsed.journalEntry],
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.equal(summary.totals.totalSteps, 11000);
+    assert.equal(summary.totals.highStepDays, 1);
+    assert.match(markdown, /High-step days: 1/);
+    assert.match(markdown, /steps were provided for 1 of 7 evidence days/);
   });
 
   it("does not report noisy missing legacy files in journal workflow", () => {
@@ -364,6 +471,29 @@ function naturalLanguageRecoveryJournal(): string {
     "## Coach Notes",
     "",
     "Tomorrow has fake schedule constraints.",
+  ].join("\n");
+}
+
+function stepJournal(label: string, value: string): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Recovery",
+    "",
+    "Soreness (0-10 or words): 1",
+    "Pain (0-10 or words): 0",
+    "Did pain change gait? (Yes/No): No",
+    "Energy (0-10 or words): 8",
+    "Fatigue (0-10 or words): 2",
+    "Sleep: 7",
+    "Stress (0-10 or words): 3",
+    `${label}: ${value}`,
+    "",
+    "## Coach Notes",
+    "",
+    "Fake schedule constraint.",
   ].join("\n");
 }
 

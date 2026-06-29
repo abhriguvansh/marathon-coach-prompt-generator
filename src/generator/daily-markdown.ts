@@ -1,6 +1,7 @@
 import type { ActivityNote, DailySummary, ManualActivity } from "../types";
 import { formatUnknown } from "../utils/format";
 import { formatRecoveryValue } from "../utils/recovery";
+import { formatStepValue } from "../utils/steps";
 import { secondsToReadableDuration } from "../utils/units";
 
 export interface DailyCheckInRenderOptions {
@@ -40,7 +41,7 @@ export function renderDailyCheckIn(
     "",
     `- Running mileage: ${formatMiles(summary.runningMileage)}`,
     `- Walking mileage: ${formatMiles(summary.walkingMileage)}`,
-    `- Steps: ${formatUnknown(daily?.totalSteps, "unknown")}`,
+    `- Steps: ${daily === null ? "unknown" : formatStepValue(daily)}`,
     "",
     "## Recent Coaching Context",
     "",

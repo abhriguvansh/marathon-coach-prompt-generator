@@ -1,6 +1,12 @@
 export type Unknownish = string | number | boolean | null | undefined;
 export type RecoveryValue = string | number | null;
 export type StepValue = string | number | null;
+export type StepSource =
+  | "journal_manual"
+  | "manual_csv"
+  | "garmin_daily_export"
+  | "strava_daily_export"
+  | "unknown";
 
 export interface WeekRange {
   start: Date;
@@ -49,6 +55,9 @@ export interface AthleteConfig {
 export interface DailyNote {
   date: string;
   totalSteps: StepValue;
+  stepsDisplay?: string | null;
+  stepsApprox?: number | null;
+  stepsSource?: StepSource | null;
   legSoreness: RecoveryValue;
   pain: RecoveryValue;
   painLocation: string | null;
@@ -230,6 +239,8 @@ export interface WeeklyActivityTotals {
   mobilityRestOtherCount: number;
   totalSteps: number | null;
   averageDailySteps: number | null;
+  stepDaysWithData: number;
+  highStepDays: number;
   longestRun: ManualActivity | null;
   longestWalk: ManualActivity | null;
   runElevationGainFt: number | null;

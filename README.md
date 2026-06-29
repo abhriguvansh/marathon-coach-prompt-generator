@@ -194,6 +194,14 @@ The command does not overwrite an existing journal. When Garmin or Strava export
 
 Daily journals capture recovery, sleep, stress, nutrition, gear notes, coach notes, questions for ChatGPT, and manual-only activities such as climbing, weights, mobility, tennis, yoga, or anything that was not imported.
 
+Enter daily steps in the Recovery section when you have them:
+
+```md
+Total Steps: 11k
+```
+
+Step counts are training-load context only. They are not converted to miles and are not counted as walking mileage. Walking mileage comes only from tracked/imported walking activities or explicit manual walk distance entries. Future supported device daily-step exports may be preferred when available, with manual journal steps remaining useful fallback context.
+
 Manual end-of-day flow:
 
 ```bash
@@ -230,6 +238,8 @@ The private working files are ignored by Git.
 ## Filling In Daily Notes
 
 In the recommended workflow, fill in `input/journal/YYYY-MM-DD.md` for date-level recovery and readiness context: soreness, pain, gait changes, fatigue, energy, sleep, stress, nutrition, gear, coach notes, and questions.
+
+Use `Total Steps:` in the journal for manual daily step counts. Compact entries like `11k`, `11,000`, or `about 11k` are accepted for load context.
 
 In the legacy CSV workflow, use `daily-notes.csv` for soreness, pain, gait changes, fatigue, energy, sleep, stress, motivation, steps, and short notes.
 

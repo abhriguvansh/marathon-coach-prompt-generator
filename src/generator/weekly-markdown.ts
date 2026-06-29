@@ -25,6 +25,7 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     `- Longest run: ${formatActivityDistance(summary.totals.longestRun)}`,
     `- Walking mileage: ${formatMiles(summary.totals.walkingMileage)}`,
     `- Step load: total ${formatUnknown(summary.totals.totalSteps, "unknown")}; average ${formatRounded(summary.totals.averageDailySteps, "unknown")}`,
+    `- High-step days: ${summary.totals.highStepDays}; step trend: ${formatStepTrend(summary)}`,
     `- Rock climbing sessions: ${summary.totals.rockClimbingCount}`,
     `- Weights/strength sessions: ${summary.totals.weightsCount}`,
     `- Tennis sessions: ${summary.totals.tennisCount}`,
@@ -114,6 +115,20 @@ function formatBaselineRun(config: WeeklySummary["athleteConfig"]): string {
   ]
     .filter((value): value is string => value !== null && value !== undefined)
     .join(", ");
+}
+
+function formatStepTrend(summary: WeeklySummary): string {
+  const days = summary.totals.stepDaysWithData;
+
+  if (days === 0) {
+    return "unknown";
+  }
+
+  if (days < 7) {
+    return `limited because steps were provided for ${days} of 7 evidence days`;
+  }
+
+  return "available for all 7 evidence days";
 }
 
 function formatLifestyleActivity(

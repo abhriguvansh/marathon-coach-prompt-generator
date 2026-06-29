@@ -6,7 +6,7 @@ import {
   parseOptionalNumber,
   parseOptionalString,
 } from "../utils/csv";
-import { parseStepValue } from "../utils/steps";
+import { parseStepDetails } from "../utils/steps";
 
 export interface ManualInputs {
   dailyNotes: DailyNote[];
@@ -47,21 +47,28 @@ export function loadManualInputs(paths: {
 }
 
 export function parseDailyNotes(content: string): DailyNote[] {
-  return parseCsv(content).map((record) => ({
-    date: record.date,
-    totalSteps: parseStepValue(record.total_steps),
-    legSoreness: parseOptionalNumber(record.leg_soreness_0_10),
-    pain: parseOptionalNumber(record.pain_0_10),
-    painLocation: parseOptionalString(record.pain_location),
-    painType: parseOptionalString(record.pain_type),
-    gaitChanged: parseOptionalBoolean(record.gait_changed),
-    fatigue: parseOptionalNumber(record.fatigue_0_10),
-    energy: parseOptionalNumber(record.energy_0_10),
-    sleepQuality: parseOptionalNumber(record.sleep_quality_0_10),
-    stress: parseOptionalNumber(record.stress_0_10),
-    motivation: parseOptionalNumber(record.motivation_0_10),
-    notes: parseOptionalString(record.notes),
-  }));
+  return parseCsv(content).map((record) => {
+    const steps = parseStepDetails(record.total_steps);
+
+    return {
+      date: record.date,
+      totalSteps: steps.display,
+      stepsDisplay: steps.display,
+      stepsApprox: steps.approx,
+      stepsSource: steps.display === null ? null : "manual_csv",
+      legSoreness: parseOptionalNumber(record.leg_soreness_0_10),
+      pain: parseOptionalNumber(record.pain_0_10),
+      painLocation: parseOptionalString(record.pain_location),
+      painType: parseOptionalString(record.pain_type),
+      gaitChanged: parseOptionalBoolean(record.gait_changed),
+      fatigue: parseOptionalNumber(record.fatigue_0_10),
+      energy: parseOptionalNumber(record.energy_0_10),
+      sleepQuality: parseOptionalNumber(record.sleep_quality_0_10),
+      stress: parseOptionalNumber(record.stress_0_10),
+      motivation: parseOptionalNumber(record.motivation_0_10),
+      notes: parseOptionalString(record.notes),
+    };
+  });
 }
 
 export function parseActivityNotes(content: string): ActivityNote[] {

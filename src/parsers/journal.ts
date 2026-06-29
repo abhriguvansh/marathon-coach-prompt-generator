@@ -14,7 +14,7 @@ import {
   parseGaitChangedValue,
   parseRecoveryValue,
 } from "../utils/recovery";
-import { parseStepValue } from "../utils/steps";
+import { parseStepDetails } from "../utils/steps";
 import { secondsToReadableDuration } from "../utils/units";
 
 export interface JournalInputs {
@@ -103,11 +103,22 @@ export function parseJournal(
     { allowNone: true },
   );
   const noPain = isNoPain(pain);
+  const steps = parseStepDetails(
+    fieldValueAny(recovery, [
+      "Total Steps",
+      "Steps",
+      "Daily Steps",
+      "Step Count",
+    ]),
+  );
 
   return {
     dailyNote: {
       date,
-      totalSteps: parseStepValue(fieldValue(recovery, "Total Steps")),
+      totalSteps: steps.display,
+      stepsDisplay: steps.display,
+      stepsApprox: steps.approx,
+      stepsSource: steps.display === null ? null : "journal_manual",
       legSoreness: parseRecoveryValue(
         fieldValue(recovery, "Soreness (0-10 or words)") ??
           fieldValue(recovery, "Soreness (0-10)"),
@@ -377,6 +388,18 @@ function fieldValue(content: string, label: string): string | null {
   return value;
 }
 
+function fieldValueAny(content: string, labels: string[]): string | null {
+  for (const label of labels) {
+    const value = fieldValue(content, label);
+
+    if (value !== null) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
 function looksLikeBlankFieldLabel(value: string): boolean {
   return /^[A-Za-z][A-Za-z /()0-9-]*:$/.test(value);
 }
@@ -449,8 +472,6 @@ function defaultJournalTemplate(): string {
     "",
     "## Recovery",
     "",
-    "Total Steps:",
-    "",
     "Soreness (0-10 or words):",
     "",
     "Pain (0-10 or words):",
@@ -468,6 +489,8 @@ function defaultJournalTemplate(): string {
     "Sleep:",
     "",
     "Stress (0-10 or words):",
+    "",
+    "Total Steps:",
     "",
     "---",
     "",

@@ -14,8 +14,6 @@ These activities were imported automatically from Garmin or Strava exports. Do n
 
 ## Recovery
 
-Total Steps:
-
 Soreness (0-10 or words):
 
 Pain (0-10 or words):
@@ -33,6 +31,8 @@ Fatigue (0-10 or words):
 Sleep:
 
 Stress (0-10 or words):
+
+Total Steps:
 
 ---
 

@@ -26,6 +26,14 @@ npm run coach:tonight
 
 Paste `output/daily-checkin.md` into ChatGPT that night to plan tomorrow.
 
+For manual steps, use the Recovery field:
+
+```md
+Total Steps: 11k
+```
+
+Steps are load context, not walking mileage. Walking mileage comes only from tracked/imported walking activities or explicit manual walk distance entries.
+
 The coach workflow runs a check-in completeness validator automatically. If it warns about missing subjective details, edit the evidence-day journal and rerun the same coach command before pasting the output into ChatGPT.
 
 To run the validator separately:

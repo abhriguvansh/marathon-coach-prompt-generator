@@ -61,7 +61,8 @@ describe("manual CSV parsing", () => {
       ].join("\n"),
     );
 
-    assert.equal(notes[0].totalSteps, 12345);
+    assert.equal(notes[0].totalSteps, "12345");
+    assert.equal(notes[0].stepsApprox, 12345);
     assert.equal(notes[0].gaitChanged, true);
     assert.equal(notes[0].pain, 4);
   });
@@ -74,7 +75,8 @@ describe("manual CSV parsing", () => {
       ].join("\n"),
     );
 
-    assert.equal(notes[0].totalSteps, 11000);
+    assert.equal(notes[0].totalSteps, "about 11k");
+    assert.equal(notes[0].stepsApprox, 11000);
   });
 
   it("parses activity notes", () => {
