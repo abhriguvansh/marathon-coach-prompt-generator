@@ -16,7 +16,7 @@ interface Args {
   preview: boolean;
 }
 
-const OUTPUT_PATH = "output/weekly-summary.md";
+const OUTPUT_PATH = "output/weekly-checkin.md";
 
 export function parseGenerateWeeklyArgs(argv: string[]): Args {
   let weekStart: string | null = null;
@@ -42,7 +42,15 @@ export function parseGenerateWeeklyArgs(argv: string[]): Args {
 export function generateWeeklySummary(
   cwd: string,
   args: Args,
-): { markdown: string; outputPath: string; missingFiles: string[] } {
+): {
+  markdown: string;
+  outputPath: string;
+  missingFiles: string[];
+  weekStart: string;
+  weekEnd: string;
+  evidenceStart: string;
+  evidenceEnd: string;
+} {
   if (!args.weekStart) {
     throw new Error(
       "Missing --week-start. Example: npm run generate:weekly -- --week-start 2026-06-22",
@@ -95,7 +103,15 @@ export function generateWeeklySummary(
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, markdown);
 
-  return { markdown, outputPath, missingFiles };
+  return {
+    markdown,
+    outputPath,
+    missingFiles,
+    weekStart: summary.weekStart,
+    weekEnd: summary.weekEnd,
+    evidenceStart: summary.evidenceStart,
+    evidenceEnd: summary.evidenceEnd,
+  };
 }
 
 function filterNoisyMissingFiles(
@@ -125,7 +141,9 @@ if (require.main === module) {
     if (args.preview) {
       console.log(result.markdown);
     } else {
-      console.log(`Generated ${OUTPUT_PATH}`);
+      console.log(
+        `Generated ${OUTPUT_PATH} for planning week ${result.weekStart} to ${result.weekEnd} using evidence window ${result.evidenceStart} to ${result.evidenceEnd}.`,
+      );
     }
 
     if (result.missingFiles.length > 0) {

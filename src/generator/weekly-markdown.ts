@@ -6,68 +6,63 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
   const config = summary.athleteConfig;
 
   return [
-    "# Weekly Marathon Training Summary",
+    "# Weekly Marathon Coach Check-In",
     "",
-    `- Week: ${summary.weekStart} to ${summary.weekEnd}`,
-    `- Days until race at week end: ${summary.daysUntilRaceAtWeekEnd}`,
+    "## Dates",
+    "",
+    `- Week start: ${summary.weekStart}`,
+    `- Week end: ${summary.weekEnd}`,
+    `- Evidence window: ${summary.evidenceStart} to ${summary.evidenceEnd}`,
     `- Race: ${config.race.name}`,
     `- Race date: ${config.race.date}`,
     `- Race goal: ${config.race.goalTime}`,
-    `- Goal pace: ${config.race.goalPace}`,
+    `- Days until race: ${summary.daysUntilRaceAtWeekEnd}`,
     "",
-    "## Athlete Background",
+    "## Recent Training Summary",
     "",
-    `- Athlete: ${formatUnknown(config.athleteName)}`,
-    `- Experience: ${formatUnknown(config.background.experienceLevel)}`,
-    `- Running background: ${formatUnknown(config.background.runningBackground, "not provided")}`,
-    `- Baseline run: ${formatBaselineRun(config)}`,
-    `- Travel/no-running break: ${formatUnknown(summary.travelBreakNote, "not overlapping or approaching this week")}`,
-    `- Normal lifestyle activity: ${formatLifestyleActivity(config)}`,
-    `- Recurring cross-training: ${formatCrossTraining(config)}`,
-    "",
-    "## Weekly Totals",
-    "",
+    `- Running days: ${summary.totals.runCount}`,
     `- Running mileage: ${formatMiles(summary.totals.runningMileage)}`,
-    `- Walking mileage: ${formatMiles(summary.totals.walkingMileage)}`,
-    `- Total active mileage: ${formatMiles(summary.totals.totalActiveMileage)}`,
-    `- Running duration: ${formatMinutes(summary.totals.runningDurationMinutes)}`,
-    `- Walking duration: ${formatMinutes(summary.totals.walkingDurationMinutes)}`,
-    `- Number of runs: ${summary.totals.runCount}`,
-    `- Number of walks: ${summary.totals.walkCount}`,
-    `- Rock climbing sessions: ${summary.totals.rockClimbingCount}`,
-    `- Tennis sessions: ${summary.totals.tennisCount}`,
-    `- Weights/strength sessions: ${summary.totals.weightsCount}`,
-    `- Mobility/rest/other activity count: ${summary.totals.mobilityRestOtherCount}`,
-    `- Total steps: ${formatUnknown(summary.totals.totalSteps, "unknown")}`,
-    `- Average daily steps: ${formatRounded(summary.totals.averageDailySteps, "unknown")}`,
     `- Longest run: ${formatActivityDistance(summary.totals.longestRun)}`,
-    `- Longest walk: ${formatActivityDistance(summary.totals.longestWalk)}`,
-    `- Run elevation gain: ${formatRounded(summary.totals.runElevationGainFt, "unknown")} ft`,
-    `- Run elevation loss: ${formatRounded(summary.totals.runElevationLossFt, "unknown")} ft`,
-    `- Walk elevation gain: ${formatRounded(summary.totals.walkElevationGainFt, "unknown")} ft`,
-    `- Walk elevation loss: ${formatRounded(summary.totals.walkElevationLossFt, "unknown")} ft`,
-    `- Total run/walk elevation gain: ${formatRounded(summary.totals.totalElevationGainFt, "unknown")} ft`,
-    `- Total run/walk elevation loss: ${formatRounded(summary.totals.totalElevationLossFt, "unknown")} ft`,
-    `- Average run pace: ${formatPace(summary.totals.averageRunPaceSecondsPerMile)}`,
-    `- Average walk pace: ${formatPace(summary.totals.averageWalkPaceSecondsPerMile)}`,
-    `- Average run HR: ${formatRounded(summary.totals.averageRunHr, "unknown")}`,
-    `- Average walk HR: ${formatRounded(summary.totals.averageWalkHr, "unknown")}`,
-    `- Parsed activity calories: ${formatRounded(summary.totals.totalCalories, "unknown")}`,
-    `- Higher load days: ${formatHigherLoadActivities(summary.totals.higherLoadActivities)}`,
+    `- Walking mileage: ${formatMiles(summary.totals.walkingMileage)}`,
+    `- Step load: total ${formatUnknown(summary.totals.totalSteps, "unknown")}; average ${formatRounded(summary.totals.averageDailySteps, "unknown")}`,
+    `- Rock climbing sessions: ${summary.totals.rockClimbingCount}`,
+    `- Weights/strength sessions: ${summary.totals.weightsCount}`,
+    `- Tennis sessions: ${summary.totals.tennisCount}`,
+    `- Mobility/rest/other activity count: ${summary.totals.mobilityRestOtherCount}`,
+    `- Rest days: ${countRestDays(summary)}`,
+    "",
+    "## Activity Details",
+    "",
+    formatActivityListByDay(summary),
     "",
     "## Recovery Trend",
     "",
     `- Soreness average: ${formatRounded(summary.recovery.sorenessAverage, "unknown")}`,
     `- Soreness highest: ${formatUnknown(summary.recovery.sorenessHighest, "unknown")}`,
     `- Pain reports: ${formatPainReports(summary)}`,
+    `- Gait-change flags: ${formatGaitFlags(summary)}`,
     `- Fatigue average: ${formatRounded(summary.recovery.fatigueAverage, "unknown")}`,
     `- Energy average: ${formatRounded(summary.recovery.energyAverage, "unknown")}`,
     `- Sleep average: ${formatRounded(summary.recovery.sleepAverage, "unknown")}`,
     `- Stress average: ${formatRounded(summary.recovery.stressAverage, "unknown")}`,
+    `- Motivation notes: ${formatMotivation(summary)}`,
     "",
-    "## Activity List By Day",
+    "## Load / Risk Flags",
     "",
-    formatActivityListByDay(summary),
+    ...formatLoadRiskFlags(summary),
+    "",
+    "## Upcoming Constraints",
+    "",
+    ...formatUpcomingConstraints(summary),
+    "",
+    "## Current Plan Context",
+    "",
+    `- Experience: ${formatUnknown(config.background.experienceLevel)}`,
+    `- Marathon: ${config.race.name} on ${config.race.date}; goal ${config.race.goalTime}.`,
+    "- Injury prevention and consistency should be prioritized over aggressive mileage jumps.",
+    "- Running mileage, walking mileage, steps, and cross-training load should stay separate.",
+    `- Recurring cross-training: ${formatCrossTraining(config)}`,
+    `- Travel/no-running break: ${formatUnknown(summary.travelBreakNote, "not overlapping or approaching the planning week")}`,
     "",
     "## Data Quality Notes",
     "",
@@ -93,13 +88,9 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
           ),
         ),
     "",
-    "## Plan Notes",
-    "",
-    formatUnknown(summary.planNotes, "not provided"),
-    "",
     "## Question For ChatGPT Coach",
     "",
-    "Please review this week, recommend next week's structure, and identify whether training should progress, hold steady, or back off. Prioritize injury prevention, consistency, and keeping running mileage separate from walking and cross-training load.",
+    "Given this weekly context, how should I structure the upcoming week? Prioritize injury prevention, consistency, and separating running mileage from walking and cross-training load. Please adjust for recovery, missed training, climbing/tennis/weights load, and upcoming constraints.",
     "",
   ].join("\n");
 }
@@ -223,10 +214,112 @@ function formatActivity(activity: ManualActivity): string {
     activity.elevationGainFt === null || activity.elevationGainFt === undefined
       ? null
       : `Elevation gain ${Math.round(activity.elevationGainFt)} ft`,
-    activity.notes,
+    activity.elevationLossFt === null || activity.elevationLossFt === undefined
+      ? null
+      : `Elevation loss ${Math.round(activity.elevationLossFt)} ft`,
+    `source ${activity.source}`,
+    "route details omitted",
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
+}
+
+function countRestDays(summary: WeeklySummary): number {
+  return summary.activityListByDay.filter((day) => day.activities.length === 0)
+    .length;
+}
+
+function formatGaitFlags(summary: WeeklySummary): string {
+  const flags = summary.dailyNotes
+    .filter((note) => note.gaitChanged === true)
+    .map((note) => note.date);
+
+  return flags.length === 0 ? "none reported" : flags.join(", ");
+}
+
+function formatMotivation(summary: WeeklySummary): string {
+  const values = summary.dailyNotes
+    .filter((note) => note.motivation !== null)
+    .map((note) => `${note.date}: ${note.motivation}/10`);
+
+  return values.length === 0 ? "unknown" : values.join("; ");
+}
+
+function formatLoadRiskFlags(summary: WeeklySummary): string[] {
+  const flags = [
+    ...summary.safetyFlags.map(
+      (flag) => `${flag.message} Do not diagnose; prioritize caution.`,
+    ),
+  ];
+
+  if (summary.totals.higherLoadActivities.length > 0) {
+    flags.push(
+      `Higher-load activities: ${formatHigherLoadActivities(summary.totals.higherLoadActivities)}.`,
+    );
+  }
+
+  for (const day of summary.activityListByDay) {
+    const types = day.activities.map((activity) => activity.activityType);
+    if (
+      types.includes("run") &&
+      types.some((type) =>
+        ["rock_climbing", "tennis", "weights", "strength"].includes(type),
+      )
+    ) {
+      flags.push(`${day.date}: running plus cross-training load on same day.`);
+    }
+  }
+
+  if (
+    summary.totals.averageDailySteps !== null &&
+    summary.totals.averageDailySteps >= 12000
+  ) {
+    flags.push("Average daily steps were high enough to matter for recovery.");
+  }
+
+  if (summary.missingDataFlags.length > 0) {
+    flags.push("Recovery or activity trend may be limited by missing data.");
+  }
+
+  return flags.length === 0
+    ? ["- No major load/risk flags from provided notes."]
+    : flags.map((flag) => `- ${flag}`);
+}
+
+function formatUpcomingConstraints(summary: WeeklySummary): string[] {
+  const constraints = [
+    summary.travelBreakNote,
+    summary.planNotes === null ? null : `Plan notes: ${summary.planNotes}`,
+    ...summary.journalEntries
+      .map((entry) => entry.coachNotes)
+      .filter((note): note is string => note !== null)
+      .filter((note) => hasConstraintLanguage(note))
+      .map((note) => `Recent journal constraint note: ${note}`),
+  ].filter((value): value is string => value !== null);
+
+  return constraints.length === 0
+    ? ["- No upcoming constraints found in journals, plan notes, or config."]
+    : constraints.map((constraint) => `- ${constraint}`);
+}
+
+function hasConstraintLanguage(value: string): boolean {
+  const normalized = value.toLowerCase();
+
+  return [
+    "travel",
+    "trip",
+    "no-running",
+    "no running",
+    "constraint",
+    "busy",
+    "work",
+    "school",
+    "amusement",
+    "park",
+    "race",
+    "event",
+    "climb",
+  ].some((term) => normalized.includes(term));
 }
 
 function formatHigherLoadActivities(activities: ManualActivity[]): string {

@@ -42,10 +42,11 @@ describe("demo generation", () => {
       "utf8",
     );
 
-    assert.match(markdown, /Weekly Marathon Training Summary/);
-    assert.match(markdown, /Sample Runner/);
+    assert.match(markdown, /Weekly Marathon Coach Check-In/);
+    assert.doesNotMatch(markdown, /## Athlete Background/);
+    assert.doesNotMatch(markdown, /Sample Runner/);
     assert.match(written, /Fake planned travel week/);
-    assert.match(written, /progress, hold steady, or back off/);
+    assert.match(written, /how should I structure the upcoming week/i);
     rmSync(dir, { recursive: true, force: true });
   });
 });
@@ -121,7 +122,7 @@ describe("privacy check", () => {
   it("catches generated output files", () => {
     const dir = makeGitRepo();
     writeFile(
-      join(dir, "output/weekly-summary.md"),
+      join(dir, "output/weekly-checkin.md"),
       "Fake generated private summary",
     );
 
@@ -183,6 +184,7 @@ describe("public documentation", () => {
     for (const script of [
       "inspect",
       "cleanup",
+      "coach:weekly",
       "generate:daily",
       "generate:weekly",
       "parse:exports",
@@ -207,7 +209,7 @@ describe("public documentation", () => {
     assert.doesNotMatch(daily, /## Athlete Background/);
     assert.match(daily, /Example City Marathon/);
     assert.match(weekly, /Public-safe fake demo output/);
-    assert.match(weekly, /Sample Runner/);
+    assert.doesNotMatch(weekly, /## Athlete Background/);
     assert.match(weekly, /Example City Marathon/);
   });
 });

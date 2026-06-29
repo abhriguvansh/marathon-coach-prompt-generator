@@ -130,3 +130,19 @@ npm run cleanup -- --yes
 ```
 
 Journals and manual notes are kept by default. Use `--include-journals` only when you intentionally want old journals included.
+
+## Weekly Planning
+
+For Sunday-night or Monday-morning weekly planning:
+
+```bash
+npm run coach:weekly
+```
+
+For an explicit planning week:
+
+```bash
+npm run generate:weekly -- --week-start YYYY-MM-DD
+```
+
+The week start is the first day of the planning week. The evidence window is the 7 days immediately before it. Paste `output/weekly-checkin.md` into ChatGPT.

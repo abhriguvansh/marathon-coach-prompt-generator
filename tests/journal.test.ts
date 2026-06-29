@@ -200,7 +200,7 @@ describe("daily journal workflow", () => {
     const journal = loadJournalInputs(dir);
     const exports = parseLocalExports(dir);
     const summary = createWeeklySummary({
-      weekStart: "2026-06-22",
+      weekStart: "2026-06-29",
       athleteConfig: fakeConfig,
       dailyNotes: journal.dailyNotes,
       activityNotes: [],

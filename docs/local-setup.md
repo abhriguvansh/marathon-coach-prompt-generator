@@ -150,8 +150,16 @@ Direct daily generation is compact by default. Use `npm run generate:daily -- --
 Weekly:
 
 ```bash
+npm run coach:weekly
+```
+
+For an explicit planning week:
+
+```bash
 npm run generate:weekly -- --week-start YYYY-MM-DD
 ```
+
+Weekly planning writes `output/weekly-checkin.md`. The week start is the first day of the planning week; the evidence window is the 7 days before it.
 
 The weekly start date must be a Monday.
 

@@ -18,6 +18,7 @@
     "coach": "npm run build && node dist/src/cli/coach.js",
     "coach:tonight": "npm run coach -- --mode tonight",
     "coach:morning": "npm run coach -- --mode morning",
+    "coach:weekly": "npm run build && node dist/src/cli/coach-weekly.js",
     "validate:checkin": "npm run build && node dist/src/cli/validate-checkin.js",
     "journal": "npm run build && node dist/src/cli/journal.js",
     "generate:daily": "npm run build && node dist/src/cli/generate-daily.js",

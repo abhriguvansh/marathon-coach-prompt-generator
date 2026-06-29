@@ -14,7 +14,7 @@ const DEMO_OUTPUT_PATH = "examples/demo-weekly-summary.md";
 
 export function generateDemoWeekly(cwd = process.cwd()): string {
   const summary = createWeeklySummary({
-    weekStart: "2026-06-22",
+    weekStart: "2026-06-29",
     athleteConfig: demoAthleteConfig,
     dailyNotes: demoDailyNotes,
     activityNotes: demoActivityNotes,

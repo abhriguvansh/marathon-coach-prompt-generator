@@ -98,7 +98,7 @@ describe("local export parsing", () => {
       }),
     );
     const weekly = createWeeklySummary({
-      weekStart: "2026-06-22",
+      weekStart: "2026-06-29",
       athleteConfig: fakeConfig,
       dailyNotes: [],
       activityNotes: [],
@@ -156,10 +156,10 @@ describe("local export parsing", () => {
     assert.match(dailyMarkdown, /Lap 1: 1\.00 mi, 15:32 min\/mi, Avg HR 118/);
     assert.match(dailyMarkdown, /Final 0\.87 mi: 15:40 min\/mi, Avg HR 123/);
     assert.match(dailyMarkdown, /Runs: run, 2\.91 mi/);
-    assert.match(weeklyMarkdown, /Walk elevation gain: 85\.3 ft/);
-    assert.match(weeklyMarkdown, /Walk elevation loss: 72\.2 ft/);
-    assert.match(weeklyMarkdown, /Average walk HR: 121/);
-    assert.match(weeklyMarkdown, /Parsed activity calories: 286/);
+    assert.match(
+      weeklyMarkdown,
+      /walk, 3\.8\d+ mi, .*Avg HR 121, Elevation gain 85 ft, Elevation loss 72 ft, source strava_fit_export, route details omitted/,
+    );
     assert.doesNotMatch(
       dailyMarkdown,
       /lat=|lon=|trkpt|position_lat|position_long/,
@@ -392,7 +392,7 @@ describe("local export parsing", () => {
     const dir = makeExportProject();
     const result = parseLocalExports(dir);
     const summary = createWeeklySummary({
-      weekStart: "2026-06-22",
+      weekStart: "2026-06-29",
       athleteConfig: fakeConfig,
       dailyNotes: [],
       activityNotes: [],
@@ -423,7 +423,7 @@ describe("local export parsing", () => {
     );
     const weeklyMarkdown = renderWeeklySummary(
       createWeeklySummary({
-        weekStart: "2026-06-22",
+        weekStart: "2026-06-29",
         athleteConfig: fakeConfig,
         dailyNotes: [],
         activityNotes: [],

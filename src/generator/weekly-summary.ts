@@ -33,17 +33,19 @@ export function createWeeklySummary(input: {
   exportWarnings?: ExportParseWarning[];
 }): WeeklySummary {
   const weekEnd = formatDate(addDays(parseDate(input.weekStart), 6));
+  const evidenceStart = formatDate(addDays(parseDate(input.weekStart), -7));
+  const evidenceEnd = formatDate(addDays(parseDate(input.weekStart), -1));
   const dailyNotes = input.dailyNotes.filter((note) =>
-    isDateWithinRange(note.date, input.weekStart, weekEnd),
+    isDateWithinRange(note.date, evidenceStart, evidenceEnd),
   );
   const activityNotes = input.activityNotes.filter((note) =>
-    isDateWithinRange(note.date, input.weekStart, weekEnd),
+    isDateWithinRange(note.date, evidenceStart, evidenceEnd),
   );
   const manualActivities = input.manualActivities.filter((activity) =>
-    isDateWithinRange(activity.date, input.weekStart, weekEnd),
+    isDateWithinRange(activity.date, evidenceStart, evidenceEnd),
   );
   const journalEntries = (input.journalEntries ?? []).filter((entry) =>
-    isDateWithinRange(entry.date, input.weekStart, weekEnd),
+    isDateWithinRange(entry.date, evidenceStart, evidenceEnd),
   );
   const duplicateAnalysis = analyzeActivityDuplicates(manualActivities);
   const activitiesForTotals = duplicateAnalysis.activitiesForTotals;
@@ -56,6 +58,8 @@ export function createWeeklySummary(input: {
   return {
     weekStart: input.weekStart,
     weekEnd,
+    evidenceStart,
+    evidenceEnd,
     athleteConfig: input.athleteConfig,
     daysUntilRaceAtWeekEnd: daysUntilRace(
       parseDate(weekEnd),
@@ -134,8 +138,8 @@ export function createWeeklySummary(input: {
       stressAverage: averageNullable(dailyNotes.map((note) => note.stress)),
     },
     activityListByDay: buildActivityListByDay(
-      input.weekStart,
-      weekEnd,
+      evidenceStart,
+      evidenceEnd,
       manualActivities,
     ),
     travelBreakNote: buildTravelBreakNote(

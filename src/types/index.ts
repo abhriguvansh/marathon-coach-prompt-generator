@@ -259,6 +259,8 @@ export type WeeklyMissingDataFlag = MissingDataFlag;
 export interface WeeklySummary {
   weekStart: string;
   weekEnd: string;
+  evidenceStart: string;
+  evidenceEnd: string;
   athleteConfig: AthleteConfig;
   daysUntilRaceAtWeekEnd: number;
   dailyNotes: DailyNote[];

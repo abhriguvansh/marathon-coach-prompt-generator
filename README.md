@@ -330,24 +330,30 @@ Run:
 npm run generate:weekly -- --week-start YYYY-MM-DD
 ```
 
-The week start must be a Monday.
+The week start is the first day of the planning week and must be a Monday. The evidence window is the 7 days immediately before that week start.
+
+For normal Sunday-night or Monday-morning planning:
+
+```bash
+npm run coach:weekly
+```
 
 Example:
 
 ```bash
-npm run generate:weekly -- --week-start 2026-06-22
+npm run generate:weekly -- --week-start 2026-06-29
 ```
 
 This writes:
 
 ```txt
-output/weekly-summary.md
+output/weekly-checkin.md
 ```
 
 To print the generated Markdown to the terminal:
 
 ```bash
-npm run generate:weekly -- --week-start 2026-06-22 --preview
+npm run generate:weekly -- --week-start 2026-06-29 --preview
 ```
 
 ## Running Journal
