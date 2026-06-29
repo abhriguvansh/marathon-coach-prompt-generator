@@ -18,6 +18,7 @@ import {
   normalizeActivityType,
   sumMileage,
 } from "./activity-classification";
+import { classifyDayLoad } from "./day-classification";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
 
 export function buildRecentCoachingContext(input: {
@@ -109,9 +110,7 @@ function last7Summary(
   const walkingMileage = sumMileage(groups.walks);
   const longestRun = longestByDistance(groups.runs);
   const highStepDays = notes.filter((note) => isHighStepNote(note));
-  const restDays = notes.filter(
-    (note) => !activities.some((activity) => activity.date === note.date),
-  );
+  const dayTypeCounts = recentDayTypeCounts(activities, notes);
   const parts = [
     `${groups.runs.length} run day${plural(groups.runs.length)}`,
     `${formatMiles(runningMileage)} running`,
@@ -123,6 +122,10 @@ function last7Summary(
     highStepDays.length === 0
       ? null
       : `${highStepDays.length} high-step day${plural(highStepDays.length)}`,
+    formatDayTypeCount(dayTypeCounts, "high-step no-run day"),
+    formatDayTypeCount(dayTypeCounts, "moderate-step no-run day"),
+    formatDayTypeCount(dayTypeCounts, "mixed-load day"),
+    formatDayTypeCount(dayTypeCounts, "mixed non-running load day"),
     groups.rockClimbing.length === 0
       ? null
       : `${groups.rockClimbing.length} climbing session${plural(
@@ -141,12 +144,43 @@ function last7Summary(
       : `${groups.mobility.length} mobility session${plural(
           groups.mobility.length,
         )}`,
-    restDays.length === 0
-      ? null
-      : `${restDays.length} journaled rest day${plural(restDays.length)}`,
+    formatDayTypeCount(dayTypeCounts, "true rest day"),
   ].filter((part): part is string => part !== null);
 
   return `Last 7 days: ${parts.join("; ")}. Steps are load context, not walking mileage.`;
+}
+
+function recentDayTypeCounts(
+  activities: ManualActivity[],
+  notes: DailyNote[],
+): Map<string, number> {
+  const dates = new Set([
+    ...activities.map((activity) => activity.date),
+    ...notes.map((note) => note.date),
+  ]);
+  const counts = new Map<string, number>();
+
+  for (const date of dates) {
+    const classification = classifyDayLoad({
+      activities: activities.filter((activity) => activity.date === date),
+      dailyNote: notes.find((note) => note.date === date) ?? null,
+    });
+    counts.set(
+      classification.dayType,
+      (counts.get(classification.dayType) ?? 0) + 1,
+    );
+  }
+
+  return counts;
+}
+
+function formatDayTypeCount(
+  counts: Map<string, number>,
+  dayType: string,
+): string | null {
+  const count = counts.get(dayType) ?? 0;
+
+  return count === 0 ? null : `${count} ${dayType}${plural(count)}`;
 }
 
 function last14Trend(

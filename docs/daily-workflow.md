@@ -59,6 +59,8 @@ The section summarizes recent running, walking, high-step days, climbing, streng
 
 If prior journals or activities are missing, the section says recent context is limited. It never includes raw route points, GPS coordinates, raw export contents, or full journal contents.
 
+Daily check-ins also include `## Day Type / Load Classification`. This labels the evidence day as coaching context, such as `run day`, `high-step no-run day`, `climbing day`, or `mixed-load day`. It is not a medical diagnosis or a fatigue score. Missing data is not treated as rest.
+
 ## Morning Workflow
 
 If you did not check in the night before:

@@ -121,6 +121,11 @@ describe("weekly generation", () => {
     assert.match(markdown, /Evidence window: 2026-06-22 to 2026-06-28/);
     assert.match(markdown, /Running mileage: 7 mi/);
     assert.match(markdown, /Walking mileage: 3 mi/);
+    assert.match(markdown, /## Day Type Summary/);
+    assert.match(markdown, /Run days: 2/);
+    assert.match(markdown, /Walk-only days: 1/);
+    assert.match(markdown, /Mixed non-running load days: 1/);
+    assert.match(markdown, /Mobility\/recovery days: 1/);
     assert.match(markdown, /Rock climbing sessions: 1/);
     assert.match(markdown, /Confirmed rest\/no-run days: 1/);
     assert.match(markdown, /Days with no activity data found: 0/);

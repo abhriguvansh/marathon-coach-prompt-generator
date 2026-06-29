@@ -242,6 +242,187 @@ describe("daily summary generation", () => {
     assert.doesNotMatch(markdown, /40\.123,-75\.456/);
   });
 
+  it("renders day type and load classification in daily Markdown", () => {
+    const markdown = renderDailyCheckIn(
+      buildClassificationSummary({
+        activities: [fakeActivityOn("2026-06-27", "run", 3)],
+      }),
+    );
+
+    assert.match(markdown, /## Day Type \/ Load Classification/);
+    assert.match(markdown, /Day type: run day/);
+    assert.match(markdown, /Load classification: running load/);
+  });
+
+  it("classifies common daily load patterns conservatively", () => {
+    const cases = [
+      {
+        name: "true rest day",
+        summary: buildClassificationSummary({
+          dailyNote: fakeDailyNote("2026-06-27", 3000, 1, 0, "Rest day."),
+        }),
+        dayType: "true rest day",
+        load: "low load",
+      },
+      {
+        name: "missing data no-run day",
+        summary: buildClassificationSummary({ dailyNote: null }),
+        dayType: "no-run day",
+        load: "limited context",
+      },
+      {
+        name: "high-step no-run day",
+        summary: buildClassificationSummary({
+          dailyNote: fakeDailyNote("2026-06-27", "11k", 1, 0),
+        }),
+        dayType: "high-step no-run day",
+        load: "moderate non-running load",
+      },
+      {
+        name: "moderate-step no-run day",
+        summary: buildClassificationSummary({
+          dailyNote: fakeDailyNote("2026-06-27", 9000, 1, 0),
+        }),
+        dayType: "moderate-step no-run day",
+        load: "light-to-moderate non-running load",
+      },
+      {
+        name: "run with high steps",
+        summary: buildClassificationSummary({
+          dailyNote: fakeDailyNote("2026-06-27", "11k", 1, 0),
+          activities: [fakeActivityOn("2026-06-27", "run", 3)],
+        }),
+        dayType: "run day with high step load",
+        load: "running load plus high daily movement",
+      },
+      {
+        name: "walk-only day",
+        summary: buildClassificationSummary({
+          activities: [fakeActivityOn("2026-06-27", "walk", 3)],
+        }),
+        dayType: "walk-only day",
+        load: "walking load, not running mileage",
+      },
+      {
+        name: "climbing-only day",
+        summary: buildClassificationSummary({
+          activities: [fakeActivityOn("2026-06-27", "rock_climbing", null)],
+        }),
+        dayType: "climbing day",
+        load: "cross-training/strength load",
+      },
+      {
+        name: "strength-only day",
+        summary: buildClassificationSummary({
+          activities: [fakeActivityOn("2026-06-27", "weights", null)],
+        }),
+        dayType: "strength day",
+        load: "strength load",
+      },
+      {
+        name: "tennis-only day",
+        summary: buildClassificationSummary({
+          activities: [fakeActivityOn("2026-06-27", "tennis", null)],
+        }),
+        dayType: "tennis day",
+        load: "lateral/impact cross-training load",
+      },
+      {
+        name: "mobility-only day",
+        summary: buildClassificationSummary({
+          activities: [fakeActivityOn("2026-06-27", "mobility", null)],
+        }),
+        dayType: "mobility/recovery day",
+        load: "low load",
+      },
+      {
+        name: "run plus climbing",
+        summary: buildClassificationSummary({
+          activities: [
+            fakeActivityOn("2026-06-27", "run", 3),
+            fakeActivityOn("2026-06-27", "rock_climbing", null),
+          ],
+        }),
+        dayType: "mixed-load day",
+        load: "run + climbing",
+      },
+      {
+        name: "run plus weights",
+        summary: buildClassificationSummary({
+          activities: [
+            fakeActivityOn("2026-06-27", "run", 3),
+            fakeActivityOn("2026-06-27", "weights", null),
+          ],
+        }),
+        dayType: "mixed-load day",
+        load: "run + strength",
+      },
+      {
+        name: "run plus tennis",
+        summary: buildClassificationSummary({
+          activities: [
+            fakeActivityOn("2026-06-27", "run", 3),
+            fakeActivityOn("2026-06-27", "tennis", null),
+          ],
+        }),
+        dayType: "mixed-load day",
+        load: "run + tennis",
+      },
+      {
+        name: "walking plus climbing",
+        summary: buildClassificationSummary({
+          activities: [
+            fakeActivityOn("2026-06-27", "walk", 2),
+            fakeActivityOn("2026-06-27", "rock_climbing", null),
+          ],
+        }),
+        dayType: "mixed non-running load day",
+        load: "walking + cross-training",
+      },
+    ];
+
+    for (const testCase of cases) {
+      assert.equal(
+        testCase.summary.dayLoadClassification.dayType,
+        testCase.dayType,
+        testCase.name,
+      );
+      assert.equal(
+        testCase.summary.dayLoadClassification.loadClassification,
+        testCase.load,
+        testCase.name,
+      );
+    }
+  });
+
+  it("does not count steps as walking mileage or call high-step no-run days rest", () => {
+    const summary = buildClassificationSummary({
+      dailyNote: fakeDailyNote("2026-06-27", "11k", 1, 0),
+    });
+    const markdown = renderDailyCheckIn(summary);
+
+    assert.equal(summary.walkingMileage, 0);
+    assert.match(markdown, /Walking mileage: 0 mi/);
+    assert.match(markdown, /Day type: high-step no-run day/);
+    assert.doesNotMatch(markdown, /Day type: true rest day/);
+  });
+
+  it("uses high-step no-run wording in recent context instead of journaled rest", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-29",
+        athleteConfig: fakeConfig,
+        dailyNotes: [fakeDailyNote("2026-06-28", "11k", 1, 0)],
+        activityNotes: [],
+        manualActivities: [],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(markdown, /1 high-step no-run day/);
+    assert.doesNotMatch(markdown, /journaled rest day/);
+  });
+
   it("uses cautious 14-day trend wording with fewer than three runs", () => {
     const markdown = renderDailyCheckIn(
       createDailySummary({
@@ -452,6 +633,7 @@ function fakeDailyNote(
   totalSteps: number | string | null,
   legSoreness: number | string | null,
   pain: number | string | null,
+  notes: string | null = null,
 ) {
   return {
     date,
@@ -466,8 +648,27 @@ function fakeDailyNote(
     sleepQuality: 7,
     stress: 3,
     motivation: 8,
-    notes: null,
+    notes,
   };
+}
+
+function buildClassificationSummary(input: {
+  dailyNote?: ReturnType<typeof fakeDailyNote> | null;
+  activities?: ReturnType<typeof fakeActivityOn>[];
+}) {
+  return createDailySummary({
+    date: "2026-06-28",
+    athleteConfig: fakeConfig,
+    dailyNotes:
+      input.dailyNote === undefined
+        ? [fakeDailyNote("2026-06-27", null, 1, 0)]
+        : input.dailyNote === null
+          ? []
+          : [input.dailyNote],
+    activityNotes: [],
+    manualActivities: input.activities ?? [],
+    planNotes: null,
+  });
 }
 
 function makeTempProject(): string {

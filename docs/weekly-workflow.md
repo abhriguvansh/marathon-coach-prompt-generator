@@ -39,4 +39,6 @@ Weekly activity details distinguish confirmed rest/no-run days from days where n
 
 Weekly step context comes from daily journal step fields when available, such as `Total Steps: 11k`. Steps stay separate from walking mileage and are used only as load context.
 
+Weekly output includes a compact day type summary. It separates run days, walk-only days, high-step no-run days, mixed-load days, climbing/strength/tennis days, confirmed rest/no-run days, and days with no activity data found.
+
 Daily check-ins also include a smaller recent-context section for the last 7-14 days from the daily evidence date. Use weekly planning for broader plan changes; use the daily context to help ChatGPT adjust the next coaching day.

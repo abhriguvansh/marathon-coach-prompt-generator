@@ -43,6 +43,10 @@ export function renderDailyCheckIn(
     `- Walking mileage: ${formatMiles(summary.walkingMileage)}`,
     `- Steps: ${daily === null ? "unknown" : formatStepValue(daily)}`,
     "",
+    "## Day Type / Load Classification",
+    "",
+    ...formatDayLoadClassification(summary),
+    "",
     "## Recent Coaching Context",
     "",
     ...formatRecentCoachingContext(summary),
@@ -498,6 +502,16 @@ function formatRecentCoachingContext(summary: DailySummary): string[] {
   }
 
   return summary.recentCoachingContext;
+}
+
+function formatDayLoadClassification(summary: DailySummary): string[] {
+  const classification = summary.dayLoadClassification;
+
+  return [
+    `- Day type: ${classification.dayType}`,
+    `- Load classification: ${classification.loadClassification}`,
+    `- Coaching interpretation: ${classification.coachingInterpretation}`,
+  ];
 }
 
 function formatExportWarnings(warnings: Array<{ message: string }>): string[] {

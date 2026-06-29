@@ -198,6 +198,12 @@ export interface CheckInCompleteness {
   manualOnlyActivityReminder: string | null;
 }
 
+export interface DayLoadClassification {
+  dayType: string;
+  loadClassification: string;
+  coachingInterpretation: string;
+}
+
 export interface DailySummary {
   date: string;
   evidenceDate: string;
@@ -221,6 +227,7 @@ export interface DailySummary {
   restOrOther: ManualActivity[];
   safetyFlags: SafetyFlag[];
   missingDataFlags: MissingDataFlag[];
+  dayLoadClassification: DayLoadClassification;
   recentCoachingContext: string[];
   checkInCompleteness: CheckInCompleteness;
 }
@@ -292,6 +299,7 @@ export interface WeeklySummary {
     hasJournal: boolean;
     hasRecoveryNotes: boolean;
     confirmedRest: boolean;
+    dayLoadClassification: DayLoadClassification;
   }>;
   travelBreakNote: string | null;
   safetyFlags: WeeklySafetyFlag[];

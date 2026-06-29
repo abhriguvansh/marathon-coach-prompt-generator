@@ -213,6 +213,8 @@ That creates/fills the journal for June 27, 2026, then generates the coaching ch
 
 The daily check-in uses June 27 as the evidence day and also looks back from that evidence day for recent coaching context. The last 7 days are June 21 through June 27 inclusive, and the last 14 days are June 14 through June 27 inclusive.
 
+Daily check-ins include a compact day type/load classification, such as `run day`, `high-step no-run day`, `climbing day`, or `mixed-load day`. This is coaching context only, not a medical diagnosis or scientific fatigue score. Steps are load context, not walking mileage, and missing data is not treated as rest.
+
 Real daily journals are ignored by Git. Only `input/journal/template.md` is committed.
 
 ## Legacy Manual CSV Templates

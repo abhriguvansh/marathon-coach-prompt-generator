@@ -21,6 +21,7 @@ import {
   sumDurationMinutes,
   sumMileage,
 } from "./activity-classification";
+import { classifyDayLoad, hasExplicitRest } from "./day-classification";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
 
 export function createWeeklySummary(input: {
@@ -190,6 +191,7 @@ function buildActivityListByDay(
     hasJournal: boolean;
     hasRecoveryNotes: boolean;
     confirmedRest: boolean;
+    dayLoadClassification: WeeklySummary["activityListByDay"][number]["dayLoadClassification"];
   }> = [];
   let current = parseDate(weekStart);
   const end = parseDate(weekEnd);
@@ -209,6 +211,11 @@ function buildActivityListByDay(
       hasJournal: dailyNote !== null || journalEntry !== null,
       hasRecoveryNotes: dailyNote !== null,
       confirmedRest: isConfirmedRestDay(dayActivities, dailyNote, journalEntry),
+      dayLoadClassification: classifyDayLoad({
+        activities: dayActivities,
+        dailyNote,
+        journalEntry,
+      }),
     });
     current = addDays(current, 1);
   }
@@ -231,12 +238,7 @@ function isConfirmedRestDay(
     return true;
   }
 
-  const text = [dailyNote?.notes, journalEntry?.coachNotes]
-    .filter((value): value is string => value !== null && value !== undefined)
-    .join(" ")
-    .toLowerCase();
-
-  return /\b(rest day|no run|no running|no activity|rested)\b/.test(text);
+  return hasExplicitRest(dailyNote, journalEntry);
 }
 
 function hasMeaningfulPainDetail(value: string | null): boolean {

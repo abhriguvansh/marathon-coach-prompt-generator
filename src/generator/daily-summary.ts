@@ -13,6 +13,7 @@ import { daysUntilRace, formatDate, parseDate } from "../utils/dates";
 import { numericRecoveryValue } from "../utils/recovery";
 import { classifyActivities, sumMileage } from "./activity-classification";
 import { evaluateCheckInCompleteness } from "./checkin-completeness";
+import { classifyDayLoad } from "./day-classification";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
 import { buildRecentCoachingContext } from "./recent-context";
 
@@ -85,6 +86,11 @@ export function createDailySummary(input: {
       missingFiles: input.missingFiles ?? [],
       exportWarnings: input.exportWarnings ?? [],
       duplicateWarnings: duplicateAnalysis.warnings,
+      journalEntry,
+    }),
+    dayLoadClassification: classifyDayLoad({
+      activities: duplicateAnalysis.activitiesForTotals,
+      dailyNote,
       journalEntry,
     }),
     recentCoachingContext: buildRecentCoachingContext({

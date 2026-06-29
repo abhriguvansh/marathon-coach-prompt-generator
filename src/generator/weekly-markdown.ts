@@ -40,6 +40,10 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     `- Confirmed rest/no-run days: ${countConfirmedRestDays(summary)}`,
     `- Days with no activity data found: ${countMissingActivityDays(summary)}`,
     "",
+    "## Day Type Summary",
+    "",
+    ...formatDayTypeSummary(summary),
+    "",
     "## Activity Details",
     "",
     formatActivityListByDay(summary),
@@ -137,6 +141,46 @@ function formatStepTrend(summary: WeeklySummary): string {
   }
 
   return "available for all 7 evidence days";
+}
+
+function formatDayTypeSummary(summary: WeeklySummary): string[] {
+  const counts = new Map<string, number>();
+
+  for (const day of summary.activityListByDay) {
+    const type = day.dayLoadClassification.dayType;
+    counts.set(type, (counts.get(type) ?? 0) + 1);
+  }
+
+  return [
+    [
+      "Run days",
+      countDayTypes(counts, ["run day", "run day with high step load"]),
+    ],
+    ["Walk-only days", counts.get("walk-only day") ?? 0],
+    ["High-step no-run days", counts.get("high-step no-run day") ?? 0],
+    ["Moderate-step no-run days", counts.get("moderate-step no-run day") ?? 0],
+    ["Mixed-load days", counts.get("mixed-load day") ?? 0],
+    [
+      "Mixed non-running load days",
+      counts.get("mixed non-running load day") ?? 0,
+    ],
+    ["Climbing days", counts.get("climbing day") ?? 0],
+    ["Strength days", counts.get("strength day") ?? 0],
+    ["Tennis days", counts.get("tennis day") ?? 0],
+    ["Mobility/recovery days", counts.get("mobility/recovery day") ?? 0],
+    ["Confirmed rest/no-run days", countConfirmedRestDays(summary)],
+    ["Days with no activity data found", countMissingActivityDays(summary)],
+  ].map(([label, count]) => `- ${label}: ${count}`);
+}
+
+function countDayTypes(
+  counts: Map<string, number>,
+  dayTypes: string[],
+): number {
+  return dayTypes.reduce(
+    (total, dayType) => total + (counts.get(dayType) ?? 0),
+    0,
+  );
 }
 
 function formatLifestyleActivity(
