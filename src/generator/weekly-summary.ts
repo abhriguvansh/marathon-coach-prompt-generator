@@ -135,8 +135,8 @@ export function createWeeklySummary(input: {
         (note) =>
           (numericRecoveryValue(note.pain) !== null &&
             (numericRecoveryValue(note.pain) ?? 0) > 0) ||
-          hasValue(note.painLocation) ||
-          hasValue(note.painType),
+          hasMeaningfulPainDetail(note.painLocation) ||
+          hasMeaningfulPainDetail(note.painType),
       ),
       fatigueAverage: averageNullable(
         dailyNotes.map((note) => numericRecoveryValue(note.fatigue)),
@@ -155,6 +155,8 @@ export function createWeeklySummary(input: {
       evidenceStart,
       evidenceEnd,
       manualActivities,
+      dailyNotes,
+      journalEntries,
     ),
     travelBreakNote: buildTravelBreakNote(
       input.athleteConfig,
@@ -179,21 +181,72 @@ function buildActivityListByDay(
   weekStart: string,
   weekEnd: string,
   activities: ManualActivity[],
+  dailyNotes: DailyNote[],
+  journalEntries: JournalEntry[],
 ) {
-  const days: Array<{ date: string; activities: ManualActivity[] }> = [];
+  const days: Array<{
+    date: string;
+    activities: ManualActivity[];
+    hasJournal: boolean;
+    hasRecoveryNotes: boolean;
+    confirmedRest: boolean;
+  }> = [];
   let current = parseDate(weekStart);
   const end = parseDate(weekEnd);
 
   while (current.getTime() <= end.getTime()) {
     const date = formatDate(current);
+    const dayActivities = activities.filter(
+      (activity) => activity.date === date,
+    );
+    const dailyNote = dailyNotes.find((note) => note.date === date) ?? null;
+    const journalEntry =
+      journalEntries.find((entry) => entry.date === date) ?? null;
+
     days.push({
       date,
-      activities: activities.filter((activity) => activity.date === date),
+      activities: dayActivities,
+      hasJournal: dailyNote !== null || journalEntry !== null,
+      hasRecoveryNotes: dailyNote !== null,
+      confirmedRest: isConfirmedRestDay(dayActivities, dailyNote, journalEntry),
     });
     current = addDays(current, 1);
   }
 
   return days;
+}
+
+function isConfirmedRestDay(
+  activities: ManualActivity[],
+  dailyNote: DailyNote | null,
+  journalEntry: JournalEntry | null,
+): boolean {
+  if (
+    activities.some((activity) =>
+      ["rest", "no_run", "no_activity"].includes(
+        activity.activityType.trim().toLowerCase(),
+      ),
+    )
+  ) {
+    return true;
+  }
+
+  const text = [dailyNote?.notes, journalEntry?.coachNotes]
+    .filter((value): value is string => value !== null && value !== undefined)
+    .join(" ")
+    .toLowerCase();
+
+  return /\b(rest day|no run|no running|no activity|rested)\b/.test(text);
+}
+
+function hasMeaningfulPainDetail(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return !["na", "n/a", "none", "no", "not applicable"].includes(
+    value.trim().toLowerCase(),
+  );
 }
 
 function buildWeeklySafetyFlags(

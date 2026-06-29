@@ -122,12 +122,169 @@ describe("weekly generation", () => {
     assert.match(markdown, /Running mileage: 7 mi/);
     assert.match(markdown, /Walking mileage: 3 mi/);
     assert.match(markdown, /Rock climbing sessions: 1/);
+    assert.match(markdown, /Confirmed rest\/no-run days: 1/);
+    assert.match(markdown, /Days with no activity data found: 0/);
     assert.match(markdown, /route details omitted/);
     assert.match(markdown, /Gait-change flags: 2026-06-26/);
     assert.match(markdown, /Fake travel week/);
     assert.doesNotMatch(markdown, /## Athlete Background/);
     assert.doesNotMatch(markdown, /lat=|lon=|trkpt|position_lat|position_long/);
     assert.match(markdown, /how should I structure the upcoming week/i);
+  });
+
+  it("formats weekly activity distances and durations without raw decimals", () => {
+    const summary = createWeeklySummary({
+      weekStart: "2026-06-29",
+      athleteConfig: fakeConfig,
+      dailyNotes: [],
+      activityNotes: [],
+      manualActivities: [
+        fakeActivity(
+          "2026-06-27",
+          "run",
+          3.2477580927384078,
+          42.86666666666667,
+          null,
+          null,
+        ),
+        fakeActivity("2026-06-26", "walk", 3.868918018770381, 61.2, null, null),
+      ],
+      planNotes: null,
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.match(markdown, /Longest run: 2026-06-27, run, 3\.25 mi, 42:52/);
+    assert.match(markdown, /walk, 3\.87 mi, 1:01:12/);
+    assert.doesNotMatch(markdown, /3\.2477580927384078|3\.868918018770381/);
+    assert.doesNotMatch(markdown, /42\.86666666666667 min|61\.2 min/);
+  });
+
+  it("distinguishes missing activity data from confirmed rest and recovery-only days", () => {
+    const summary = createWeeklySummary({
+      weekStart: "2026-06-29",
+      athleteConfig: fakeConfig,
+      dailyNotes: [
+        {
+          ...fakeDailyNote(
+            "2026-06-23",
+            8000,
+            1,
+            0,
+            "na",
+            "na",
+            false,
+            2,
+            8,
+            7,
+            3,
+          ),
+          notes: "Fake recovery-only notes.",
+        },
+        {
+          ...fakeDailyNote(
+            "2026-06-24",
+            7000,
+            1,
+            0,
+            "na",
+            "na",
+            false,
+            2,
+            8,
+            7,
+            3,
+          ),
+          notes: "Rest day, no running.",
+        },
+      ],
+      activityNotes: [],
+      manualActivities: [fakeActivity("2026-06-22", "run", 3, 30, null, null)],
+      planNotes: null,
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.match(markdown, /Confirmed rest\/no-run days: 1/);
+    assert.match(markdown, /Days with no activity data found: 4/);
+    assert.match(
+      markdown,
+      /2026-06-23: recovery notes only; no imported or manual activities/,
+    );
+    assert.match(markdown, /2026-06-24: confirmed no-run\/rest day/);
+    assert.match(markdown, /2026-06-25: no activity data found/);
+    assert.doesNotMatch(markdown, /Rest days: 5/);
+  });
+
+  it("cleans pain, gait, and natural-language recovery wording", () => {
+    const summary = createWeeklySummary({
+      weekStart: "2026-06-29",
+      athleteConfig: fakeConfig,
+      dailyNotes: [
+        {
+          ...fakeDailyNote(
+            "2026-06-22",
+            8000,
+            1,
+            0,
+            "na",
+            "na",
+            false,
+            2,
+            8,
+            7,
+            3,
+          ),
+          fatigue: "no fatigue problems",
+          energy: "average",
+          sleepQuality: "slept okay",
+          stress: "average",
+        },
+      ],
+      activityNotes: [],
+      manualActivities: [],
+      planNotes: null,
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.match(markdown, /Pain reports: none reported\./);
+    assert.doesNotMatch(markdown, /na na/);
+    assert.match(markdown, /Gait-change flags: none reported/);
+    assert.match(markdown, /Fatigue notes: no fatigue problems/);
+    assert.match(markdown, /Energy notes: average/);
+    assert.match(markdown, /Sleep notes: slept okay/);
+    assert.match(markdown, /Stress notes: average/);
+  });
+
+  it("renders nonzero pain with clean detail wording", () => {
+    const summary = createWeeklySummary({
+      weekStart: "2026-06-29",
+      athleteConfig: fakeConfig,
+      dailyNotes: [
+        fakeDailyNote(
+          "2026-06-22",
+          8000,
+          1,
+          2,
+          "left shin",
+          "dull ache",
+          false,
+          2,
+          8,
+          7,
+          3,
+        ),
+        fakeDailyNote("2026-06-23", 8000, 1, 2, "", "", false, 2, 8, 7, 3),
+      ],
+      activityNotes: [],
+      manualActivities: [],
+      planNotes: null,
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.match(markdown, /2026-06-22: left shin, dull ache, 2\/10\./);
+    assert.match(
+      markdown,
+      /2026-06-23: pain 2\/10; location\/type not provided\./,
+    );
   });
 
   it("parses preview CLI arguments", () => {

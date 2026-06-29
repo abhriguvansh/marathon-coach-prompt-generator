@@ -289,6 +289,9 @@ export interface WeeklySummary {
   activityListByDay: Array<{
     date: string;
     activities: ManualActivity[];
+    hasJournal: boolean;
+    hasRecoveryNotes: boolean;
+    confirmedRest: boolean;
   }>;
   travelBreakNote: string | null;
   safetyFlags: WeeklySafetyFlag[];

@@ -1,6 +1,13 @@
-import type { ManualActivity, WeeklySummary } from "../types";
+import type {
+  DailyNote,
+  ManualActivity,
+  RecoveryValue,
+  WeeklySummary,
+} from "../types";
 import { formatUnknown } from "../utils/format";
 import { formatPace } from "../utils/pace";
+import { formatRecoveryValue, numericRecoveryValue } from "../utils/recovery";
+import { secondsToReadableDuration } from "../utils/units";
 
 export function renderWeeklySummary(summary: WeeklySummary): string {
   const config = summary.athleteConfig;
@@ -30,7 +37,8 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     `- Weights/strength sessions: ${summary.totals.weightsCount}`,
     `- Tennis sessions: ${summary.totals.tennisCount}`,
     `- Mobility/rest/other activity count: ${summary.totals.mobilityRestOtherCount}`,
-    `- Rest days: ${countRestDays(summary)}`,
+    `- Confirmed rest/no-run days: ${countConfirmedRestDays(summary)}`,
+    `- Days with no activity data found: ${countMissingActivityDays(summary)}`,
     "",
     "## Activity Details",
     "",
@@ -42,10 +50,10 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     `- Soreness highest: ${formatUnknown(summary.recovery.sorenessHighest, "unknown")}`,
     `- Pain reports: ${formatPainReports(summary)}`,
     `- Gait-change flags: ${formatGaitFlags(summary)}`,
-    `- Fatigue average: ${formatRounded(summary.recovery.fatigueAverage, "unknown")}`,
-    `- Energy average: ${formatRounded(summary.recovery.energyAverage, "unknown")}`,
-    `- Sleep average: ${formatRounded(summary.recovery.sleepAverage, "unknown")}`,
-    `- Stress average: ${formatRounded(summary.recovery.stressAverage, "unknown")}`,
+    `- ${formatRecoveryMetric(summary, "Fatigue", "fatigue")}`,
+    `- ${formatRecoveryMetric(summary, "Energy", "energy")}`,
+    `- ${formatRecoveryMetric(summary, "Sleep", "sleepQuality")}`,
+    `- ${formatRecoveryMetric(summary, "Stress", "stress")}`,
     `- Motivation notes: ${formatMotivation(summary)}`,
     "",
     "## Load / Risk Flags",
@@ -164,7 +172,7 @@ function formatMiles(miles: number): string {
 }
 
 function formatMinutes(minutes: number): string {
-  return `${Number(minutes.toFixed(1))} min`;
+  return secondsToReadableDuration(minutes * 60);
 }
 
 function formatRounded(value: number | null, fallback: string): string {
@@ -179,10 +187,12 @@ function formatActivityDistance(activity: ManualActivity | null): string {
   return [
     activity.date,
     activity.activityType,
-    activity.distanceMiles === null ? null : `${activity.distanceMiles} mi`,
+    activity.distanceMiles === null
+      ? null
+      : formatMiles(activity.distanceMiles),
     activity.durationMinutes === null
       ? null
-      : `${activity.durationMinutes} min`,
+      : formatMinutes(activity.durationMinutes),
     activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
     activity.calories === null || activity.calories === undefined
       ? null
@@ -195,22 +205,92 @@ function formatActivityDistance(activity: ManualActivity | null): string {
 
 function formatPainReports(summary: WeeklySummary): string {
   if (summary.recovery.painReports.length === 0) {
-    return "not provided";
+    return "none reported.";
   }
 
   return summary.recovery.painReports
-    .map(
-      (note) =>
-        `${note.date}: pain ${formatUnknown(note.pain, "unknown")}/10, ${formatUnknown(note.painLocation, "unknown")} ${formatUnknown(note.painType, "unknown")}`,
-    )
+    .map((note) => `${note.date}: ${formatPainReport(note)}`)
     .join("; ");
+}
+
+function formatPainReport(note: DailyNote): string {
+  const pain = numericRecoveryValue(note.pain);
+  const details = [
+    cleanPainDetail(note.painLocation),
+    cleanPainDetail(note.painType),
+  ]
+    .filter((value): value is string => value !== null)
+    .join(", ");
+
+  if (pain !== null) {
+    const painText = `${pain}/10`;
+
+    return details === ""
+      ? `pain ${painText}; location/type not provided.`
+      : `${details}, ${painText}.`;
+  }
+
+  return details === ""
+    ? `pain ${formatRecoveryValue(note.pain, "unknown")}.`
+    : `${details}, pain ${formatRecoveryValue(note.pain, "unknown")}.`;
+}
+
+function cleanPainDetail(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  return ["na", "n/a", "none", "no", "not applicable"].includes(normalized)
+    ? null
+    : value;
+}
+
+function formatRecoveryMetric(
+  summary: WeeklySummary,
+  label: string,
+  key: "fatigue" | "energy" | "sleepQuality" | "stress",
+): string {
+  const values = summary.dailyNotes
+    .map((note) => note[key])
+    .filter((value): value is RecoveryValue => value !== null);
+  const numericValues = values
+    .map((value) => numericRecoveryValue(value))
+    .filter((value): value is number => value !== null);
+  const textValues = values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value !== "");
+
+  if (numericValues.length > 0) {
+    const average =
+      numericValues.reduce((total, value) => total + value, 0) /
+      numericValues.length;
+
+    return `${label} average: ${formatRounded(average, "unknown")}`;
+  }
+
+  if (textValues.length > 0) {
+    return `${label} notes: ${[...new Set(textValues)].slice(0, 3).join("; ")}`;
+  }
+
+  return `${label} average: unknown`;
 }
 
 function formatActivityListByDay(summary: WeeklySummary): string {
   return summary.activityListByDay
     .map((day) => {
       if (day.activities.length === 0) {
-        return `- ${day.date}: not provided`;
+        if (day.confirmedRest) {
+          return `- ${day.date}: confirmed no-run/rest day`;
+        }
+
+        if (day.hasRecoveryNotes || day.hasJournal) {
+          return `- ${day.date}: recovery notes only; no imported or manual activities`;
+        }
+
+        return `- ${day.date}: no activity data found`;
       }
 
       return `- ${day.date}: ${day.activities.map(formatActivity).join("; ")}`;
@@ -221,10 +301,12 @@ function formatActivityListByDay(summary: WeeklySummary): string {
 function formatActivity(activity: ManualActivity): string {
   return [
     activity.activityType,
-    activity.distanceMiles === null ? null : `${activity.distanceMiles} mi`,
+    activity.distanceMiles === null
+      ? null
+      : formatMiles(activity.distanceMiles),
     activity.durationMinutes === null
       ? null
-      : `${activity.durationMinutes} min`,
+      : formatMinutes(activity.durationMinutes),
     activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
     activity.elevationGainFt === null || activity.elevationGainFt === undefined
       ? null
@@ -239,9 +321,18 @@ function formatActivity(activity: ManualActivity): string {
     .join(", ");
 }
 
-function countRestDays(summary: WeeklySummary): number {
-  return summary.activityListByDay.filter((day) => day.activities.length === 0)
-    .length;
+function countConfirmedRestDays(summary: WeeklySummary): number {
+  return summary.activityListByDay.filter((day) => day.confirmedRest).length;
+}
+
+function countMissingActivityDays(summary: WeeklySummary): number {
+  return summary.activityListByDay.filter(
+    (day) =>
+      day.activities.length === 0 &&
+      !day.confirmedRest &&
+      !day.hasJournal &&
+      !day.hasRecoveryNotes,
+  ).length;
 }
 
 function formatGaitFlags(summary: WeeklySummary): string {
@@ -356,7 +447,7 @@ function formatHigherLoadActivities(activities: ManualActivity[]): string {
           : `${Number(activity.distanceMiles.toFixed(2))} mi`,
         activity.durationMinutes === null
           ? null
-          : `${Number(activity.durationMinutes.toFixed(1))} min`,
+          : formatMinutes(activity.durationMinutes),
         activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
         activity.calories === null || activity.calories === undefined
           ? null
