@@ -33,6 +33,7 @@ export interface GarminWellnessScanResult {
   fitFilesSkipped: number;
   ignoredEntries: number;
   warnings: string[];
+  debugNotes: string[];
 }
 
 export interface GarminWellnessImportResult extends GarminWellnessScanResult {

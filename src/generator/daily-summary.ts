@@ -260,6 +260,12 @@ function buildMissingDataFlags(input: {
       field: "daily-notes.csv",
       message: "No daily note found for yesterday.",
     });
+  } else if (hasBlankSorenessButNoSorenessNote(input)) {
+    flags.push({
+      field: "recovery",
+      message:
+        "Recovery note says no soreness, but the structured soreness field is blank; structured recovery fields were left unchanged.",
+    });
   }
 
   if (input.manualActivities.length === 0) {
@@ -277,6 +283,22 @@ function buildMissingDataFlags(input: {
   }
 
   return flags;
+}
+
+function hasBlankSorenessButNoSorenessNote(input: {
+  dailyNote: DailyNote | null;
+  journalEntry: JournalEntry | null;
+}): boolean {
+  if (input.dailyNote?.legSoreness !== null) {
+    return false;
+  }
+
+  const text = [input.dailyNote?.notes, input.journalEntry?.coachNotes]
+    .filter((value): value is string => value !== null && value !== undefined)
+    .join(" ")
+    .toLowerCase();
+
+  return /\b(no soreness|not sore|soreness[:\s-]+none)\b/.test(text);
 }
 
 function isLegacyManualPath(path: string): boolean {

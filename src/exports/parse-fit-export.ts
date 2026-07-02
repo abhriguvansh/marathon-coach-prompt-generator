@@ -407,10 +407,14 @@ function summaryFromMessage(
   );
   const distanceMeters = scaledNumber(message.fields[9], 100);
   const elapsedTimeSeconds = scaledNumber(message.fields[7], 1000);
-  const movingTimeSeconds = scaledNumber(message.fields[8], 1000);
+  const rawMovingTimeSeconds = scaledNumber(message.fields[8], 1000);
+  const movingTimeSeconds = trustworthyMovingTimeSeconds(
+    rawMovingTimeSeconds,
+    elapsedTimeSeconds,
+  );
   const durationSeconds =
-    elapsedTimeSeconds ??
     movingTimeSeconds ??
+    elapsedTimeSeconds ??
     scaledNumber(message.fields[0], 1000);
   const ascentMeters = valueNumber(message.fields[21]);
   const descentMeters = valueNumber(message.fields[22]);
@@ -489,10 +493,30 @@ function summaryFromMessage(
             "Elapsed time is longer than moving time; stopped/paused time estimated from FIT summary fields.",
           ]
         : []),
+      ...(elapsedTimeSeconds !== null && movingTimeSeconds === null
+        ? [
+            "Moving time unavailable from FIT summary; elapsed time used for pace.",
+          ]
+        : []),
       ...(elevation.dataQuality === null ? [] : [elevation.dataQuality]),
     ],
     notes: "Parsed from local FIT export; route details omitted.",
   };
+}
+
+function trustworthyMovingTimeSeconds(
+  movingTimeSeconds: number | null,
+  elapsedTimeSeconds: number | null,
+): number | null {
+  if (movingTimeSeconds === null || movingTimeSeconds <= 0) {
+    return null;
+  }
+
+  if (elapsedTimeSeconds === null) {
+    return movingTimeSeconds;
+  }
+
+  return movingTimeSeconds < elapsedTimeSeconds ? movingTimeSeconds : null;
 }
 
 function validFitLaps(

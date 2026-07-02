@@ -365,7 +365,13 @@ function parseDurationMinutes(value: string | null): number | null {
     return null;
   }
 
-  const trimmed = value.trim();
+  const trimmed = value.trim().toLowerCase();
+  const bareNumber = trimmed.match(/^\d+(?:\.\d+)?$/);
+
+  if (bareNumber) {
+    return Number(bareNumber[0]);
+  }
+
   const clock = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
 
   if (clock) {
@@ -373,14 +379,23 @@ function parseDurationMinutes(value: string | null): number | null {
     const second = Number(clock[2]);
     const third = clock[3] === undefined ? null : Number(clock[3]);
 
-    return third === null
-      ? first + second / 60
-      : first * 60 + second + third / 60;
+    if (third !== null) {
+      return first * 60 + second + third / 60;
+    }
+
+    return first <= 12 ? first * 60 + second : first + second / 60;
   }
 
-  const match = trimmed.match(/(\d+(?:\.\d+)?)/);
+  const hours = trimmed.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?|hr|h)\b/);
+  const minutes = trimmed.match(/(\d+(?:\.\d+)?)\s*(minutes?|mins?|min|m)\b/);
 
-  return match ? Number(match[1]) : null;
+  if (hours || minutes) {
+    return (
+      (hours ? Number(hours[1]) * 60 : 0) + (minutes ? Number(minutes[1]) : 0)
+    );
+  }
+
+  return null;
 }
 
 function parseSleepDurationMinutes(value: string | null): number | null {

@@ -156,6 +156,193 @@ describe("Garmin wellness import", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("rejects unavailable sleep score, HRV sentinel, unknown status, and short sleep segments", () => {
+    const dir = makeProject();
+    writeFile(
+      join(dir, "input/garmin/2026-07-01.zip"),
+      zipFile([
+        {
+          name: "fake-invalid-values.fit",
+          content: syntheticWellnessFit({
+            dateTime: "2026-07-01T12:00:00Z",
+            steps: 14032,
+            sleepDurationMinutes: 6,
+            sleepScore: 0,
+            overnightHrv: 255,
+            hrvStatus: "unknown",
+          }),
+        },
+        {
+          name: "fake-stage.fit",
+          content: syntheticFitFile(410, [
+            uint32Field(253, fitTimestamp("2026-07-01T12:05:00Z")),
+            uint16Field(0, 6),
+          ]),
+        },
+      ]),
+    );
+
+    const result = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-01",
+      timezone: "America/New_York",
+    });
+    const journal = readFileSync(
+      join(dir, "input/journal/2026-07-01.md"),
+      "utf8",
+    );
+
+    assert.match(journal, /Total Steps: 14,032/);
+    assert.doesNotMatch(journal, /Sleep Duration: 0h 6m/);
+    assert.doesNotMatch(journal, /Sleep Score: 0/);
+    assert.doesNotMatch(journal, /Overnight HRV: 255 ms/);
+    assert.doesNotMatch(journal, /HRV Status: unknown/);
+    assert.equal(
+      result.warnings.some((warning) => warning.includes("Sleep score")),
+      true,
+    );
+    assert.equal(
+      result.warnings.some((warning) => warning.includes("Overnight HRV")),
+      true,
+    );
+    assert.equal(
+      result.warnings.some((warning) => warning.includes("HRV status")),
+      true,
+    );
+    assert.equal(
+      result.warnings.some((warning) => warning.includes("sleep-stage")),
+      true,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("uses only the trusted daily summary field for resting heart rate", () => {
+    const dir = makeProject();
+    writeFile(
+      join(dir, "input/garmin/2026-07-01.zip"),
+      zipFile([
+        {
+          name: "fake-monitoring-sample.fit",
+          content: syntheticFitFile(55, [
+            uint32Field(253, fitTimestamp("2026-07-01T12:00:00Z")),
+            uint8Field(0, 113),
+          ]),
+        },
+        {
+          name: "fake-daily-summary.fit",
+          content: syntheticFitFile(411, [
+            uint32Field(253, fitTimestamp("2026-07-01T12:10:00Z")),
+            uint8Field(13, 57),
+          ]),
+        },
+        {
+          name: "fake-steps.fit",
+          content: syntheticFitFile(103, [
+            uint32Field(253, fitTimestamp("2026-07-01T12:20:00Z")),
+            uint32Field(3, 14032),
+          ]),
+        },
+      ]),
+    );
+
+    importGarminWellness({
+      cwd: dir,
+      date: "2026-07-01",
+      timezone: "America/New_York",
+    });
+    const journal = readFileSync(
+      join(dir, "input/journal/2026-07-01.md"),
+      "utf8",
+    );
+
+    assert.match(journal, /Resting Heart Rate: 57 bpm/);
+    assert.doesNotMatch(journal, /Resting Heart Rate: 113 bpm/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("creates journals with imported activity references when wellness import creates the journal", () => {
+    const dir = makeProject();
+    writeJson(join(dir, "input/strava/fake-run.json"), {
+      activities: [
+        {
+          date: "2026-07-01T09:00:00Z",
+          activityType: "run",
+          durationMinutes: 44,
+          distanceMiles: 2.93,
+          elevationFt: null,
+          avgHr: null,
+          maxHr: null,
+        },
+      ],
+    });
+    writeFile(
+      join(dir, "input/garmin/2026-07-01.zip"),
+      zipFile([
+        {
+          name: "fake-wellness.fit",
+          content: syntheticFitFile(103, [
+            uint32Field(253, fitTimestamp("2026-07-01T12:00:00Z")),
+            uint32Field(3, 14032),
+          ]),
+        },
+      ]),
+    );
+
+    const first = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-01",
+      timezone: "UTC",
+    });
+    const journalPath = join(dir, "input/journal/2026-07-01.md");
+    const created = readFileSync(journalPath, "utf8");
+    const second = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-01",
+      timezone: "UTC",
+    });
+
+    assert.equal(first.journalCreated, true);
+    assert.match(created, /Run - 2.93 mi - 44:00/);
+    assert.doesNotMatch(created, /No imported activities found/);
+    assert.equal(second.journalCreated, false);
+    assert.equal(readFileSync(journalPath, "utf8"), created);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("supports privacy-safe debug notes without raw records or filenames", () => {
+    const dir = makeProject();
+    writeFile(
+      join(dir, "input/garmin/2026-07-01.zip"),
+      zipFile([
+        {
+          name: "454995658802_WELLNESS.fit",
+          content: syntheticWellnessFit({
+            dateTime: "2026-07-01T12:00:00Z",
+            steps: 14032,
+          }),
+        },
+      ]),
+    );
+
+    const report = formatGarminWellnessImportReport(
+      importGarminWellness({
+        cwd: dir,
+        date: "2026-07-01",
+        timezone: "America/New_York",
+        debug: true,
+      }),
+    );
+
+    assert.match(report, /Debug notes:/);
+    assert.match(report, /Observed FIT message types:/);
+    assert.match(report, /Selection logic:/);
+    assert.doesNotMatch(
+      report,
+      /454995658802|raw record|position_lat|position_long/i,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("preserves manual values and warns only on material step conflicts", () => {
     const dir = makeProject();
     writeFile(
@@ -212,6 +399,65 @@ describe("Garmin wellness import", () => {
       result.warnings.some((warning) =>
         warning.includes("Manual steps differ materially"),
       ),
+      true,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("clears previously imported untrusted structured values while preserving plausible manual values", () => {
+    const dir = makeProject();
+    writeFile(
+      join(dir, "input/journal/2026-07-01.md"),
+      [
+        "# Daily Journal",
+        "",
+        "Date: 2026-07-01",
+        "",
+        "## Recovery",
+        "",
+        "Sleep: poor",
+        "Sleep Duration: 0h 6m",
+        "Sleep Score: 0",
+        "Resting Heart Rate: 113 bpm",
+        "Overnight HRV: 255 ms",
+        "HRV Status: unknown",
+        "Energy (0-10 or words): low",
+        "Total Steps:",
+      ].join("\n"),
+    );
+    writeFile(
+      join(dir, "input/garmin/2026-07-01.zip"),
+      zipFile([
+        {
+          name: "fake-steps.fit",
+          content: syntheticFitFile(103, [
+            uint32Field(253, fitTimestamp("2026-07-01T12:00:00Z")),
+            uint32Field(3, 14032),
+          ]),
+        },
+      ]),
+    );
+
+    const result = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-01",
+      timezone: "America/New_York",
+    });
+    const journal = readFileSync(
+      join(dir, "input/journal/2026-07-01.md"),
+      "utf8",
+    );
+
+    assert.match(journal, /Sleep: poor/);
+    assert.match(journal, /Energy \(0-10 or words\): low/);
+    assert.match(journal, /^Sleep Duration:\s*$/m);
+    assert.match(journal, /^Sleep Score:\s*$/m);
+    assert.match(journal, /^Resting Heart Rate:\s*$/m);
+    assert.match(journal, /^Overnight HRV:\s*$/m);
+    assert.match(journal, /^HRV Status:\s*$/m);
+    assert.match(journal, /Total Steps: 14,032/);
+    assert.equal(
+      result.warnings.some((warning) => warning.includes("cleared")),
       true,
     );
     rmSync(dir, { recursive: true, force: true });
@@ -376,6 +622,10 @@ function makeProject(): string {
 function writeFile(path: string, content: string | Uint8Array): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
+}
+
+function writeJson(path: string, value: unknown): void {
+  writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function matchCount(value: string, pattern: string): number {

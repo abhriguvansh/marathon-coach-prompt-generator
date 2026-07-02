@@ -48,6 +48,12 @@ export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
         continue;
       }
 
+      if (
+        isRecognizedGarminWellnessZip(relativePath, folder.source, extension)
+      ) {
+        continue;
+      }
+
       const supported = SUPPORTED_EXTENSIONS.has(extension);
       files.push({
         relativePath,
@@ -138,6 +144,22 @@ export function summarizeExportScan(scan: ExportScanResult): string {
     `Unsupported file types detected: ${unsupportedTypes.length === 0 ? "none" : unsupportedTypes.join(", ")}`,
     `Warnings: ${scan.warnings.length}`,
   ].join("\n");
+}
+
+function isRecognizedGarminWellnessZip(
+  relativePath: string,
+  source: ExportSource,
+  extension: string,
+): boolean {
+  if (source !== "garmin_export" || extension !== ".zip") {
+    return false;
+  }
+
+  const pathAfterGarmin = relativePath.replace(/^input\/garmin\//, "");
+
+  return (
+    !pathAfterGarmin.includes("/") || pathAfterGarmin.startsWith("wellness/")
+  );
 }
 
 function parseExportContent(input: {

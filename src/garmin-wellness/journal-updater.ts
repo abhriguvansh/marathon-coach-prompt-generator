@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { renderJournalTemplate } from "../parsers/journal";
+import type { ManualActivity } from "../types";
 import { parseStepDetails } from "../utils/steps";
 import type { GarminWellnessSummary } from "./types";
 
@@ -16,7 +17,13 @@ export interface WellnessJournalUpdateResult {
 interface WellnessField {
   label: string;
   value: string | null;
-  kind?: "steps";
+  kind?:
+    | "steps"
+    | "sleepDuration"
+    | "sleepScore"
+    | "restingHeartRate"
+    | "overnightHrv"
+    | "hrvStatus";
 }
 
 const JOURNAL_FOLDER = "input/journal";
@@ -57,6 +64,7 @@ export function updateJournalWithGarminWellness(input: {
   cwd: string;
   date: string;
   summary: GarminWellnessSummary | null;
+  importedActivities?: ManualActivity[];
 }): WellnessJournalUpdateResult {
   const journalPath = join(input.cwd, JOURNAL_FOLDER, `${input.date}.md`);
   const fields = wellnessFields(input.summary);
@@ -80,7 +88,7 @@ export function updateJournalWithGarminWellness(input: {
       renderJournalTemplate({
         cwd: input.cwd,
         date: input.date,
-        importedActivities: [],
+        importedActivities: input.importedActivities ?? [],
       }),
     );
     journalCreated = true;
@@ -147,7 +155,7 @@ function updateRecoverySection(input: {
   const fieldLineByLabel = indexFieldLines(recoveryLines);
 
   for (const field of input.fields) {
-    if (field.value === null || SUBJECTIVE_FIELDS.has(field.label)) {
+    if (SUBJECTIVE_FIELDS.has(field.label)) {
       continue;
     }
 
@@ -155,6 +163,16 @@ function updateRecoverySection(input: {
 
     if (existingIndex !== undefined) {
       const current = currentFieldValue(recoveryLines[existingIndex]);
+
+      if (field.value === null) {
+        if (shouldClearUntrustedExistingValue(field, current)) {
+          recoveryLines[existingIndex] = `${field.label}:`;
+          input.warnings.push(
+            `${field.label} cleared because the existing value looked unavailable or untrusted.`,
+          );
+        }
+        continue;
+      }
 
       if (isBlankish(current)) {
         const replacement = `${field.label}: ${field.value}`;
@@ -206,6 +224,7 @@ function wellnessFields(
   return [
     {
       label: "Sleep Duration",
+      kind: "sleepDuration",
       value:
         summary.sleepDurationMinutes === null
           ? null
@@ -213,10 +232,12 @@ function wellnessFields(
     },
     {
       label: "Sleep Score",
+      kind: "sleepScore",
       value: summary.sleepScore === null ? null : String(summary.sleepScore),
     },
     {
       label: "Resting Heart Rate",
+      kind: "restingHeartRate",
       value:
         summary.restingHeartRate === null
           ? null
@@ -224,10 +245,15 @@ function wellnessFields(
     },
     {
       label: "Overnight HRV",
+      kind: "overnightHrv",
       value:
         summary.overnightHrv === null ? null : `${summary.overnightHrv} ms`,
     },
-    { label: "HRV Status", value: nonBlank(summary.hrvStatus) },
+    {
+      label: "HRV Status",
+      kind: "hrvStatus",
+      value: nonBlank(summary.hrvStatus),
+    },
     {
       label: "Garmin Stress",
       value:
@@ -323,6 +349,42 @@ function hasImportableField(fields: WellnessField[]): boolean {
   return fields.some((field) => field.value !== null);
 }
 
+function shouldClearUntrustedExistingValue(
+  field: WellnessField,
+  current: string,
+): boolean {
+  if (current.trim() === "") {
+    return false;
+  }
+
+  switch (field.kind) {
+    case "sleepDuration": {
+      const minutes = parseDurationMinutes(current);
+
+      return minutes !== null && minutes < 60;
+    }
+    case "sleepScore": {
+      const score = parseNumber(current);
+
+      return score !== null && score <= 0;
+    }
+    case "restingHeartRate": {
+      const heartRate = parseNumber(current);
+
+      return heartRate !== null && heartRate >= 100;
+    }
+    case "overnightHrv": {
+      const hrv = parseNumber(current);
+
+      return hrv !== null && (hrv <= 0 || hrv === 255 || hrv > 250);
+    }
+    case "hrvStatus":
+      return ["unknown", "unavailable"].includes(current.trim().toLowerCase());
+    default:
+      return false;
+  }
+}
+
 function maybeWarnConflict(
   field: WellnessField,
   current: string,
@@ -395,6 +457,25 @@ function formatSleepDuration(minutes: number): string {
   const remainingMinutes = rounded % 60;
 
   return `${hours}h ${remainingMinutes}m`;
+}
+
+function parseDurationMinutes(value: string): number | null {
+  const hours = value.match(/(\d+(?:\.\d+)?)\s*h/i);
+  const minutes = value.match(/(\d+(?:\.\d+)?)\s*m/i);
+
+  if (hours || minutes) {
+    return (
+      (hours ? Number(hours[1]) * 60 : 0) + (minutes ? Number(minutes[1]) : 0)
+    );
+  }
+
+  return parseNumber(value);
+}
+
+function parseNumber(value: string): number | null {
+  const match = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+
+  return match ? Number(match[0]) : null;
 }
 
 function escapeRegex(value: string): string {

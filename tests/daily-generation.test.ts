@@ -387,6 +387,19 @@ describe("daily summary generation", () => {
         load: "run + tennis",
       },
       {
+        name: "run plus tennis, climbing, and high steps",
+        summary: buildClassificationSummary({
+          dailyNote: fakeDailyNote("2026-06-27", "14k", 1, 0),
+          activities: [
+            fakeActivityOn("2026-06-27", "run", 3),
+            fakeActivityOn("2026-06-27", "tennis", null),
+            fakeActivityOn("2026-06-27", "rock_climbing", null),
+          ],
+        }),
+        dayType: "mixed-load day",
+        load: "run + tennis + climbing + high daily movement",
+      },
+      {
         name: "walking plus climbing",
         summary: buildClassificationSummary({
           activities: [
@@ -488,6 +501,54 @@ describe("daily summary generation", () => {
     );
     assert.match(markdown, /Steps are load context, not walking mileage/);
     assert.doesNotMatch(markdown, /2026-06-29.*climbing/);
+  });
+
+  it("prioritizes same-day mixed load in recent coaching context", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [fakeDailyNote("2026-06-27", "14k", 1, 0)],
+        activityNotes: [],
+        manualActivities: [
+          fakeActivityOn("2026-06-27", "run", 3.25),
+          {
+            ...fakeActivityOn("2026-06-27", "tennis", null),
+            durationMinutes: 60,
+          },
+          {
+            ...fakeActivityOn("2026-06-27", "rock_climbing", null),
+            durationMinutes: 60,
+          },
+        ],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(
+      markdown,
+      /Load note: the 2026-06-27 run occurred on the same day as 1 hour of tennis, 1 hour of climbing, and high step load/,
+    );
+  });
+
+  it("warns when notes say no soreness but structured soreness is blank", () => {
+    const markdown = renderDailyCheckIn(
+      createDailySummary({
+        date: "2026-06-28",
+        athleteConfig: fakeConfig,
+        dailyNotes: [
+          fakeDailyNote("2026-06-27", 7000, null, 0, "No soreness."),
+        ],
+        activityNotes: [],
+        manualActivities: [fakeActivityOn("2026-06-27", "run", 3.25)],
+        planNotes: null,
+      }),
+    );
+
+    assert.match(
+      markdown,
+      /Recovery note says no soreness, but the structured soreness field is blank/,
+    );
   });
 
   it("renders limited recent context when recent data is missing", () => {

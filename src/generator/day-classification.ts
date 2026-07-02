@@ -38,7 +38,12 @@ export function classifyDayLoad(input: {
     hasOtherMeaningfulActivity;
 
   if (hasRun && hasCrossTraining) {
-    return mixedRunClassification({ hasClimbing, hasWeights, hasTennis });
+    return mixedRunClassification({
+      hasClimbing,
+      hasWeights,
+      hasTennis,
+      hasHighSteps,
+    });
   }
 
   if (hasRun && hasHighSteps) {
@@ -166,32 +171,17 @@ function mixedRunClassification(input: {
   hasClimbing: boolean;
   hasWeights: boolean;
   hasTennis: boolean;
+  hasHighSteps: boolean;
 }): DayLoadClassification {
-  if (input.hasClimbing) {
-    return {
-      dayType: "mixed-load day",
-      loadClassification: "run + climbing",
-      coachingInterpretation:
-        "higher musculoskeletal load than running mileage alone suggests.",
-    };
-  }
+  const components = [
+    input.hasTennis ? "tennis" : null,
+    input.hasClimbing ? "climbing" : null,
+    input.hasWeights ? "strength" : null,
+    input.hasHighSteps ? "high daily movement" : null,
+  ].filter((value): value is string => value !== null);
 
-  if (input.hasWeights) {
-    return {
-      dayType: "mixed-load day",
-      loadClassification: "run + strength",
-      coachingInterpretation:
-        "monitor soreness because run plus strength can stack lower-body load.",
-    };
-  }
-
-  if (input.hasTennis) {
-    return {
-      dayType: "mixed-load day",
-      loadClassification: "run + tennis",
-      coachingInterpretation:
-        "monitor impact/lateral load before the next run.",
-    };
+  if (components.length > 0) {
+    return mixedRunWithComponents(components);
   }
 
   return {
@@ -199,5 +189,22 @@ function mixedRunClassification(input: {
     loadClassification: "mixed load",
     coachingInterpretation:
       "higher total load than running mileage alone suggests.",
+  };
+}
+
+function mixedRunWithComponents(components: string[]): DayLoadClassification {
+  const componentSet = new Set(components);
+  const hasLateralLoad = componentSet.has("tennis");
+  const hasStrengthLoad =
+    componentSet.has("climbing") || componentSet.has("strength");
+  const hasHighDailyMovement = componentSet.has("high daily movement");
+
+  return {
+    dayType: "mixed-load day",
+    loadClassification: `run + ${components.join(" + ")}`,
+    coachingInterpretation:
+      hasLateralLoad && hasStrengthLoad && hasHighDailyMovement
+        ? "higher musculoskeletal, lateral, and total-day load than running mileage alone suggests."
+        : "higher total load than running mileage alone suggests.",
   };
 }

@@ -119,6 +119,31 @@ describe("daily journal workflow", () => {
     assert.equal(parsed.manualActivities[0].durationMinutes, 60);
   });
 
+  it("parses journal manual activity durations with explicit units", () => {
+    const cases = [
+      ["1 hour", 60],
+      ["1 hr", 60],
+      ["1 h", 60],
+      ["1.5 hours", 90],
+      ["1 hour 30 minutes", 90],
+      ["90 minutes", 90],
+      ["90 min", 90],
+      ["1:30", 90],
+      ["01:30:00", 90],
+      ["40:00", 40],
+      ["45 mins", 45],
+    ] as const;
+
+    for (const [duration, expectedMinutes] of cases) {
+      const parsed = parseJournal(
+        fakeJournalMarkdown().replace("Duration: 60", `Duration: ${duration}`),
+        "2026-06-27",
+      );
+
+      assert.equal(parsed.manualActivities[0].durationMinutes, expectedMinutes);
+    }
+  });
+
   it("parses manual step field aliases and common compact values", () => {
     const cases = [
       ["Total Steps", "11000", "11000", 11000],

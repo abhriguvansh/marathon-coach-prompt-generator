@@ -342,6 +342,12 @@ function loadNote(
   const highStepNotes = notes.filter((note) => isHighStepNote(note));
   const groups = classifyActivities(activities);
   const runs = groups.runs;
+  const sameDayLoad = sameDayCombinedLoadNote(runs, groups, highStepNotes);
+
+  if (sameDayLoad !== null) {
+    return sameDayLoad;
+  }
+
   const nearbyLoadActivities = [
     ...groups.rockClimbing.map((activity) => ({
       date: activity.date,
@@ -395,6 +401,76 @@ function loadNote(
   }
 
   return null;
+}
+
+function sameDayCombinedLoadNote(
+  runs: ManualActivity[],
+  groups: ReturnType<typeof classifyActivities>,
+  highStepNotes: DailyNote[],
+): string | null {
+  const sortedRuns = [...runs].sort(compareActivityDateDescending);
+
+  for (const run of sortedRuns) {
+    const sameDayActivities = [
+      ...groups.tennis
+        .filter((activity) => activity.date === run.date)
+        .map((activity) => timedLoadLabel(activity, "tennis")),
+      ...groups.rockClimbing
+        .filter((activity) => activity.date === run.date)
+        .map((activity) => timedLoadLabel(activity, "climbing")),
+      ...groups.weights
+        .filter((activity) => activity.date === run.date)
+        .map((activity) => timedLoadLabel(activity, "strength")),
+    ];
+    const sameDayHighSteps = highStepNotes.some(
+      (note) => note.date === run.date,
+    );
+    const loadParts = [
+      ...sameDayActivities,
+      sameDayHighSteps ? "high step load" : null,
+    ].filter((value): value is string => value !== null);
+
+    if (loadParts.length >= 2) {
+      return `Load note: the ${run.date} run occurred on the same day as ${joinHumanList(
+        loadParts,
+      )}; treat it as a higher mixed-load day.`;
+    }
+  }
+
+  return null;
+}
+
+function timedLoadLabel(activity: ManualActivity, label: string): string {
+  if (activity.durationMinutes === null) {
+    return label;
+  }
+
+  return `${formatLoadDuration(activity.durationMinutes)} of ${label}`;
+}
+
+function formatLoadDuration(minutes: number): string {
+  if (minutes < 60) {
+    return `${Math.round(minutes)} min`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+
+  return secondsToReadableDuration(minutes * 60);
+}
+
+function joinHumanList(values: string[]): string {
+  if (values.length <= 1) {
+    return values.join("");
+  }
+
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`;
+  }
+
+  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
 }
 
 function nearbyRuns(date: string, runs: ManualActivity[]): ManualActivity[] {

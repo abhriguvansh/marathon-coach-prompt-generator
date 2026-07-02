@@ -44,6 +44,7 @@ export function runImportWellness(cwd: string, args: Args): string {
     cwd,
     date: args.date,
     timezone: config.timezone,
+    debug: args.debug,
   });
 
   return formatGarminWellnessImportReport(result);

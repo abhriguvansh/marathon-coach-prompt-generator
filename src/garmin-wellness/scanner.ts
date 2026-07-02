@@ -14,11 +14,12 @@ interface WellnessCandidateFile {
 
 export function scanGarminWellness(
   cwd: string,
-  input: { date: string; timezone?: string | null },
+  input: { date: string; timezone?: string | null; debug?: boolean },
 ): GarminWellnessScanResult {
   const timezone = resolveActivityTimezone(input.timezone);
   const summaries = new Map<string, GarminWellnessSummary>();
   const warnings: string[] = [];
+  const debugNotes: string[] = [];
   let zipFilesFound = 0;
   let looseFitFilesFound = 0;
   let fitFilesDecoded = 0;
@@ -48,6 +49,7 @@ export function scanGarminWellness(
           fitFilesDecoded += result.decoded;
           fitFilesSkipped += result.skipped;
           warnings.push(...result.warnings);
+          debugNotes.push(...result.debugNotes);
           mergeSummaries(summaries, result.summaries);
         }
       } catch (error) {
@@ -69,6 +71,7 @@ export function scanGarminWellness(
       fitFilesDecoded += result.decoded;
       fitFilesSkipped += result.skipped;
       warnings.push(...result.warnings);
+      debugNotes.push(...result.debugNotes);
       mergeSummaries(summaries, result.summaries);
     }
   }
@@ -84,6 +87,7 @@ export function scanGarminWellness(
     fitFilesSkipped,
     ignoredEntries,
     warnings,
+    debugNotes: input.debug === true ? unique(debugNotes) : [],
   };
 }
 
@@ -96,6 +100,7 @@ function parseOneFit(
   skipped: number;
   summaries: GarminWellnessSummary[];
   warnings: string[];
+  debugNotes: string[];
 } {
   try {
     const parsed = parseGarminWellnessFit(content, sourceFile, timeZone);
@@ -108,6 +113,7 @@ function parseOneFit(
         warnings: [
           "No supported wellness records found in one wellness FIT file.",
         ],
+        debugNotes: parsed.debugNotes,
       };
     }
 
@@ -116,6 +122,7 @@ function parseOneFit(
       skipped: 0,
       summaries: parsed.summaries,
       warnings: parsed.warnings,
+      debugNotes: parsed.debugNotes,
     };
   } catch (error) {
     return {
@@ -123,6 +130,7 @@ function parseOneFit(
       skipped: 1,
       summaries: [],
       warnings: [safeError("FIT wellness file skipped", error)],
+      debugNotes: [],
     };
   }
 }
@@ -270,6 +278,10 @@ function minNullable(left: number | null, right: number | null): number | null {
   }
 
   return Math.min(left, right);
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function safeError(prefix: string, error: unknown): string {

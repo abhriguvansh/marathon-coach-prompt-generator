@@ -288,9 +288,7 @@ function formatActivitySummary(activity: ManualActivity): string {
       ? null
       : `${Number(activity.distanceMiles.toFixed(2))} mi`,
     ...formatTimeDetails(activity),
-    activity.paceMinPerMile === null
-      ? null
-      : `${activity.paceMinPerMile} min/mi`,
+    formatActivityPace(activity),
     activity.bestPaceMinPerMile === null ||
     activity.bestPaceMinPerMile === undefined
       ? null
@@ -343,7 +341,7 @@ function formatTimeDetails(activity: ManualActivity): string[] {
       `${secondsToReadableDuration(activity.elapsedTimeSeconds)} elapsed`,
       activity.movingTimeSeconds === null ||
       activity.movingTimeSeconds === undefined
-        ? null
+        ? "moving time unavailable"
         : `${secondsToReadableDuration(activity.movingTimeSeconds)} moving`,
       activity.stoppedTimeSeconds === null ||
       activity.stoppedTimeSeconds === undefined ||
@@ -358,6 +356,28 @@ function formatTimeDetails(activity: ManualActivity): string[] {
       ? null
       : formatDuration(activity.durationMinutes),
   ].filter((value): value is string => value !== null);
+}
+
+function formatActivityPace(activity: ManualActivity): string | null {
+  if (activity.paceMinPerMile === null) {
+    return null;
+  }
+
+  if (
+    activity.movingTimeSeconds !== null &&
+    activity.movingTimeSeconds !== undefined
+  ) {
+    return `${activity.paceMinPerMile} min/mi moving pace`;
+  }
+
+  if (
+    activity.elapsedTimeSeconds !== null &&
+    activity.elapsedTimeSeconds !== undefined
+  ) {
+    return `${activity.paceMinPerMile} min/mi elapsed pace`;
+  }
+
+  return `${activity.paceMinPerMile} min/mi`;
 }
 
 function formatElevation(activity: ManualActivity): string | null {
