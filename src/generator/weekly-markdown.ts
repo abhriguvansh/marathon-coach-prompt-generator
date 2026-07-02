@@ -61,6 +61,10 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     `- ${formatRecoveryMetric(summary, "Stress", "stress")}`,
     `- Motivation notes: ${formatMotivation(summary)}`,
     "",
+    "## Garmin Wellness Summary",
+    "",
+    ...formatGarminWellnessSummary(summary),
+    "",
     "## Weekly Recovery Trend Flags",
     "",
     ...summary.recoveryTrendFlags.bullets,
@@ -409,6 +413,42 @@ function formatMotivation(summary: WeeklySummary): string {
     );
 
   return values.length === 0 ? "unknown" : values.join("; ");
+}
+
+function formatGarminWellnessSummary(summary: WeeklySummary): string[] {
+  const totals = summary.totals;
+
+  if (totals.wellnessCoverageDays === 0) {
+    return ["- Coverage: 0/7 days; no Garmin wellness data found."];
+  }
+
+  return [
+    `- Coverage: ${totals.wellnessCoverageDays}/7 days`,
+    totals.averageSleepDurationMinutes === null
+      ? "- Sleep duration: limited context"
+      : `- Sleep duration: average ${formatDurationMinutes(totals.averageSleepDurationMinutes)}`,
+    totals.averageSleepScore === null
+      ? "- Sleep score: limited context"
+      : `- Sleep score: average ${formatRounded(totals.averageSleepScore, "unknown")}`,
+    totals.averageRestingHeartRate === null
+      ? "- Resting HR: limited context"
+      : `- Resting HR: average ${formatRounded(totals.averageRestingHeartRate, "unknown")} bpm`,
+    totals.hrvStatusCoverageDays < 3
+      ? "- HRV: limited context"
+      : `- HRV: available for ${totals.hrvStatusCoverageDays}/7 days`,
+    totals.averageGarminStress === null
+      ? "- Garmin stress: limited context"
+      : `- Garmin stress: average ${formatRounded(totals.averageGarminStress, "unknown")}`,
+    `- Body Battery coverage: ${totals.bodyBatteryCoverageDays}/7 days`,
+  ];
+}
+
+function formatDurationMinutes(minutes: number): string {
+  const rounded = Math.round(minutes);
+  const hours = Math.floor(rounded / 60);
+  const remainingMinutes = rounded % 60;
+
+  return `${hours}h ${remainingMinutes}m`;
 }
 
 function formatLoadRiskFlags(summary: WeeklySummary): string[] {

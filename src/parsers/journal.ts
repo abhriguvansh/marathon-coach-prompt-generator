@@ -148,10 +148,22 @@ export function parseJournal(
           fieldValue(recovery, "Energy (0-10)"),
       ),
       sleepQuality: parseRecoveryValue(fieldValue(recovery, "Sleep")),
+      sleepDuration: fieldValue(recovery, "Sleep Duration"),
+      sleepDurationMinutes: parseSleepDurationMinutes(
+        fieldValue(recovery, "Sleep Duration"),
+      ),
+      sleepScore: parseWellnessNumber(fieldValue(recovery, "Sleep Score")),
+      restingHeartRate: parseWellnessNumber(
+        fieldValue(recovery, "Resting Heart Rate"),
+      ),
+      overnightHrv: parseWellnessNumber(fieldValue(recovery, "Overnight HRV")),
+      hrvStatus: fieldValue(recovery, "HRV Status"),
       stress: parseRecoveryValue(
         fieldValue(recovery, "Stress (0-10 or words)") ??
           fieldValue(recovery, "Stress (0-10)"),
       ),
+      garminStress: parseWellnessNumber(fieldValue(recovery, "Garmin Stress")),
+      bodyBattery: fieldValue(recovery, "Body Battery"),
       motivation: parseRecoveryValue(
         fieldValue(recovery, "Motivation (0-10 or words)") ??
           fieldValue(recovery, "Motivation (0-10)"),
@@ -371,6 +383,39 @@ function parseDurationMinutes(value: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
+function parseSleepDurationMinutes(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const hours = value.match(/(\d+(?:\.\d+)?)\s*h/i);
+  const minutes = value.match(/(\d+(?:\.\d+)?)\s*m/i);
+
+  if (hours || minutes) {
+    return (
+      (hours ? Number(hours[1]) * 60 : 0) + (minutes ? Number(minutes[1]) : 0)
+    );
+  }
+
+  const clock = value.match(/^(\d{1,2}):(\d{2})$/);
+
+  if (clock) {
+    return Number(clock[1]) * 60 + Number(clock[2]);
+  }
+
+  return parseWellnessNumber(value);
+}
+
+function parseWellnessNumber(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const match = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+
+  return match ? Number(match[0]) : null;
+}
+
 function fieldValue(content: string, label: string): string | null {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = content.match(
@@ -490,7 +535,21 @@ function defaultJournalTemplate(): string {
     "",
     "Sleep:",
     "",
+    "Sleep Duration:",
+    "",
+    "Sleep Score:",
+    "",
+    "Resting Heart Rate:",
+    "",
+    "Overnight HRV:",
+    "",
+    "HRV Status:",
+    "",
     "Stress (0-10 or words):",
+    "",
+    "Garmin Stress:",
+    "",
+    "Body Battery:",
     "",
     "Total Steps:",
     "",

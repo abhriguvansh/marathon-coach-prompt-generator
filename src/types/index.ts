@@ -67,7 +67,15 @@ export interface DailyNote {
   fatigue: RecoveryValue;
   energy: RecoveryValue;
   sleepQuality: RecoveryValue;
+  sleepDuration?: string | null;
+  sleepDurationMinutes?: number | null;
+  sleepScore?: number | null;
+  restingHeartRate?: number | null;
+  overnightHrv?: number | null;
+  hrvStatus?: string | null;
   stress: RecoveryValue;
+  garminStress?: number | null;
+  bodyBattery?: string | null;
   motivation: RecoveryValue;
   notes: string | null;
 }
@@ -300,6 +308,13 @@ export interface WeeklyActivityTotals {
   averageWalkHr: number | null;
   totalCalories: number | null;
   higherLoadActivities: ManualActivity[];
+  wellnessCoverageDays: number;
+  averageSleepDurationMinutes: number | null;
+  averageSleepScore: number | null;
+  averageGarminStress: number | null;
+  averageRestingHeartRate: number | null;
+  hrvStatusCoverageDays: number;
+  bodyBatteryCoverageDays: number;
 }
 
 export interface WeeklyRecoveryTrend {

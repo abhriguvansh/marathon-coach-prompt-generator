@@ -47,4 +47,6 @@ Daily output may show richer lightweight labels, such as strides, long run/walk,
 
 Weekly output also includes `## Weekly Recovery Trend Flags`. It summarizes soreness, pain, gait, and journal coverage across the evidence week. Missing data is not assumed to mean pain-free, and any worsening pain, soreness, or gait change should be treated as coaching safety context rather than a diagnosis.
 
+If Garmin wellness data was imported into journals, weekly output includes a compact `## Garmin Wellness Summary`. It may summarize coverage days, average sleep duration, sleep score, resting HR, HRV coverage, Garmin stress, and Body Battery coverage. It does not create a readiness score, and it does not replace subjective recovery notes.
+
 Daily check-ins also include a smaller recent-context section for the last 7-14 days from the daily evidence date. Use weekly planning for broader plan changes; use the daily context to help ChatGPT adjust the next coaching day.

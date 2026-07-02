@@ -94,6 +94,8 @@ If you use local Garmin or Strava exports, place them in `input/garmin/` or `inp
 
 Activity dates come from the embedded activity timestamp, not from VPN location, file download time, or filesystem modified time. A late-evening local workout may have a next-day UTC timestamp but should still group under the local evidence date when timezone is configured.
 
+If you use Garmin wellness ZIP exports, place them in `input/garmin/` or `input/garmin/wellness/`. They remain ignored by Git. Run `npm run import:wellness -- --date YYYY-MM-DD` to fill blank journal wellness fields, or let `npm run coach:*` do that automatically for the evidence day.
+
 ## 6. Optional Cleanup
 
 Preview cleanup before deleting anything:

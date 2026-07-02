@@ -135,6 +135,25 @@ export function createWeeklySummary(input: {
         ...groups.runs,
         ...groups.walks,
       ]),
+      wellnessCoverageDays: dailyNotes.filter(hasGarminWellnessMetric).length,
+      averageSleepDurationMinutes: averageNullable(
+        dailyNotes.map((note) => note.sleepDurationMinutes ?? null),
+      ),
+      averageSleepScore: averageNullable(
+        dailyNotes.map((note) => note.sleepScore ?? null),
+      ),
+      averageGarminStress: averageNullable(
+        dailyNotes.map((note) => note.garminStress ?? null),
+      ),
+      averageRestingHeartRate: averageNullable(
+        dailyNotes.map((note) => note.restingHeartRate ?? null),
+      ),
+      hrvStatusCoverageDays: dailyNotes.filter(
+        (note) => note.overnightHrv != null || note.hrvStatus != null,
+      ).length,
+      bodyBatteryCoverageDays: dailyNotes.filter(
+        (note) => note.bodyBattery != null,
+      ).length,
     },
     recovery: {
       sorenessAverage: averageNullable(
@@ -534,6 +553,18 @@ function higherLoadActivities(activities: ManualActivity[]): ManualActivity[] {
 
     return distance >= 4 || duration >= 60 || calories >= 500;
   });
+}
+
+function hasGarminWellnessMetric(note: DailyNote): boolean {
+  return (
+    note.sleepDurationMinutes != null ||
+    note.sleepScore != null ||
+    note.restingHeartRate != null ||
+    note.overnightHrv != null ||
+    note.hrvStatus != null ||
+    note.garminStress != null ||
+    note.bodyBattery != null
+  );
 }
 
 function containsConcern(value: string | null, terms: string[]): boolean {

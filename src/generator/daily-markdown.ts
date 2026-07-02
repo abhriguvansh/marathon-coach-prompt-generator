@@ -65,6 +65,7 @@ export function renderDailyCheckIn(
     `- Fatigue: ${formatRecoveryValue(daily?.fatigue, "unknown")}`,
     `- Energy: ${formatRecoveryValue(daily?.energy, "unknown")}`,
     `- Sleep: ${formatRecoveryValue(daily?.sleepQuality, "unknown")}`,
+    ...formatDailyWellnessMetrics(summary),
     `- Stress: ${formatRecoveryValue(daily?.stress, "unknown")}`,
     `- Motivation: ${formatRecoveryValue(daily?.motivation, "unknown")}`,
     `- Daily notes: ${formatUnknown(daily?.notes, "not provided")}`,
@@ -134,6 +135,38 @@ function formatJournalNutrition(
       ? null
       : `Body weight: ${journalEntry.bodyWeight}`,
   ]);
+}
+
+function formatDailyWellnessMetrics(summary: DailySummary): string[] {
+  const daily = summary.dailyNote;
+
+  if (!daily) {
+    return [];
+  }
+
+  return [
+    daily.sleepDuration === null || daily.sleepDuration === undefined
+      ? null
+      : `- Sleep duration: ${daily.sleepDuration}`,
+    daily.sleepScore === null || daily.sleepScore === undefined
+      ? null
+      : `- Sleep score: ${daily.sleepScore}`,
+    daily.restingHeartRate === null || daily.restingHeartRate === undefined
+      ? null
+      : `- Resting heart rate: ${daily.restingHeartRate} bpm`,
+    daily.overnightHrv === null || daily.overnightHrv === undefined
+      ? null
+      : `- Overnight HRV: ${daily.overnightHrv} ms`,
+    daily.hrvStatus === null || daily.hrvStatus === undefined
+      ? null
+      : `- HRV status: ${daily.hrvStatus}`,
+    daily.garminStress === null || daily.garminStress === undefined
+      ? null
+      : `- Garmin stress: ${daily.garminStress}`,
+    daily.bodyBattery === null || daily.bodyBattery === undefined
+      ? null
+      : `- Body Battery: ${daily.bodyBattery}`,
+  ].filter((value): value is string => value !== null);
 }
 
 function formatJournalGear(journalEntry: DailySummary["journalEntry"]): string {

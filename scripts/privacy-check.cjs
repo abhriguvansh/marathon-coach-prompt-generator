@@ -18,10 +18,13 @@ const contentAllowlistPrefixes = [
   "tests/",
   "scripts/privacy-check.cjs",
   "src/exports/",
+  "src/fit/",
+  "src/garmin-wellness/",
   "src/privacy/",
 ];
 const contentAllowlistExactPaths = new Set([
   ".gitignore",
+  "src/cli/coach.ts",
   "src/cli/parse-exports.ts",
   "src/cli/journal.ts",
   "src/parsers/journal.ts",

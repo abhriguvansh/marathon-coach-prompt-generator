@@ -38,6 +38,7 @@ declare class Buffer extends Uint8Array {
   writeUInt32LE(value: number, offset: number): number;
   subarray(start?: number, end?: number): Buffer;
   toString(encoding?: string): string;
+  copy(target: Uint8Array, targetStart?: number): number;
 }
 
 declare module "node:assert/strict" {
@@ -115,6 +116,11 @@ declare module "node:path" {
 
 declare module "node:os" {
   export function tmpdir(): string;
+}
+
+declare module "node:zlib" {
+  export function deflateRawSync(data: Uint8Array): Buffer;
+  export function inflateRawSync(data: Uint8Array): Buffer;
 }
 
 declare module "node:test" {

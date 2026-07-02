@@ -30,7 +30,21 @@ Fatigue (0-10 or words):
 
 Sleep:
 
+Sleep Duration:
+
+Sleep Score:
+
+Resting Heart Rate:
+
+Overnight HRV:
+
+HRV Status:
+
 Stress (0-10 or words):
+
+Garmin Stress:
+
+Body Battery:
 
 Total Steps:
 

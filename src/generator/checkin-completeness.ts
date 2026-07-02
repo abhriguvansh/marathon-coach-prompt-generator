@@ -41,7 +41,9 @@ export function evaluateCheckInCompleteness(
   addMissing(
     missingHighValueFields,
     "sleep",
-    isProvidedRecoveryValue(summary.dailyNote?.sleepQuality),
+    isProvidedRecoveryValue(summary.dailyNote?.sleepQuality) ||
+      summary.dailyNote?.sleepDurationMinutes != null ||
+      summary.dailyNote?.sleepScore != null,
   );
   addMissing(
     missingHighValueFields,

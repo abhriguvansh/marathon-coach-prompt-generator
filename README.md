@@ -20,6 +20,7 @@ This project keeps the workflow local, explicit, and easy to audit before anythi
 - Reads private daily Markdown journals from `input/journal/`.
 - Still supports legacy private manual CSV notes from `input/manual/`.
 - Reads supported local Garmin and Strava export files from ignored folders.
+- Reads Garmin wellness ZIP exports from ignored local folders and fills blank journal wellness fields.
 - Keeps running mileage separate from walking mileage.
 - Treats cross-training, steps, climbing, weights, tennis, and mobility as context, not running mileage.
 - Adds compact recent coaching context to daily check-ins from the last 7-14 days of local journals and parsed activities.
@@ -38,6 +39,7 @@ This project keeps the workflow local, explicit, and easy to audit before anythi
 - No authentication.
 - No database.
 - No raw route-point or coordinate output.
+- No raw Garmin wellness ZIP or FIT output.
 - No medical diagnosis or injury treatment plan.
 
 ## Privacy Model
@@ -332,6 +334,36 @@ For Strava or Garmin exports that preserve an activity description or notes fiel
 
 Lightweight labels such as `easy run`, `recovery run`, `long run/walk`, `4 x 20 sec strides`, `tempo`, `marathon effort`, and `progression run` may also be detected when they appear in the description or journal field. These labels are used only to help ChatGPT interpret the workout structure.
 
+## Garmin Wellness ZIPs
+
+Garmin wellness ZIP ingestion is local-only and optional. Put real wellness exports in either location:
+
+```txt
+input/garmin/
+input/garmin/wellness/
+```
+
+Supported forms include:
+
+```txt
+input/garmin/2026-07-01.zip
+input/garmin/wellness/2026-07-01.zip
+input/garmin/wellness/garmin-wellness-2026-07-01.zip
+input/garmin/wellness/2026-07-01/*.fit
+```
+
+Run:
+
+```bash
+npm run import:wellness -- --date 2026-07-01
+```
+
+The importer opens ZIPs directly, decodes `.fit` files inside, ignores non-FIT entries, rejects unsafe archive paths, and updates only blank or missing structured journal fields for the requested athlete-local date. Manual journal values are preserved. Subjective soreness, pain, gait, energy, fatigue, motivation, and subjective stress remain manual.
+
+Garmin stress is stored separately as `Garmin Stress:` because it is a device metric, not the same scale as subjective `Stress (0-10 or words):`.
+
+The coach workflow also runs wellness import for the evidence day before validation and daily generation.
+
 ## Generating Daily Check-In Manually
 
 Run:
@@ -511,12 +543,13 @@ npm test
 ## Recommended Daily Workflow
 
 1. Export Garmin/Strava activities if available.
-2. At night, run `npm run coach:tonight`.
-3. Fill out the evidence-day journal if the command created or if the validator warns about missing subjective details.
-4. Rerun `npm run coach:tonight` to regenerate the check-in with your subjective notes.
-5. Open `output/daily-checkin.md`.
-6. Paste the Markdown into ChatGPT that night to plan tomorrow, or the next morning to plan the current day.
-7. Review the coaching response and update future journal notes or plan notes if needed.
+2. Place a Garmin wellness ZIP in `input/garmin/wellness/` if available.
+3. At night, run `npm run coach:tonight`.
+4. Fill out the evidence-day journal if the command created or if the validator warns about missing subjective details.
+5. Rerun `npm run coach:tonight` to regenerate the check-in with your subjective notes.
+6. Open `output/daily-checkin.md`.
+7. Paste the Markdown into ChatGPT that night to plan tomorrow, or the next morning to plan the current day.
+8. Review the coaching response and update future journal notes or plan notes if needed.
 
 For example, on the night of June 27, 2026:
 

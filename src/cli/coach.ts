@@ -5,6 +5,7 @@ import {
   validateCheckIn,
 } from "./validate-checkin";
 import { parseLocalExports } from "../exports/export-scanner";
+import { importGarminWellness } from "../garmin-wellness/importer";
 import { loadAthleteConfig } from "../config/load";
 import { createJournal } from "../parsers/journal";
 import {
@@ -159,6 +160,22 @@ export function runCoachWorkflow(input: {
     log(`Imported activity references added: ${journal.importedActivityCount}`);
   } else {
     log(`Journal reused at ${relativeJournalPath}; not overwritten.`);
+  }
+
+  const wellness = importGarminWellness({
+    cwd: input.cwd,
+    date: evidenceDate,
+    timezone: config.timezone,
+  });
+  if (wellness.zipFilesFound === 0 && wellness.looseFitFilesFound === 0) {
+    log("Garmin wellness: no files found for this date.");
+  } else {
+    log(
+      `Garmin wellness: ${wellness.zipFilesFound} ZIP, ${wellness.fitFilesDecoded} FIT files, ${wellness.fieldsPopulated.length} journal fields populated.`,
+    );
+  }
+  for (const warning of wellness.warnings) {
+    log(`Garmin wellness warning: ${warning}`);
   }
 
   log(

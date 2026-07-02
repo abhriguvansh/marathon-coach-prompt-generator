@@ -123,6 +123,10 @@ FIT, TCX, or CSV exports are preferred when available because they usually inclu
 
 Imported activity dates are assigned using the athlete-local IANA timezone from `private/athlete.config.local.json`, such as `America/New_York`. FIT, TCX, GPX, and JSON timestamps may be stored as UTC, so a late-evening local activity can cross midnight in the file timestamp and still belong to the prior local evidence day. MCPG does not use VPN location, download time, or file modified time as the activity date.
 
+Garmin wellness ZIPs can be placed in `input/garmin/` or `input/garmin/wellness/`. The coach workflow decodes them directly, fills blank structured wellness fields in the evidence-day journal, and preserves manual journal values. Garmin may fill fields such as `Total Steps:`, `Sleep Duration:`, `Sleep Score:`, `Resting Heart Rate:`, `Overnight HRV:`, `HRV Status:`, `Garmin Stress:`, and `Body Battery:`.
+
+Subjective fields remain manual: soreness, pain, gait change, energy, fatigue, motivation, and subjective `Stress (0-10 or words):`. Garmin stress is stored separately as `Garmin Stress:` because it is not the same scale as subjective stress.
+
 Imported activities should be the source for runs, walks, and other tracked activities whenever possible. The imported activity section in the journal is reference-only. Do not manually re-enter imported runs, walks, or other exported activities.
 
 Use the journal's `Manual Activities` section for activities that were not imported:
