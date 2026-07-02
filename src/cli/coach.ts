@@ -5,6 +5,7 @@ import {
   validateCheckIn,
 } from "./validate-checkin";
 import { parseLocalExports } from "../exports/export-scanner";
+import { loadAthleteConfig } from "../config/load";
 import { createJournal } from "../parsers/journal";
 import {
   addDays,
@@ -141,7 +142,8 @@ export function runCoachWorkflow(input: {
   );
   log("");
 
-  const exports = parseLocalExports(input.cwd);
+  const { config } = loadAthleteConfig(input.cwd);
+  const exports = parseLocalExports(input.cwd, { timezone: config.timezone });
   const journal = createJournal({
     cwd: input.cwd,
     date: evidenceDate,

@@ -15,7 +15,11 @@ import {
 } from "./parse-helpers";
 import { metersToMiles } from "../utils/units";
 
-export function parseGpxExport(content: string, source: ExportSource) {
+export function parseGpxExport(
+  content: string,
+  source: ExportSource,
+  options: { timeZone?: string } = {},
+) {
   const trackBlocks = allTagBlocks(content, "trk");
 
   if (trackBlocks.length === 0) {
@@ -46,8 +50,8 @@ export function parseGpxExport(content: string, source: ExportSource) {
       source,
       activityType:
         textBetween(extensions, "type") ?? textBetween(block, "type") ?? "run",
-      startDate: dateFromDateTime(startValue),
-      startTime: timeFromDateTime(startValue),
+      startDate: dateFromDateTime(startValue, options.timeZone ?? "UTC"),
+      startTime: timeFromDateTime(startValue, options.timeZone ?? "UTC"),
       distanceMiles,
       durationMinutes,
       elevationFt: metersValueToFeet(

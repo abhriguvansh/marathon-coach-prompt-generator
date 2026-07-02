@@ -2,6 +2,7 @@ import {
   parseLocalExports,
   summarizeExportScan,
 } from "../exports/export-scanner";
+import { loadAthleteConfig } from "../config/load";
 import type { ExportParseResult, ManualActivity } from "../types";
 import { secondsToReadableDuration } from "../utils/units";
 
@@ -41,7 +42,20 @@ export function renderExportParseSummary(result: ExportParseResult): string {
 }
 
 if (require.main === module) {
-  console.log(renderExportParseSummary(parseLocalExports(process.cwd())));
+  const cwd = process.cwd();
+  const timezone = loadTimezone(cwd);
+
+  console.log(renderExportParseSummary(parseLocalExports(cwd, { timezone })));
+}
+
+function loadTimezone(cwd: string): string | null {
+  try {
+    return (
+      loadAthleteConfig(cwd, { allowExample: true }).config.timezone ?? null
+    );
+  } catch {
+    return null;
+  }
 }
 
 function formatActivitySummaries(activities: ManualActivity[]): string[] {

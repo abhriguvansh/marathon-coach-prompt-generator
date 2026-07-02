@@ -116,6 +116,8 @@ npm run inspect
 
 Edit `private/athlete.config.local.json` with your real local race and training context. This file is ignored by Git.
 
+Set `timezone` to your athlete-local IANA timezone, such as `America/New_York`. Imported activity timestamps, including FIT timestamps stored in UTC, are grouped by this athlete-local calendar date before daily journals, daily check-ins, weekly summaries, recent context, and duplicate detection use them. If the timezone is missing or invalid, MCPG falls back to UTC and prints a concise data-quality warning.
+
 Keep public config files fake. Do not put real athlete names, real race logistics, private travel, or health details in `config/athlete.example.json`.
 
 ## Daily Coaching Workflow
@@ -239,6 +241,8 @@ Recovery trend confidence depends on journal coverage. If only one recent entry 
 
 Real daily journals are ignored by Git. Only `input/journal/template.md` is committed.
 
+Existing journals are not overwritten automatically. If you created a journal before adding or correcting exports or timezone configuration, regenerate or refresh that journal yourself to update the imported-activity reference section.
+
 ## Legacy Manual CSV Templates
 
 The CSV workflow still works, but it is now considered legacy. Prefer the Markdown journal for daily logging unless you have an existing CSV habit or need bulk editing.
@@ -295,6 +299,8 @@ input/strava/
 ```
 
 These files may contain GPS, heart-rate, route, health, and schedule details. Do not commit them.
+
+Activity dates come from the embedded activity timestamp, converted to the configured athlete timezone. A late-evening local activity can appear as the next day in UTC inside FIT, TCX, GPX, or JSON exports; MCPG assigns it to the local evidence date. VPN location, file download time, and filesystem timestamps are not used as activity dates.
 
 ## Supported Export Formats
 

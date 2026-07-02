@@ -55,7 +55,7 @@ export function validateCheckIn(
     manualActivitiesPath: join(cwd, "input/manual/manual-activities.csv"),
     planNotesPath: join(cwd, "input/manual/plan-notes.md"),
   });
-  const exportInputs = parseLocalExports(cwd);
+  const exportInputs = parseLocalExports(cwd, { timezone: config.timezone });
   const journalInputs = loadJournalInputs(cwd);
 
   const summary = createDailySummary({

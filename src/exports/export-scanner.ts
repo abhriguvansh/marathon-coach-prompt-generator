@@ -13,6 +13,7 @@ import { parseFitExport } from "./parse-fit-export";
 import { parseGpxExport } from "./parse-gpx-export";
 import { parseJsonExport } from "./parse-json-export";
 import { parseTcxExport } from "./parse-tcx-export";
+import { resolveActivityTimezone } from "../utils/timezone";
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".tcx", ".gpx", ".json", ".fit"]);
 
@@ -68,10 +69,24 @@ export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
   return { files, warnings };
 }
 
-export function parseLocalExports(cwd = process.cwd()): ExportParseResult {
+export function parseLocalExports(
+  cwd = process.cwd(),
+  options: { timezone?: string | null } = {},
+): ExportParseResult {
   const scan = scanExportFiles(cwd);
   const activities: ManualActivity[] = [];
   const warnings = [...scan.warnings];
+  const timezone = resolveActivityTimezone(options.timezone);
+
+  if (
+    timezone.warning !== null &&
+    scan.files.some((candidate) => candidate.supported)
+  ) {
+    warnings.push({
+      source: "unknown",
+      message: timezone.warning,
+    });
+  }
 
   for (const file of scan.files.filter((candidate) => candidate.supported)) {
     const absolutePath = join(cwd, file.relativePath);
@@ -82,6 +97,7 @@ export function parseLocalExports(cwd = process.cwd()): ExportParseResult {
         content,
         extension: file.extension,
         source: file.source,
+        timeZone: timezone.timeZone,
       });
 
       activities.push(...parsed.activities);
@@ -128,18 +144,29 @@ function parseExportContent(input: {
   content: Buffer;
   extension: string;
   source: ExportSource;
+  timeZone: string;
 }): { activities: ManualActivity[]; warnings: ExportParseWarning[] } {
   switch (input.extension) {
     case ".csv":
-      return parseCsvExport(input.content.toString("utf8"), input.source);
+      return parseCsvExport(input.content.toString("utf8"), input.source, {
+        timeZone: input.timeZone,
+      });
     case ".fit":
-      return parseFitExport(input.content, input.source);
+      return parseFitExport(input.content, input.source, {
+        timeZone: input.timeZone,
+      });
     case ".tcx":
-      return parseTcxExport(input.content.toString("utf8"), input.source);
+      return parseTcxExport(input.content.toString("utf8"), input.source, {
+        timeZone: input.timeZone,
+      });
     case ".gpx":
-      return parseGpxExport(input.content.toString("utf8"), input.source);
+      return parseGpxExport(input.content.toString("utf8"), input.source, {
+        timeZone: input.timeZone,
+      });
     case ".json":
-      return parseJsonExport(input.content.toString("utf8"), input.source);
+      return parseJsonExport(input.content.toString("utf8"), input.source, {
+        timeZone: input.timeZone,
+      });
     default:
       return {
         activities: [],

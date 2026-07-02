@@ -17,7 +17,11 @@ import {
   warning,
 } from "./parse-helpers";
 
-export function parseJsonExport(content: string, source: ExportSource) {
+export function parseJsonExport(
+  content: string,
+  source: ExportSource,
+  options: { timeZone?: string } = {},
+) {
   const warnings: ExportParseWarning[] = [];
   let parsed: unknown;
 
@@ -42,8 +46,8 @@ export function parseJsonExport(content: string, source: ExportSource) {
       activityType: stringValue(
         firstValue(record, ["activityType", "activity_type", "type", "sport"]),
       ),
-      startDate: dateFromDateTime(startValue),
-      startTime: timeFromDateTime(startValue),
+      startDate: dateFromDateTime(startValue, options.timeZone ?? "UTC"),
+      startTime: timeFromDateTime(startValue, options.timeZone ?? "UTC"),
       distanceMiles: jsonDistanceMiles(record),
       durationMinutes: jsonDurationMinutes(record),
       elevationFt: jsonElevationFeet(record),

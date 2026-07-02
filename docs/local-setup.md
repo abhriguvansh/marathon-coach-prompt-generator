@@ -16,7 +16,9 @@ macOS/Linux shell:
 cp config/athlete.example.json private/athlete.config.local.json
 ```
 
-Edit `private/athlete.config.local.json` with your real race, goal, training background, lifestyle activity, cross-training, and unit preferences.
+Edit `private/athlete.config.local.json` with your real race, goal, training background, lifestyle activity, cross-training, unit preferences, and athlete-local `timezone`.
+
+Use an IANA timezone such as `America/New_York`. Exported FIT, TCX, GPX, and JSON timestamps may be stored in UTC; MCPG converts them to this configured timezone before assigning the evidence date. If timezone is missing or invalid, generation falls back to UTC and prints a concise data-quality warning.
 
 ## 2. Run Your First Daily Coach Workflow
 
@@ -89,6 +91,8 @@ npm run inspect
 Inspect reports file presence and safe export counts. It does not print private file contents.
 
 If you use local Garmin or Strava exports, place them in `input/garmin/` or `input/strava/`. FIT, TCX, or CSV exports are preferred when available; GPX can be used as a fallback. Real export files remain ignored by Git.
+
+Activity dates come from the embedded activity timestamp, not from VPN location, file download time, or filesystem modified time. A late-evening local workout may have a next-day UTC timestamp but should still group under the local evidence date when timezone is configured.
 
 ## 6. Optional Cleanup
 

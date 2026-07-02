@@ -124,6 +124,20 @@ describe("config and input loading", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("loads local config with a UTF-8 byte order mark", () => {
+    const dir = makeTempProject();
+    writeFileSync(
+      join(dir, "private/athlete.config.local.json"),
+      `\ufeff${JSON.stringify(fakeConfig, null, 2)}\n`,
+    );
+
+    const loaded = loadAthleteConfig(dir);
+
+    assert.equal(loaded.source, "local");
+    assert.equal(loaded.config.athleteName, "Sample Runner");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("throws a helpful error when local config is missing", () => {
     const dir = makeTempProject();
 

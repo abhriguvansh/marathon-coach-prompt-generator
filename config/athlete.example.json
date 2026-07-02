@@ -1,5 +1,6 @@
 {
   "athleteName": "Sample Runner",
+  "timezone": "America/New_York",
   "race": {
     "name": "Example City Marathon",
     "date": "2026-11-29",

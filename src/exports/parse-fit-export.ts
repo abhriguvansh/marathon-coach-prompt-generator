@@ -4,6 +4,7 @@ import type {
   ExportSource,
   ManualActivity,
 } from "../types";
+import { toAthleteLocalDate, toAthleteLocalTime } from "../utils/timezone";
 import { metersToMiles } from "../utils/units";
 import { buildExportActivity, formatPace, warning } from "./parse-helpers";
 
@@ -93,10 +94,11 @@ const BASE_TYPE_SIZE = new Map<number, number>([
 export function parseFitExport(
   content: Buffer,
   source: ExportSource,
+  options: { timeZone?: string } = {},
 ): { activities: ManualActivity[]; warnings: ExportParseWarning[] } {
   try {
     const messages = parseFitMessages(content);
-    const summaries = summarizeFitMessages(messages);
+    const summaries = summarizeFitMessages(messages, options.timeZone ?? "UTC");
     const fitSource = fitExportSource(source);
     const activities = summaries
       .map((summary) =>
@@ -357,6 +359,7 @@ function readFieldValue(
 
 function summarizeFitMessages(
   messages: FitParsedMessage[],
+  timeZone: string,
 ): FitActivitySummary[] {
   const sessionMessages = messages.filter(
     (message) => message.globalMessageNumber === GLOBAL_SESSION,
@@ -374,7 +377,12 @@ function summarizeFitMessages(
 
   return summaryMessages
     .map((message) =>
-      summaryFromMessage(message, messages, sessionMessages.length > 0),
+      summaryFromMessage(
+        message,
+        messages,
+        sessionMessages.length > 0,
+        timeZone,
+      ),
     )
     .filter((summary): summary is FitActivitySummary => summary !== null);
 }
@@ -383,6 +391,7 @@ function summaryFromMessage(
   message: FitParsedMessage,
   messages: FitParsedMessage[],
   canUseLaps: boolean,
+  timeZone: string,
 ): FitActivitySummary | null {
   const startDateTime =
     fitTimestamp(valueNumber(message.fields[2])) ??
@@ -439,8 +448,8 @@ function summaryFromMessage(
       : derivedMileSplits(messages, distanceMiles, durationSeconds);
 
   return {
-    startDate: startDateTime.slice(0, 10),
-    startTime: startDateTime.slice(11, 19),
+    startDate: toAthleteLocalDate(startDateTime, timeZone),
+    startTime: toAthleteLocalTime(startDateTime, timeZone),
     activityType,
     distanceMiles,
     durationMinutes,

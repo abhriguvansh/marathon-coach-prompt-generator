@@ -8,6 +8,7 @@ import {
   metersToMiles,
   secondsToMinutes,
 } from "../utils/units";
+import { toAthleteLocalDate, toAthleteLocalTime } from "../utils/timezone";
 
 export function buildExportActivity(input: {
   source: ExportSource;
@@ -123,26 +124,16 @@ export function normalizeActivityType(
 
 export function dateFromDateTime(
   value: string | null | undefined,
+  timeZone = "UTC",
 ): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const match = value.match(/\d{4}-\d{2}-\d{2}/);
-
-  return match?.[0] ?? null;
+  return toAthleteLocalDate(value, timeZone);
 }
 
 export function timeFromDateTime(
   value: string | null | undefined,
+  timeZone = "UTC",
 ): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const match = value.match(/T?(\d{2}:\d{2}(?::\d{2})?)/);
-
-  return match?.[1] ?? null;
+  return toAthleteLocalTime(value, timeZone);
 }
 
 export function parseNumber(value: unknown): number | null {

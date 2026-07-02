@@ -19,16 +19,14 @@ export function loadAthleteConfig(
 
   if (existsSync(localPath)) {
     return {
-      config: JSON.parse(readFileSync(localPath, "utf8")) as AthleteConfig,
+      config: readAthleteConfig(localPath),
       source: "local",
     };
   }
 
   if (options.allowExample) {
     return {
-      config: JSON.parse(
-        readFileSync(join(cwd, EXAMPLE_ATHLETE_CONFIG_PATH), "utf8"),
-      ) as AthleteConfig,
+      config: readAthleteConfig(join(cwd, EXAMPLE_ATHLETE_CONFIG_PATH)),
       source: "example",
     };
   }
@@ -36,4 +34,14 @@ export function loadAthleteConfig(
   throw new Error(
     `Missing local athlete config. Copy ${EXAMPLE_ATHLETE_CONFIG_PATH} to ${LOCAL_ATHLETE_CONFIG_PATH} and edit the private copy before real generation.`,
   );
+}
+
+function readAthleteConfig(path: string): AthleteConfig {
+  return JSON.parse(
+    stripByteOrderMark(readFileSync(path, "utf8")),
+  ) as AthleteConfig;
+}
+
+function stripByteOrderMark(content: string): string {
+  return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
 }

@@ -23,6 +23,11 @@ import {
   secondsToMinutes,
   secondsToReadableDuration,
 } from "../src/utils/units";
+import {
+  resolveActivityTimezone,
+  toAthleteLocalDate,
+  toAthleteLocalTime,
+} from "../src/utils/timezone";
 
 describe("date utilities", () => {
   it("parses YYYY-MM-DD dates", () => {
@@ -45,6 +50,64 @@ describe("date utilities", () => {
       daysUntilRace(parseDate("2026-11-01"), parseDate("2026-11-29")),
       28,
     );
+  });
+
+  it("converts UTC activity timestamps to athlete-local dates", () => {
+    assert.equal(
+      toAthleteLocalDate("2026-06-30T02:15:00Z", "America/New_York"),
+      "2026-06-29",
+    );
+    assert.equal(
+      toAthleteLocalDate("2026-07-01T10:30:00Z", "America/New_York"),
+      "2026-07-01",
+    );
+    assert.equal(
+      toAthleteLocalDate("2026-12-01T03:00:00Z", "America/New_York"),
+      "2026-11-30",
+    );
+    assert.equal(
+      toAthleteLocalDate("2026-06-30T04:30:00Z", "America/New_York"),
+      "2026-06-30",
+    );
+    assert.equal(
+      toAthleteLocalDate("2026-06-30T00:00:00Z", "America/New_York"),
+      "2026-06-29",
+    );
+  });
+
+  it("does not shift date-only or local wall-clock timestamps", () => {
+    assert.equal(
+      toAthleteLocalDate("2026-06-30", "America/New_York"),
+      "2026-06-30",
+    );
+    assert.equal(
+      toAthleteLocalDate("2026-06-30T22:15:00", "America/New_York"),
+      "2026-06-30",
+    );
+  });
+
+  it("converts UTC activity timestamps to athlete-local times", () => {
+    assert.equal(
+      toAthleteLocalTime("2026-06-30T02:15:00Z", "America/New_York"),
+      "22:15:00",
+    );
+  });
+
+  it("resolves valid, missing, and invalid activity timezones deterministically", () => {
+    assert.deepEqual(resolveActivityTimezone("America/New_York"), {
+      timeZone: "America/New_York",
+      warning: null,
+    });
+    assert.deepEqual(resolveActivityTimezone(undefined), {
+      timeZone: "UTC",
+      warning:
+        "Athlete timezone not configured; activity dates were grouped using UTC.",
+    });
+    assert.deepEqual(resolveActivityTimezone("Not/A_Timezone"), {
+      timeZone: "UTC",
+      warning:
+        "Athlete timezone was invalid; activity dates were grouped using UTC.",
+    });
   });
 });
 

@@ -16,7 +16,11 @@ import {
   warning,
 } from "./parse-helpers";
 
-export function parseTcxExport(content: string, source: ExportSource) {
+export function parseTcxExport(
+  content: string,
+  source: ExportSource,
+  options: { timeZone?: string } = {},
+) {
   const activities: ManualActivity[] = [];
   const warnings: ExportParseWarning[] = [];
   const blocks = allTagBlocks(content, "Activity");
@@ -35,8 +39,8 @@ export function parseTcxExport(content: string, source: ExportSource) {
     const activity = buildExportActivity({
       source,
       activityType: activityTypeFromTcx(block),
-      startDate: dateFromDateTime(startValue),
-      startTime: timeFromDateTime(startValue),
+      startDate: dateFromDateTime(startValue, options.timeZone ?? "UTC"),
+      startTime: timeFromDateTime(startValue, options.timeZone ?? "UTC"),
       distanceMiles: metersValueToMiles(textBetween(block, "DistanceMeters")),
       durationMinutes: secondsValueToMinutes(
         textBetween(block, "TotalTimeSeconds"),

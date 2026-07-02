@@ -15,6 +15,7 @@ export interface WeekRange {
 
 export interface AthleteConfig {
   athleteName: string;
+  timezone?: string;
   race: {
     name: string;
     date: string;

@@ -121,6 +121,8 @@ Put Garmin exports in `input/garmin/` and Strava exports in `input/strava/`.
 
 FIT, TCX, or CSV exports are preferred when available because they usually include better summary data than GPX. GPX remains a fallback when summary exports are not available.
 
+Imported activity dates are assigned using the athlete-local IANA timezone from `private/athlete.config.local.json`, such as `America/New_York`. FIT, TCX, GPX, and JSON timestamps may be stored as UTC, so a late-evening local activity can cross midnight in the file timestamp and still belong to the prior local evidence day. MCPG does not use VPN location, download time, or file modified time as the activity date.
+
 Imported activities should be the source for runs, walks, and other tracked activities whenever possible. The imported activity section in the journal is reference-only. Do not manually re-enter imported runs, walks, or other exported activities.
 
 Use the journal's `Manual Activities` section for activities that were not imported:
@@ -144,6 +146,8 @@ npm run generate:daily -- --date YYYY-MM-DD
 ```
 
 `journal -- --date` is the evidence day. `generate:daily -- --date` is the coaching day. Prefer the `coach:*` commands for daily use.
+
+The journal command does not overwrite existing journals. If an older journal has stale imported activity references, regenerate or manually refresh that journal after correcting exports or timezone config.
 
 `generate:daily` is also compact by default. For standalone/full context:
 

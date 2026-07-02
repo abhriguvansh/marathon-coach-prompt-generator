@@ -17,7 +17,11 @@ import {
   warning,
 } from "./parse-helpers";
 
-export function parseCsvExport(content: string, source: ExportSource) {
+export function parseCsvExport(
+  content: string,
+  source: ExportSource,
+  options: { timeZone?: string } = {},
+) {
   const records = parseCsv(content);
   const activities: ManualActivity[] = [];
   const warnings: ExportParseWarning[] = [];
@@ -43,8 +47,8 @@ export function parseCsvExport(content: string, source: ExportSource) {
           "Sport",
         ]),
       ),
-      startDate: dateFromDateTime(startValue),
-      startTime: timeFromDateTime(startValue),
+      startDate: dateFromDateTime(startValue, options.timeZone ?? "UTC"),
+      startTime: timeFromDateTime(startValue, options.timeZone ?? "UTC"),
       distanceMiles: distanceMilesFromRecord(record),
       durationMinutes: durationMinutesFromRecord(record),
       elevationFt: elevationFeetFromRecord(record),

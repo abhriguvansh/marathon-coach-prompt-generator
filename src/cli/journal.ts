@@ -1,4 +1,5 @@
 import { relative } from "node:path";
+import { loadAthleteConfig } from "../config/load";
 import { parseLocalExports } from "../exports/export-scanner";
 import { createJournal } from "../parsers/journal";
 import { addDays, formatDate, parseDate } from "../utils/dates";
@@ -26,7 +27,8 @@ if (require.main === module) {
   try {
     const cwd = process.cwd();
     const args = parseJournalArgs(process.argv.slice(2));
-    const exports = parseLocalExports(cwd);
+    const timezone = loadTimezone(cwd);
+    const exports = parseLocalExports(cwd, { timezone });
     const result = createJournal({
       cwd,
       date: args.date,
@@ -60,5 +62,15 @@ if (require.main === module) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(message);
     process.exit(1);
+  }
+}
+
+function loadTimezone(cwd: string): string | null {
+  try {
+    return (
+      loadAthleteConfig(cwd, { allowExample: true }).config.timezone ?? null
+    );
+  } catch {
+    return null;
   }
 }

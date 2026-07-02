@@ -14,16 +14,18 @@ import { renderDailyCheckIn } from "../src/generator/daily-markdown";
 import { createWeeklySummary } from "../src/generator/weekly-summary";
 import { renderWeeklySummary } from "../src/generator/weekly-markdown";
 import { renderExportParseSummary } from "../src/cli/parse-exports";
+import { createJournal } from "../src/parsers/journal";
 import {
   parseLocalExports,
   scanExportFiles,
 } from "../src/exports/export-scanner";
-import type { AthleteConfig } from "../src/types";
+import type { AthleteConfig, DailyNote, ManualActivity } from "../src/types";
 
 const fixtureRoot = join(process.cwd(), "tests/fixtures/exports");
 
 const fakeConfig: AthleteConfig = {
   athleteName: "Sample Runner",
+  timezone: "America/New_York",
   race: {
     name: "Example City Marathon",
     date: "2026-11-29",
@@ -35,6 +37,7 @@ const fakeConfig: AthleteConfig = {
     runningBackground: "Fake export parsing background.",
   },
 };
+const testTimezone = "America/New_York";
 
 describe("local export parsing", () => {
   it("recursively scans supported and unsupported export files", () => {
@@ -178,6 +181,231 @@ describe("local export parsing", () => {
       /lat=|lon=|trkpt|position_lat|position_long/,
     );
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("assigns FIT activities to the athlete-local evidence date before summaries use them", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-fit-local-date-test-"));
+    writeFile(
+      join(dir, "input/journal/template.md"),
+      "# Daily Journal\n\nDate: {{DATE}}\n\n## Imported Activities (Reference Only)\n\n{{IMPORTED_ACTIVITIES}}\n",
+    );
+    writeFile(
+      join(dir, "input/strava/local-evening-run.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-06-30T02:15:00Z",
+        distanceMiles: 2.24,
+        movingSeconds: 2111,
+        avgHr: 137,
+        maxHr: 154,
+        ascentMeters: 12,
+        avgCadence: 152,
+      }),
+    );
+
+    const exports = parseLocalExports(dir, { timezone: testTimezone });
+    const run = exports.activities[0];
+    const climbing: ManualActivity = {
+      date: "2026-06-29",
+      startTime: null,
+      source: "journal",
+      activityType: "rock_climbing",
+      distanceMiles: null,
+      durationMinutes: 180,
+      paceMinPerMile: null,
+      elevationFt: null,
+      avgHr: null,
+      maxHr: null,
+      steps: null,
+      notes: "Fake climbing context.",
+    };
+    const dailyNotes: DailyNote[] = [
+      {
+        date: "2026-06-29",
+        totalSteps: "6760",
+        stepsDisplay: "6760",
+        stepsApprox: 6760,
+        stepsSource: "journal_manual",
+        legSoreness: 2,
+        pain: 0,
+        painLocation: null,
+        painType: null,
+        gaitChanged: false,
+        fatigue: 3,
+        energy: 7,
+        sleepQuality: 7,
+        stress: 3,
+        motivation: null,
+        notes: "Fake same-day climbing and run evidence.",
+      },
+    ];
+
+    const localEvidenceSummary = createDailySummary({
+      date: "2026-06-30",
+      athleteConfig: fakeConfig,
+      dailyNotes,
+      activityNotes: [],
+      manualActivities: [run, climbing],
+      planNotes: null,
+      exportWarnings: exports.warnings,
+    });
+    const nextUtcDateSummary = createDailySummary({
+      date: "2026-07-01",
+      athleteConfig: fakeConfig,
+      dailyNotes,
+      activityNotes: [],
+      manualActivities: [run, climbing],
+      planNotes: null,
+      exportWarnings: exports.warnings,
+    });
+    const journalLocal = createJournal({
+      cwd: dir,
+      date: "2026-06-29",
+      importedActivities: exports.activities,
+    });
+    const journalUtcDate = createJournal({
+      cwd: dir,
+      date: "2026-06-30",
+      importedActivities: exports.activities,
+    });
+    const weekly = createWeeklySummary({
+      weekStart: "2026-07-06",
+      athleteConfig: fakeConfig,
+      dailyNotes,
+      activityNotes: [],
+      manualActivities: [run, climbing],
+      planNotes: null,
+      exportWarnings: exports.warnings,
+    });
+    const weeklyMarkdown = renderWeeklySummary(weekly);
+    const dailyMarkdown = renderDailyCheckIn(localEvidenceSummary);
+
+    assert.equal(run.date, "2026-06-29");
+    assert.equal(run.startTime, "22:15:00");
+    assert.equal(localEvidenceSummary.runs.length, 1);
+    assert.equal(Number(localEvidenceSummary.runningMileage.toFixed(2)), 2.24);
+    assert.equal(nextUtcDateSummary.runs.length, 0);
+    assert.equal(journalLocal.importedActivityCount, 1);
+    assert.equal(journalUtcDate.importedActivityCount, 0);
+    assert.equal(
+      weekly.activityListByDay.find((day) => day.date === "2026-06-29")
+        ?.dayLoadClassification.dayType,
+      "mixed-load day",
+    );
+    assert.equal(
+      weekly.activityListByDay.find((day) => day.date === "2026-06-30")
+        ?.activities.length,
+      0,
+    );
+    assert.match(weeklyMarkdown, /2026-06-29: run/);
+    assert.doesNotMatch(weeklyMarkdown, /2026-06-30: run/);
+    assert.match(dailyMarkdown, /Runs: run, 2\.24 mi/);
+    assert.match(
+      localEvidenceSummary.recentCoachingContext.join("\n"),
+      /Last run: 2026-06-29/,
+    );
+    assert.match(
+      localEvidenceSummary.recentCoachingContext.join("\n"),
+      /climbing on 2026-06-29 occurred on the same day as the 2026-06-29 run/,
+    );
+    assert.doesNotMatch(
+      `${dailyMarkdown}\n${weeklyMarkdown}`,
+      /lat=|lon=|trkpt|position_lat|position_long|raw FIT/i,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("uses athlete-local dates for GPX and TCX UTC timestamps", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-xml-local-date-test-"));
+    writeFile(
+      join(dir, "input/strava/local-evening-walk.gpx"),
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<gpx version="1.1" creator="Synthetic Fixture">',
+        "  <trk>",
+        "    <type>walk</type>",
+        "    <time>2026-06-30T02:15:00Z</time>",
+        "    <trkseg>",
+        '      <trkpt lat="0.0000" lon="0.0000"><time>2026-06-30T02:15:00Z</time></trkpt>',
+        '      <trkpt lat="0.0000" lon="0.0100"><time>2026-06-30T02:35:00Z</time></trkpt>',
+        "    </trkseg>",
+        "  </trk>",
+        "</gpx>",
+      ].join("\n"),
+    );
+    writeFile(
+      join(dir, "input/garmin/local-evening-run.tcx"),
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<TrainingCenterDatabase>",
+        "  <Activities>",
+        '    <Activity Sport="Running">',
+        "      <Id>2026-06-30T02:15:00Z</Id>",
+        "      <Lap>",
+        "        <TotalTimeSeconds>1200</TotalTimeSeconds>",
+        "        <DistanceMeters>3218.688</DistanceMeters>",
+        "      </Lap>",
+        "    </Activity>",
+        "  </Activities>",
+        "</TrainingCenterDatabase>",
+      ].join("\n"),
+    );
+
+    const result = parseLocalExports(dir, { timezone: testTimezone });
+
+    assert.deepEqual(
+      result.activities
+        .map((activity) => ({
+          type: activity.activityType,
+          date: activity.date,
+          startTime: activity.startTime,
+        }))
+        .sort((left, right) => left.type.localeCompare(right.type)),
+      [
+        { type: "run", date: "2026-06-29", startTime: "22:15:00" },
+        { type: "walk", date: "2026-06-29", startTime: "22:15:00" },
+      ],
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("warns and uses UTC when export timezone configuration is missing or invalid", () => {
+    const missingTimezoneDir = mkdtempSync(
+      join(tmpdir(), "marathon-missing-timezone-test-"),
+    );
+    writeFile(
+      join(missingTimezoneDir, "input/strava/local-evening-run.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-06-30T02:15:00Z",
+        distanceMiles: 2.24,
+        movingSeconds: 2111,
+        avgHr: 137,
+        maxHr: 154,
+        avgCadence: 152,
+      }),
+    );
+
+    const missing = parseLocalExports(missingTimezoneDir);
+    const invalid = parseLocalExports(missingTimezoneDir, {
+      timezone: "Not/A_Timezone",
+    });
+
+    assert.equal(missing.activities[0].date, "2026-06-30");
+    assert.equal(
+      missing.warnings.some((warning) =>
+        warning.message.includes("timezone not configured"),
+      ),
+      true,
+    );
+    assert.equal(invalid.activities[0].date, "2026-06-30");
+    assert.equal(
+      invalid.warnings.some((warning) =>
+        warning.message.includes("timezone was invalid"),
+      ),
+      true,
+    );
+    rmSync(missingTimezoneDir, { recursive: true, force: true });
   });
 
   it("does not render a single full-activity FIT lap as useful split data", () => {

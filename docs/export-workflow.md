@@ -40,6 +40,10 @@ Prefer FIT, TCX, or CSV exports when available because they usually carry better
 
 FIT parsing is local and summary-focused. It reads fields such as date, activity type, distance, elapsed time, moving time, pace, speed, elevation gain/loss, heart rate, cadence, calories, training effect, temperature, device labels, and lap/split summaries when present. It does not print raw binary contents, route points, or coordinates. Corrupt or unsupported FIT files produce a warning and are skipped.
 
+Activity dates are assigned using the athlete-local IANA timezone in `private/athlete.config.local.json`, for example `America/New_York`. FIT, TCX, GPX, and JSON timestamps may be stored in UTC, so a local late-evening activity can appear as the next UTC day in the file. MCPG converts the timestamp to the configured timezone and uses that local calendar date for journals, daily check-ins, weekly grouping, recent context, and duplicate detection. VPN location, download time, and filesystem modified time are not used.
+
+If timezone is missing or invalid, export parsing falls back to UTC and reports a concise data-quality warning.
+
 ## Safe Export Inspection
 
 Run:
@@ -73,6 +77,8 @@ npm run generate:daily -- --date 2026-06-28
 ```
 
 Manual activities and exports may overlap. Review data quality warnings before trusting totals.
+
+Existing journals are not overwritten automatically. If an older journal was created before correcting exports or timezone config, regenerate or manually refresh it to update the imported activity references.
 
 ## Duplicate Detection
 
