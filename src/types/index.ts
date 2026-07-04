@@ -70,12 +70,24 @@ export interface DailyNote {
   sleepDuration?: string | null;
   sleepDurationMinutes?: number | null;
   sleepScore?: number | null;
+  sleepQualityDetail?: string | null;
+  deepSleepDuration?: string | null;
+  lightSleepDuration?: string | null;
+  remDuration?: string | null;
+  awakeDuration?: string | null;
+  restlessMoments?: number | null;
   restingHeartRate?: number | null;
+  averageOvernightHeartRate?: number | null;
   overnightHrv?: number | null;
   hrvStatus?: string | null;
   stress: RecoveryValue;
   garminStress?: number | null;
   bodyBattery?: string | null;
+  averageRespiration?: number | null;
+  lowestRespiration?: number | null;
+  averageSpo2?: number | null;
+  lowestSpo2?: number | null;
+  breathingVariations?: string | null;
   motivation: RecoveryValue;
   notes: string | null;
 }
@@ -112,15 +124,28 @@ export interface ManualActivity {
   maxHr: number | null;
   avgCadence?: number | null;
   maxCadence?: number | null;
+  avgPowerWatts?: number | null;
+  maxPowerWatts?: number | null;
+  avgWattsPerKg?: number | null;
+  maxWattsPerKg?: number | null;
+  avgGroundContactTimeMs?: number | null;
+  avgStrideLengthMeters?: number | null;
+  avgVerticalOscillationCm?: number | null;
+  avgVerticalRatioPct?: number | null;
   calories?: number | null;
   elapsedTimeSeconds?: number | null;
+  timerTimeSeconds?: number | null;
   movingTimeSeconds?: number | null;
   stoppedTimeSeconds?: number | null;
+  gapPaceMinPerMile?: string | null;
+  avgMovingPaceMinPerMile?: string | null;
   avgSpeed?: number | null;
   maxSpeed?: number | null;
   bestPaceMinPerMile?: string | null;
   trainingEffect?: number | null;
+  anaerobicTrainingEffect?: number | null;
   temperatureC?: number | null;
+  temperatureF?: number | null;
   device?: string | null;
   laps?: ActivityLap[];
   runWalkStructure?: RunWalkStructure | null;
@@ -167,7 +192,23 @@ export interface ActivityLap {
   avgHr: number | null;
   maxHr: number | null;
   elevationGainFt: number | null;
+  elevationLossFt?: number | null;
   avgCadence: number | null;
+  maxCadence?: number | null;
+  movingTimeSeconds?: number | null;
+  movingPaceMinPerMile?: string | null;
+  gapPaceMinPerMile?: string | null;
+  avgPowerWatts?: number | null;
+  maxPowerWatts?: number | null;
+  avgWattsPerKg?: number | null;
+  maxWattsPerKg?: number | null;
+  avgGroundContactTimeMs?: number | null;
+  avgStrideLengthMeters?: number | null;
+  avgVerticalOscillationCm?: number | null;
+  avgVerticalRatioPct?: number | null;
+  calories?: number | null;
+  temperatureF?: number | null;
+  bestPaceMinPerMile?: string | null;
 }
 
 export interface JournalEntry {

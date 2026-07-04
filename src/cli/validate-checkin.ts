@@ -76,11 +76,23 @@ export function validateCheckIn(
     exportWarnings: exportInputs.warnings,
   });
 
-  return {
+  return validationResultFromSummary({
     evidenceDate,
     coachingDate,
     summary,
-    completeness: summary.checkInCompleteness,
+  });
+}
+
+export function validationResultFromSummary(input: {
+  evidenceDate: string;
+  coachingDate: string;
+  summary: DailySummary;
+}): CheckInValidationResult {
+  return {
+    evidenceDate: input.evidenceDate,
+    coachingDate: input.coachingDate,
+    summary: input.summary,
+    completeness: input.summary.checkInCompleteness,
   };
 }
 

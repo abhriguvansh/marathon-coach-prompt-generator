@@ -36,6 +36,11 @@ export interface CreateJournalResult {
   importedActivityCount: number;
 }
 
+export interface JournalParseDiagnostics {
+  recoveryFieldCount: number;
+  coachNotesHasText: boolean;
+}
+
 const JOURNAL_FOLDER = "input/journal";
 const JOURNAL_TEMPLATE_PATH = "input/journal/template.md";
 const DATE_PLACEHOLDER = "{{DATE}}";
@@ -153,8 +158,19 @@ export function parseJournal(
         fieldValue(recovery, "Sleep Duration"),
       ),
       sleepScore: parseWellnessNumber(fieldValue(recovery, "Sleep Score")),
+      sleepQualityDetail: fieldValue(recovery, "Sleep Quality"),
+      deepSleepDuration: fieldValue(recovery, "Deep Sleep Duration"),
+      lightSleepDuration: fieldValue(recovery, "Light Sleep Duration"),
+      remDuration: fieldValue(recovery, "REM Duration"),
+      awakeDuration: fieldValue(recovery, "Awake Duration"),
+      restlessMoments: parseWellnessNumber(
+        fieldValue(recovery, "Restless Moments"),
+      ),
       restingHeartRate: parseWellnessNumber(
         fieldValue(recovery, "Resting Heart Rate"),
+      ),
+      averageOvernightHeartRate: parseWellnessNumber(
+        fieldValue(recovery, "Average Overnight Heart Rate"),
       ),
       overnightHrv: parseWellnessNumber(fieldValue(recovery, "Overnight HRV")),
       hrvStatus: fieldValue(recovery, "HRV Status"),
@@ -164,6 +180,15 @@ export function parseJournal(
       ),
       garminStress: parseWellnessNumber(fieldValue(recovery, "Garmin Stress")),
       bodyBattery: fieldValue(recovery, "Body Battery"),
+      averageRespiration: parseWellnessNumber(
+        fieldValue(recovery, "Average Respiration"),
+      ),
+      lowestRespiration: parseWellnessNumber(
+        fieldValue(recovery, "Lowest Respiration"),
+      ),
+      averageSpo2: parseWellnessNumber(fieldValue(recovery, "Average SpO2")),
+      lowestSpo2: parseWellnessNumber(fieldValue(recovery, "Lowest SpO2")),
+      breathingVariations: fieldValue(recovery, "Breathing Variations"),
       motivation: parseRecoveryValue(
         fieldValue(recovery, "Motivation (0-10 or words)") ??
           fieldValue(recovery, "Motivation (0-10)"),
@@ -183,6 +208,44 @@ export function parseJournal(
   };
 }
 
+export function journalParseDiagnostics(
+  content: string,
+  fallbackDate?: string,
+): JournalParseDiagnostics {
+  const parsed = parseJournal(content, fallbackDate);
+  const note = parsed.dailyNote;
+  const recoveryValues = [
+    note.legSoreness,
+    note.pain,
+    note.painLocation,
+    note.painType,
+    note.gaitChanged,
+    note.energy,
+    note.fatigue,
+    note.sleepQuality,
+    note.sleepDuration,
+    note.sleepScore,
+    note.restingHeartRate,
+    note.averageOvernightHeartRate,
+    note.overnightHrv,
+    note.hrvStatus,
+    note.stress,
+    note.garminStress,
+    note.bodyBattery,
+    note.totalSteps,
+    parsed.journalEntry.workoutStructure,
+  ];
+
+  return {
+    recoveryFieldCount: recoveryValues.filter(
+      (value) => value !== null && value !== undefined,
+    ).length,
+    coachNotesHasText:
+      parsed.journalEntry.coachNotes !== null &&
+      parsed.journalEntry.coachNotes.trim() !== "",
+  };
+}
+
 export function createJournal(input: {
   cwd?: string;
   date?: string | null;
@@ -193,14 +256,29 @@ export function createJournal(input: {
   parseDate(date);
 
   const journalPath = join(cwd, JOURNAL_FOLDER, `${date}.md`);
-
-  if (existsSync(journalPath)) {
-    return { journalPath, date, created: false, importedActivityCount: 0 };
-  }
-
   const importedActivities = (input.importedActivities ?? []).filter(
     (activity) => activity.date === date,
   );
+
+  if (existsSync(journalPath)) {
+    const original = readFileSync(journalPath, "utf8");
+    const refreshed = refreshImportedActivitiesSection({
+      content: original,
+      importedActivities,
+    });
+
+    if (refreshed.changed) {
+      writeFileSync(journalPath, refreshed.content);
+    }
+
+    return {
+      journalPath,
+      date,
+      created: false,
+      importedActivityCount: importedActivities.length,
+    };
+  }
+
   const content = renderJournalTemplate({
     cwd,
     date,
@@ -234,6 +312,43 @@ export function renderJournalTemplate(input: {
       IMPORTED_ACTIVITIES_PLACEHOLDER,
       renderImportedActivities(input.importedActivities),
     );
+}
+
+export function refreshImportedActivitiesSection(input: {
+  content: string;
+  importedActivities: ManualActivity[];
+}): { content: string; changed: boolean } {
+  const hadBom = input.content.charCodeAt(0) === 0xfeff;
+  const rawContent = hadBom ? input.content.slice(1) : input.content;
+  const lineEnding = rawContent.includes("\r\n") ? "\r\n" : "\n";
+  const lines = rawContent.split(/\r?\n/);
+  const sectionStart = lines.findIndex((line) =>
+    /^##\s+Imported Activities \(Reference Only\)\s*$/i.test(line),
+  );
+
+  if (sectionStart === -1) {
+    return { content: input.content, changed: false };
+  }
+
+  const sectionEnd = findNextJournalSection(lines, sectionStart + 1);
+  const end = sectionEnd === -1 ? lines.length : sectionEnd;
+  const rendered = renderImportedActivities(input.importedActivities).split(
+    "\n",
+  );
+  const replacement = ["", ...rendered, ""];
+  const refreshedLines = [
+    ...lines.slice(0, sectionStart + 1),
+    ...replacement,
+    ...lines.slice(end),
+  ];
+  const refreshedContent = `${hadBom ? "\ufeff" : ""}${refreshedLines.join(
+    lineEnding,
+  )}`;
+
+  return {
+    content: refreshedContent,
+    changed: refreshedContent !== input.content,
+  };
 }
 
 export function mergeDailyNotesPreferJournal(
@@ -328,18 +443,55 @@ function renderImportedActivities(activities: ManualActivity[]): string {
     .join("\n");
 }
 
+function findNextJournalSection(lines: string[], start: number): number {
+  for (let index = start; index < lines.length; index += 1) {
+    if (/^##\s+/.test(lines[index])) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 function formatActivity(activity: ManualActivity): string {
   return [
     titleCaseActivity(activity.activityType),
     activity.distanceMiles === null
       ? null
       : `${Number(activity.distanceMiles.toFixed(2))} mi`,
-    activity.durationMinutes === null
-      ? null
-      : secondsToReadableDuration(activity.durationMinutes * 60),
+    formatImportedActivityDuration(activity),
   ]
     .filter((value): value is string => value !== null)
     .join(" - ");
+}
+
+function formatImportedActivityDuration(
+  activity: ManualActivity,
+): string | null {
+  if (
+    activity.movingTimeSeconds !== null &&
+    activity.movingTimeSeconds !== undefined
+  ) {
+    return `${secondsToReadableDuration(activity.movingTimeSeconds)} moving`;
+  }
+
+  if (
+    activity.timerTimeSeconds !== null &&
+    activity.timerTimeSeconds !== undefined
+  ) {
+    return `${secondsToReadableDuration(activity.timerTimeSeconds)} timer`;
+  }
+
+  if (
+    activity.elapsedTimeSeconds !== null &&
+    activity.elapsedTimeSeconds !== undefined
+  ) {
+    return `${secondsToReadableDuration(activity.elapsedTimeSeconds)} elapsed`;
+  }
+
+  return activity.durationMinutes === null
+    ? null
+    : secondsToReadableDuration(activity.durationMinutes * 60);
 }
 
 function titleCaseActivity(activityType: string): string {
@@ -554,7 +706,21 @@ function defaultJournalTemplate(): string {
     "",
     "Sleep Score:",
     "",
+    "Sleep Quality:",
+    "",
+    "Deep Sleep Duration:",
+    "",
+    "Light Sleep Duration:",
+    "",
+    "REM Duration:",
+    "",
+    "Awake Duration:",
+    "",
+    "Restless Moments:",
+    "",
     "Resting Heart Rate:",
+    "",
+    "Average Overnight Heart Rate:",
     "",
     "Overnight HRV:",
     "",
@@ -565,6 +731,16 @@ function defaultJournalTemplate(): string {
     "Garmin Stress:",
     "",
     "Body Battery:",
+    "",
+    "Average Respiration:",
+    "",
+    "Lowest Respiration:",
+    "",
+    "Average SpO2:",
+    "",
+    "Lowest SpO2:",
+    "",
+    "Breathing Variations:",
     "",
     "Total Steps:",
     "",

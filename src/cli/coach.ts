@@ -1,13 +1,18 @@
+import { lstatSync, readFileSync } from "node:fs";
 import { relative } from "node:path";
-import { generateDailyCheckIn } from "./generate-daily";
+import {
+  generateDailyCheckInFromInputState,
+  loadDailyCheckInInputState,
+} from "./generate-daily";
 import {
   formatCheckInValidationReport,
-  validateCheckIn,
+  validationResultFromSummary,
 } from "./validate-checkin";
 import { parseLocalExports } from "../exports/export-scanner";
 import { importGarminWellness } from "../garmin-wellness/importer";
 import { loadAthleteConfig } from "../config/load";
-import { createJournal } from "../parsers/journal";
+import { createJournal, journalParseDiagnostics } from "../parsers/journal";
+import type { ManualActivity } from "../types";
 import {
   addDays,
   formatDate,
@@ -23,6 +28,7 @@ interface CoachArgs {
   evidenceDate: string | null;
   coachingDate: string | null;
   includeAthleteBackground: boolean;
+  debug: boolean;
 }
 
 export interface CoachWorkflowResult {
@@ -32,6 +38,7 @@ export interface CoachWorkflowResult {
   journalCreated: boolean;
   importedActivityCount: number;
   outputPath: string;
+  canonicalActivities: ManualActivity[];
 }
 
 export function parseCoachArgs(argv: string[]): CoachArgs {
@@ -39,6 +46,7 @@ export function parseCoachArgs(argv: string[]): CoachArgs {
   let evidenceDate: string | null = null;
   let coachingDate: string | null = null;
   let includeAthleteBackground = false;
+  let debug = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -69,10 +77,15 @@ export function parseCoachArgs(argv: string[]): CoachArgs {
 
     if (arg === "--include-athlete-background") {
       includeAthleteBackground = true;
+      continue;
+    }
+
+    if (arg === "--debug") {
+      debug = true;
     }
   }
 
-  return { mode, evidenceDate, coachingDate, includeAthleteBackground };
+  return { mode, evidenceDate, coachingDate, includeAthleteBackground, debug };
 }
 
 export function resolveCoachDates(
@@ -166,6 +179,8 @@ export function runCoachWorkflow(input: {
     cwd: input.cwd,
     date: evidenceDate,
     timezone: config.timezone,
+    importedActivities: exports.activities,
+    debug: input.args.debug,
   });
   if (wellness.zipFilesFound === 0 && wellness.looseFitFilesFound === 0) {
     log("Garmin wellness: no files found for this date.");
@@ -184,15 +199,32 @@ export function runCoachWorkflow(input: {
   log("Then rerun this command to regenerate the check-in.");
   log("");
 
-  const validation = validateCheckIn(input.cwd, { evidenceDate });
+  const inputState = loadDailyCheckInInputState(input.cwd, {
+    config,
+    exportInputs: exports,
+  });
+
+  if (input.args.debug) {
+    log(formatJournalDebugLine(input.cwd, journal.journalPath, evidenceDate));
+    log("");
+  }
+
+  const daily = generateDailyCheckInFromInputState(
+    input.cwd,
+    {
+      date: coachingDate,
+      preview: false,
+      includeAthleteBackground: input.args.includeAthleteBackground,
+    },
+    inputState,
+  );
+  const validation = validationResultFromSummary({
+    evidenceDate,
+    coachingDate,
+    summary: daily.summary,
+  });
   log(formatCheckInValidationReport(validation));
   log("");
-
-  const daily = generateDailyCheckIn(input.cwd, {
-    date: coachingDate,
-    preview: false,
-    includeAthleteBackground: input.args.includeAthleteBackground,
-  });
 
   log(
     `Generated output/daily-checkin.md for coaching day ${daily.coachingDate} using evidence day ${daily.evidenceDate}.`,
@@ -205,7 +237,40 @@ export function runCoachWorkflow(input: {
     journalCreated: journal.created,
     importedActivityCount: journal.importedActivityCount,
     outputPath: daily.outputPath,
+    canonicalActivities: exports.activities,
   };
+}
+
+function formatJournalDebugLine(
+  cwd: string,
+  journalPath: string,
+  evidenceDate: string,
+): string {
+  const content = readFileSync(journalPath, "utf8");
+  const hashPrefix = contentHashPrefix(content);
+  const modifiedToken = lstatSync(journalPath).mtime.getTime().toString(36);
+  const diagnostics = journalParseDiagnostics(content, evidenceDate);
+  const relativeJournalPath = relative(cwd, journalPath).replaceAll("\\", "/");
+
+  return [
+    `Debug journal read: evidence date ${evidenceDate}`,
+    `journal ${relativeJournalPath}`,
+    `modified ${modifiedToken}`,
+    `hash ${hashPrefix}`,
+    `parsed recovery fields ${diagnostics.recoveryFieldCount}`,
+    `coach notes text ${diagnostics.coachNotesHasText ? "yes" : "no"}`,
+  ].join("; ");
+}
+
+function contentHashPrefix(content: string): string {
+  let hash = 2166136261;
+
+  for (let index = 0; index < content.length; index += 1) {
+    hash ^= content.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0").slice(0, 8);
 }
 
 function validateAdjacentDates(

@@ -34,7 +34,21 @@ Sleep Duration:
 
 Sleep Score:
 
+Sleep Quality:
+
+Deep Sleep Duration:
+
+Light Sleep Duration:
+
+REM Duration:
+
+Awake Duration:
+
+Restless Moments:
+
 Resting Heart Rate:
+
+Average Overnight Heart Rate:
 
 Overnight HRV:
 
@@ -45,6 +59,16 @@ Stress (0-10 or words):
 Garmin Stress:
 
 Body Battery:
+
+Average Respiration:
+
+Lowest Respiration:
+
+Average SpO2:
+
+Lowest SpO2:
+
+Breathing Variations:
 
 Total Steps:
 

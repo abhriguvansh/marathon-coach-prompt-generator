@@ -45,15 +45,20 @@ interface FitActivitySummary {
   maxHr: number | null;
   avgCadence: number | null;
   maxCadence: number | null;
+  avgPowerWatts: number | null;
+  maxPowerWatts: number | null;
   calories: number | null;
   elapsedTimeSeconds: number | null;
+  timerTimeSeconds: number | null;
   movingTimeSeconds: number | null;
   stoppedTimeSeconds: number | null;
   avgSpeed: number | null;
   maxSpeed: number | null;
   bestPaceMinPerMile: string | null;
   trainingEffect: number | null;
+  anaerobicTrainingEffect: number | null;
   temperatureC: number | null;
+  temperatureF: number | null;
   device: string | null;
   laps: ActivityLap[];
   dataQualityNotes: string[];
@@ -97,9 +102,13 @@ export function parseFitExport(
   options: { timeZone?: string } = {},
 ): { activities: ManualActivity[]; warnings: ExportParseWarning[] } {
   try {
-    const messages = parseFitMessages(content);
-    const summaries = summarizeFitMessages(messages, options.timeZone ?? "UTC");
     const fitSource = fitExportSource(source);
+    const messages = parseFitMessages(content);
+    const summaries = summarizeFitMessages(
+      messages,
+      options.timeZone ?? "UTC",
+      fitSource,
+    );
     const activities = summaries
       .map((summary) =>
         buildExportActivity({
@@ -119,15 +128,20 @@ export function parseFitExport(
           maxHr: summary.maxHr,
           avgCadence: summary.avgCadence,
           maxCadence: summary.maxCadence,
+          avgPowerWatts: summary.avgPowerWatts,
+          maxPowerWatts: summary.maxPowerWatts,
           calories: summary.calories,
           elapsedTimeSeconds: summary.elapsedTimeSeconds,
+          timerTimeSeconds: summary.timerTimeSeconds,
           movingTimeSeconds: summary.movingTimeSeconds,
           stoppedTimeSeconds: summary.stoppedTimeSeconds,
           avgSpeed: summary.avgSpeed,
           maxSpeed: summary.maxSpeed,
           bestPaceMinPerMile: summary.bestPaceMinPerMile,
           trainingEffect: summary.trainingEffect,
+          anaerobicTrainingEffect: summary.anaerobicTrainingEffect,
           temperatureC: summary.temperatureC,
+          temperatureF: summary.temperatureF,
           device: summary.device,
           laps: summary.laps,
           dataQualityNotes: summary.dataQualityNotes,
@@ -360,6 +374,7 @@ function readFieldValue(
 function summarizeFitMessages(
   messages: FitParsedMessage[],
   timeZone: string,
+  source: ExportSource,
 ): FitActivitySummary[] {
   const sessionMessages = messages.filter(
     (message) => message.globalMessageNumber === GLOBAL_SESSION,
@@ -382,6 +397,7 @@ function summarizeFitMessages(
         messages,
         sessionMessages.length > 0,
         timeZone,
+        source,
       ),
     )
     .filter((summary): summary is FitActivitySummary => summary !== null);
@@ -392,6 +408,7 @@ function summaryFromMessage(
   messages: FitParsedMessage[],
   canUseLaps: boolean,
   timeZone: string,
+  source: ExportSource,
 ): FitActivitySummary | null {
   const startDateTime =
     fitTimestamp(valueNumber(message.fields[2])) ??
@@ -407,26 +424,46 @@ function summaryFromMessage(
   );
   const distanceMeters = scaledNumber(message.fields[9], 100);
   const elapsedTimeSeconds = scaledNumber(message.fields[7], 1000);
-  const rawMovingTimeSeconds = scaledNumber(message.fields[8], 1000);
+  const rawMovingTimeSeconds =
+    scaledNumber(message.fields[64], 1000) ??
+    (source === "garmin_fit_export"
+      ? null
+      : scaledNumber(message.fields[8], 1000));
   const movingTimeSeconds = trustworthyMovingTimeSeconds(
     rawMovingTimeSeconds,
     elapsedTimeSeconds,
   );
+  const timerTimeSeconds = scaledNumber(message.fields[8], 1000);
   const durationSeconds =
     movingTimeSeconds ??
+    timerTimeSeconds ??
     elapsedTimeSeconds ??
     scaledNumber(message.fields[0], 1000);
-  const ascentMeters = valueNumber(message.fields[21]);
-  const descentMeters = valueNumber(message.fields[22]);
-  const avgHr =
-    valueNumber(message.fields[16]) ??
-    valueNumber(message.fields[15]) ??
-    valueNumber(message.fields[6]);
-  const maxHr =
-    valueNumber(message.fields[17]) ?? valueNumber(message.fields[16]);
-  const avgCadence =
-    valueNumber(message.fields[18]) ?? valueNumber(message.fields[17]);
-  const maxCadence = valueNumber(message.fields[19]);
+  const ascentMeters =
+    valueNumber(message.fields[23]) === null
+      ? valueNumber(message.fields[21])
+      : valueNumber(message.fields[22]);
+  const descentMeters =
+    valueNumber(message.fields[23]) ?? valueNumber(message.fields[22]);
+  const hr = heartRatePair(message.fields[16], message.fields[17]);
+  const avgCadence = cadenceStepsPerMinute({
+    base: message.fields[18],
+    fractional: message.fields[80],
+    activityType,
+  });
+  const maxCadence = cadenceStepsPerMinute({
+    base: message.fields[19],
+    fractional: message.fields[81],
+    activityType,
+  });
+  const hasGarminSessionPowerLayout =
+    source === "garmin_fit_export" && valueNumber(message.fields[23]) !== null;
+  const avgPowerWatts = hasGarminSessionPowerLayout
+    ? plausiblePowerWatts(valueNumber(message.fields[20]))
+    : null;
+  const maxPowerWatts = hasGarminSessionPowerLayout
+    ? plausiblePowerWatts(valueNumber(message.fields[21]))
+    : null;
   const calories = valueNumber(message.fields[11]);
   const avgSpeedMetersPerSecond = scaledNumber(message.fields[14], 1000);
   const maxSpeedMetersPerSecond = scaledNumber(message.fields[15], 1000);
@@ -437,14 +474,17 @@ function summaryFromMessage(
       ? elapsedTimeSeconds - movingTimeSeconds
       : null;
   const trainingEffect = trainingEffectValue(message.fields[24]);
-  const temperatureC = valueNumber(message.fields[20]);
+  const anaerobicTrainingEffect = trainingEffectValue(message.fields[83]);
+  const temperatureC =
+    plausibleTemperatureC(valueNumber(message.fields[57])) ??
+    plausibleTemperatureC(valueNumber(message.fields[20]));
   const distanceMiles =
     distanceMeters === null ? null : metersToMiles(distanceMeters);
   const durationMinutes =
     durationSeconds === null ? null : durationSeconds / 60;
   const elevation = elevationSummary(messages, ascentMeters, descentMeters);
   const fitLaps = canUseLaps
-    ? validFitLaps(messages, distanceMiles, durationSeconds)
+    ? validFitLaps(messages, distanceMiles, durationSeconds, activityType)
     : [];
   const laps =
     fitLaps.length > 0
@@ -463,12 +503,15 @@ function summaryFromMessage(
     netElevationChangeFt: elevation.netChangeFt,
     elevationSource: elevation.source,
     elevationDataQuality: elevation.dataQuality,
-    avgHr,
-    maxHr,
+    avgHr: hr.avg,
+    maxHr: hr.max,
     avgCadence,
     maxCadence,
+    avgPowerWatts,
+    maxPowerWatts,
     calories,
     elapsedTimeSeconds,
+    timerTimeSeconds,
     movingTimeSeconds,
     stoppedTimeSeconds,
     avgSpeed:
@@ -481,7 +524,9 @@ function summaryFromMessage(
         : metersPerSecondToMilesPerHour(maxSpeedMetersPerSecond),
     bestPaceMinPerMile: paceFromSpeed(maxSpeedMetersPerSecond),
     trainingEffect,
+    anaerobicTrainingEffect,
     temperatureC,
+    temperatureF: null,
     device: deviceName(messages),
     laps,
     dataQualityNotes: [
@@ -495,7 +540,7 @@ function summaryFromMessage(
         : []),
       ...(elapsedTimeSeconds !== null && movingTimeSeconds === null
         ? [
-            "Moving time unavailable from FIT summary; elapsed time used for pace.",
+            "Moving time unavailable from FIT summary; timer or elapsed time used for pace.",
           ]
         : []),
       ...(elevation.dataQuality === null ? [] : [elevation.dataQuality]),
@@ -523,10 +568,11 @@ function validFitLaps(
   messages: FitParsedMessage[],
   activityDistanceMiles: number | null,
   activityDurationSeconds: number | null,
+  activityType: string | null,
 ): ActivityLap[] {
   const laps = messages
     .filter((message) => message.globalMessageNumber === GLOBAL_LAP)
-    .map((message, index) => lapFromMessage(message, index + 1))
+    .map((message, index) => lapFromMessage(message, index + 1, activityType))
     .filter((lap): lap is ActivityLap => lap !== null)
     .filter(
       (lap) =>
@@ -738,12 +784,13 @@ function sumNullableNumbers(values: Array<number | null>): number | null {
 function lapFromMessage(
   message: FitParsedMessage,
   lapNumber: number,
+  activityType: string | null,
 ): ActivityLap | null {
   const distanceMeters = scaledNumber(message.fields[9], 100);
   const elapsedTimeSeconds = scaledNumber(message.fields[7], 1000);
-  const movingTimeSeconds = scaledNumber(message.fields[8], 1000);
+  const timerTimeSeconds = scaledNumber(message.fields[8], 1000);
   const durationSeconds =
-    movingTimeSeconds ??
+    timerTimeSeconds ??
     elapsedTimeSeconds ??
     scaledNumber(message.fields[0], 1000);
   const distanceMiles =
@@ -752,6 +799,11 @@ function lapFromMessage(
   if (distanceMiles === null && durationSeconds === null) {
     return null;
   }
+
+  const officialHr = heartRatePair(message.fields[15], message.fields[16]);
+  const fallbackHr = heartRatePair(message.fields[16], message.fields[17]);
+  const usesOfficialHr = officialHr.avg !== null;
+  const hr = usesOfficialHr ? officialHr : fallbackHr;
 
   return {
     lapNumber,
@@ -763,13 +815,34 @@ function lapFromMessage(
       distanceMiles,
       durationSeconds === null ? null : durationSeconds / 60,
     ),
-    avgHr: valueNumber(message.fields[16]),
-    maxHr: valueNumber(message.fields[17]),
+    avgHr: hr.avg,
+    maxHr: hr.max,
     elevationGainFt:
       valueNumber(message.fields[21]) === null
         ? null
         : (valueNumber(message.fields[21]) ?? 0) * 3.28084,
-    avgCadence: valueNumber(message.fields[18]),
+    elevationLossFt:
+      valueNumber(message.fields[22]) === null
+        ? null
+        : (valueNumber(message.fields[22]) ?? 0) * 3.28084,
+    avgCadence: cadenceStepsPerMinute({
+      base: usesOfficialHr ? message.fields[17] : message.fields[18],
+      fractional: usesOfficialHr ? message.fields[80] : null,
+      activityType,
+    }),
+    maxCadence: cadenceStepsPerMinute({
+      base: usesOfficialHr ? message.fields[18] : message.fields[19],
+      fractional: usesOfficialHr ? message.fields[81] : null,
+      activityType,
+    }),
+    avgPowerWatts: usesOfficialHr
+      ? plausiblePowerWatts(valueNumber(message.fields[19]))
+      : null,
+    maxPowerWatts: usesOfficialHr
+      ? plausiblePowerWatts(valueNumber(message.fields[20]))
+      : null,
+    calories: valueNumber(message.fields[11]),
+    temperatureF: null,
   };
 }
 
@@ -1069,6 +1142,59 @@ function trainingEffectValue(value: FitValue): number | null {
   }
 
   return number > 10 ? number / 10 : number;
+}
+
+function heartRatePair(
+  avgValue: FitValue,
+  maxValue: FitValue,
+): { avg: number | null; max: number | null } {
+  const avg = validHeartRate(valueNumber(avgValue));
+  const max = validHeartRate(valueNumber(maxValue));
+
+  if (avg !== null && max !== null && max < avg) {
+    return { avg, max: null };
+  }
+
+  return { avg, max };
+}
+
+function validHeartRate(value: number | null): number | null {
+  return value !== null && value >= 30 && value <= 240
+    ? Math.round(value)
+    : null;
+}
+
+function cadenceStepsPerMinute(input: {
+  base: FitValue;
+  fractional: FitValue;
+  activityType: string | null;
+}): number | null {
+  const base = valueNumber(input.base);
+
+  if (base === null || base <= 0 || base > 254) {
+    return null;
+  }
+
+  const fractional = valueNumber(input.fractional);
+  const cyclesPerMinute =
+    base +
+    (fractional !== null && fractional >= 0 && fractional < 128
+      ? fractional / 128
+      : 0);
+  const multiplier =
+    input.activityType === "run" && cyclesPerMinute <= 130 ? 2 : 1;
+
+  return Math.round(cyclesPerMinute * multiplier);
+}
+
+function plausibleTemperatureC(value: number | null): number | null {
+  return value !== null && value >= -40 && value <= 60 ? value : null;
+}
+
+function plausiblePowerWatts(value: number | null): number | null {
+  return value !== null && value > 0 && value <= 3000
+    ? Math.round(value)
+    : null;
 }
 
 function metersPerSecondToMilesPerHour(value: number): number {

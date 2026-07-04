@@ -3,12 +3,14 @@ import { parseLocalExports } from "../exports/export-scanner";
 import { scanGarminWellness } from "./scanner";
 import type { GarminWellnessImportResult } from "./types";
 import { updateJournalWithGarminWellness } from "./journal-updater";
+import type { ManualActivity } from "../types";
 
 export function importGarminWellness(input: {
   cwd: string;
   date: string;
   timezone?: string | null;
   debug?: boolean;
+  importedActivities?: ManualActivity[];
 }): GarminWellnessImportResult {
   const scan = scanGarminWellness(input.cwd, {
     date: input.date,
@@ -17,18 +19,27 @@ export function importGarminWellness(input: {
   });
   const summary =
     scan.summaries.find((candidate) => candidate.date === input.date) ?? null;
-  const exports =
-    summary === null
-      ? { activities: [] }
-      : parseLocalExports(input.cwd, { timezone: input.timezone });
+  const importedActivities =
+    input.importedActivities ??
+    parseLocalExports(input.cwd, { timezone: input.timezone }).activities;
   const journal = updateJournalWithGarminWellness({
     cwd: input.cwd,
     date: input.date,
     summary,
-    importedActivities: exports.activities.filter(
+    importedActivities: importedActivities.filter(
       (activity) => activity.date === input.date,
     ),
   });
+
+  const warnings = [
+    ...scan.warnings,
+    ...(summary?.warnings ?? []),
+    ...journal.warnings,
+    ...(summary === null &&
+    (scan.zipFilesFound > 0 || scan.looseFitFilesFound > 0)
+      ? [`No Garmin wellness summary found for ${input.date}.`]
+      : []),
+  ];
 
   return {
     ...scan,
@@ -38,15 +49,7 @@ export function importGarminWellness(input: {
     fieldsPreserved: journal.fieldsPreserved,
     journalUpdated: journal.journalUpdated,
     debugNotes: scan.debugNotes,
-    warnings: unique([
-      ...scan.warnings,
-      ...(summary?.warnings ?? []),
-      ...journal.warnings,
-      ...(summary === null &&
-      (scan.zipFilesFound > 0 || scan.looseFitFilesFound > 0)
-        ? [`No Garmin wellness summary found for ${input.date}.`]
-        : []),
-    ]),
+    warnings: unique(filterResolvedWarnings(warnings, summary)),
   };
 }
 
@@ -88,4 +91,20 @@ function formatList(values: string[]): string[] {
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function filterResolvedWarnings(
+  warnings: string[],
+  summary: ReturnType<typeof scanGarminWellness>["summaries"][number] | null,
+): string[] {
+  if (summary?.sleepDurationMinutes === null || summary === null) {
+    return warnings;
+  }
+
+  return warnings.filter(
+    (warning) =>
+      !warning.includes(
+        "Sleep duration not imported; only untrusted sleep-stage or segment records were found.",
+      ),
+  );
 }

@@ -85,6 +85,61 @@ describe("daily journal workflow", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("refreshes only the imported activity section in an existing journal", () => {
+    const dir = makeJournalProject();
+    const path = join(dir, "input/journal/2026-06-27.md");
+    writeFile(
+      path,
+      [
+        "# Daily Journal",
+        "",
+        "Date: 2026-06-27",
+        "",
+        "## Imported Activities (Reference Only)",
+        "",
+        "* Old imported reference",
+        "",
+        "## Recovery",
+        "",
+        "Soreness (0-10 or words): 2",
+        "",
+        "## Manual Activities",
+        "",
+        "### Tennis",
+        "",
+        "Duration: 1 hour",
+        "",
+        "## Coach Notes",
+        "",
+        "Keep this exact manual note.",
+        "",
+      ].join("\n"),
+    );
+    const exports = parseLocalExports(dir);
+    const result = createJournal({
+      cwd: dir,
+      date: "2026-06-27",
+      importedActivities: exports.activities,
+    });
+    const refreshed = readFileSync(path, "utf8");
+    createJournal({
+      cwd: dir,
+      date: "2026-06-27",
+      importedActivities: exports.activities,
+    });
+
+    assert.equal(result.created, false);
+    assert.equal(result.importedActivityCount, 2);
+    assert.doesNotMatch(refreshed, /Old imported reference/);
+    assert.match(refreshed, /Run - 4 mi - 40:00/);
+    assert.match(refreshed, /Walk - 2 mi - 40:00/);
+    assert.match(refreshed, /Soreness \(0-10 or words\): 2/);
+    assert.match(refreshed, /Duration: 1 hour/);
+    assert.match(refreshed, /Keep this exact manual note/);
+    assert.equal(readFileSync(path, "utf8"), refreshed);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("keeps the imported section when no exports exist for the date", () => {
     const dir = makeJournalProject();
     createJournal({
@@ -190,6 +245,37 @@ describe("daily journal workflow", () => {
     assert.equal(parsed.dailyNote.energy, "average");
     assert.equal(parsed.dailyNote.sleepQuality, "average");
     assert.equal(parsed.dailyNote.stress, "average");
+  });
+
+  it("parses canonical recovery keys and ignores commented coach-note text", () => {
+    const parsed = parseJournal(canonicalRecoveryJournal(), "2026-07-03");
+
+    assert.equal(parsed.dailyNote.legSoreness, 1);
+    assert.equal(parsed.dailyNote.pain, 0);
+    assert.equal(parsed.dailyNote.painLocation, "na");
+    assert.equal(parsed.dailyNote.painType, "na");
+    assert.equal(parsed.dailyNote.gaitChanged, false);
+    assert.equal(parsed.dailyNote.energy, "average before run");
+    assert.equal(parsed.dailyNote.fatigue, "elevated during run");
+    assert.equal(parsed.dailyNote.sleepQuality, "good");
+    assert.equal(parsed.dailyNote.sleepDuration, "7h 12m");
+    assert.equal(parsed.dailyNote.sleepScore, 75);
+    assert.equal(parsed.dailyNote.restingHeartRate, 58);
+    assert.equal(parsed.dailyNote.averageOvernightHeartRate, 64);
+    assert.equal(parsed.dailyNote.overnightHrv, 49);
+    assert.equal(
+      parsed.dailyNote.hrvStatus,
+      "unavailable / no established status",
+    );
+    assert.equal(parsed.dailyNote.stress, "average");
+    assert.equal(parsed.dailyNote.garminStress, 11);
+    assert.equal(parsed.dailyNote.bodyBattery, "+51");
+    assert.equal(parsed.dailyNote.totalSteps, "7,962");
+    assert.equal(parsed.journalEntry.workoutStructure, "easy run");
+    assert.equal(
+      parsed.journalEntry.coachNotes,
+      "Run was difficult because of the heat. Legs felt fine.",
+    );
   });
 
   it("treats placeholder recovery values as missing", () => {
@@ -496,6 +582,41 @@ function naturalLanguageRecoveryJournal(): string {
     "## Coach Notes",
     "",
     "Tomorrow has fake schedule constraints.",
+  ].join("\n");
+}
+
+function canonicalRecoveryJournal(): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-07-03",
+    "",
+    "## Recovery",
+    "",
+    "Soreness (0-10 or words): 1",
+    "Pain (0-10 or words): 0",
+    "Pain Location: na",
+    "Pain Type: na",
+    "Did pain change gait? (Yes/No): No",
+    "Energy (0-10 or words): average before run",
+    "Fatigue (0-10 or words): elevated during run",
+    "Sleep: good",
+    "Sleep Duration: 7h 12m",
+    "Sleep Score: 75",
+    "Resting Heart Rate: 58 bpm",
+    "Average Overnight Heart Rate: 64 bpm",
+    "Overnight HRV: 49 ms",
+    "HRV Status: unavailable / no established status",
+    "Stress (0-10 or words): average",
+    "Garmin Stress: 11",
+    "Body Battery: +51",
+    "Total Steps: 7,962",
+    "Workout Structure: easy run",
+    "",
+    "## Coach Notes",
+    "",
+    "<!-- stale note that should not be parsed -->",
+    "Run was difficult because of the heat. Legs felt fine.",
   ].join("\n");
 }
 

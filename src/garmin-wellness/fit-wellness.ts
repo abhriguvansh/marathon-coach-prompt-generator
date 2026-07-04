@@ -42,6 +42,32 @@ export interface FitWellnessParseResult {
   debugNotes: string[];
 }
 
+type WellnessRecord = Omit<
+  GarminWellnessSummary,
+  "sourceFitFiles" | "supportedRecords" | "warnings" | "bodyBattery"
+> & {
+  bodyBatteryValues: Array<{
+    value: number;
+    kind: "waking" | "high" | "low" | "single";
+  }>;
+  warnings: Array<{ key: string; message: string }>;
+};
+
+interface SleepSelectionResult {
+  records: WellnessRecord[];
+  debugNotes: string[];
+}
+
+interface SleepTimelineCandidate {
+  start: string;
+  end: string;
+  durationMinutes: number | null;
+}
+
+interface TrustedSleepTimelineCandidate extends SleepTimelineCandidate {
+  durationMinutes: number;
+}
+
 const FIELD_TIMESTAMP = 253;
 const GLOBAL_MONITORING = 55;
 const GLOBAL_HRV = 78;
@@ -56,6 +82,9 @@ const GLOBAL_SYNTHETIC_WELLNESS = 65280;
 const GLOBAL_GARMIN_SLEEP_DATA = 356;
 const GLOBAL_GARMIN_SLEEP_STAGE = 410;
 
+const MIN_OVERNIGHT_SLEEP_MINUTES = 60;
+const MAX_OVERNIGHT_SLEEP_MINUTES = 900;
+const MAX_SLEEP_LEVEL_GAP_MINUTES = 240;
 const FIELD_SYNTHETIC_STEPS = [100];
 const FIELD_MONITORING_INFO_STEPS = [3];
 const FIELD_SLEEP_DURATION = [1, 10, 101];
@@ -86,14 +115,25 @@ export function parseGarminWellnessFit(
   const byDate = new Map<string, WellnessAccumulator>();
   const warnings: string[] = [];
   const messageCounts = new Map<number, number>();
+  const sleepSelection = sleepRecordsFromMessages(messages, timeZone);
   let supportedRecords = 0;
+
+  for (const record of sleepSelection.records) {
+    supportedRecords += 1;
+    const accumulator = getAccumulator(byDate, record.date);
+    accumulator.sourceFiles.add(sourceFile);
+    accumulator.supportedRecords += 1;
+    addWellnessRecordToAccumulator(accumulator, record);
+  }
 
   for (const message of messages) {
     messageCounts.set(
       message.globalMessageNumber,
       (messageCounts.get(message.globalMessageNumber) ?? 0) + 1,
     );
-    const record = wellnessRecordFromMessage(message, timeZone);
+    const record = wellnessRecordFromMessage(message, timeZone, {
+      hasSleepSummary: sleepSelection.records.length > 0,
+    });
 
     if (record === null) {
       continue;
@@ -104,54 +144,22 @@ export function parseGarminWellnessFit(
     accumulator.sourceFiles.add(sourceFile);
     accumulator.supportedRecords += 1;
 
-    pushNumber(accumulator.steps, record.totalSteps);
-    pushNumber(accumulator.sleepDurations, record.sleepDurationMinutes);
-    pushNumber(accumulator.sleepScores, record.sleepScore);
-    pushNumber(accumulator.restingHeartRates, record.restingHeartRate);
-    pushNumber(accumulator.hrvValues, record.overnightHrv);
-    pushString(accumulator.hrvStatuses, record.hrvStatus);
-    pushNumber(accumulator.stressValues, record.garminStress);
-    pushNumber(accumulator.respirationRates, record.respirationRate);
-    pushNumber(accumulator.pulseOxValues, record.pulseOx);
-    pushNumber(accumulator.intensityMinutes, record.intensityMinutes);
-    pushNumber(accumulator.floorsClimbed, record.floorsClimbed);
-    pushNumber(accumulator.calories, record.calories);
-    pushString(accumulator.bedtimes, record.bedtime);
-    pushString(accumulator.wakeTimes, record.wakeTime);
-    pushString(accumulator.sleepStages, record.sleepStages);
-
-    for (const value of record.bodyBatteryValues) {
-      accumulator.bodyBatteryValues.push(value);
-    }
-
-    for (const warning of record.warnings) {
-      addAccumulatorWarning(accumulator, warning.key, warning.message);
-    }
+    addWellnessRecordToAccumulator(accumulator, record);
   }
 
   return {
     summaries: [...byDate.values()].map(summaryFromAccumulator),
     supportedRecords,
     warnings,
-    debugNotes: debugNotes(messageCounts),
+    debugNotes: debugNotes(messageCounts, sleepSelection.debugNotes),
   };
 }
 
 function wellnessRecordFromMessage(
   message: FitParsedMessage,
   timeZone: string,
-):
-  | (Omit<
-      GarminWellnessSummary,
-      "sourceFitFiles" | "supportedRecords" | "warnings" | "bodyBattery"
-    > & {
-      bodyBatteryValues: Array<{
-        value: number;
-        kind: "waking" | "high" | "low" | "single";
-      }>;
-      warnings: Array<{ key: string; message: string }>;
-    })
-  | null {
+  context: { hasSleepSummary: boolean },
+): WellnessRecord | null {
   const timestamp = timestampFromMessage(message);
   const date = toAthleteLocalDate(timestamp, timeZone);
 
@@ -172,11 +180,18 @@ function wellnessRecordFromMessage(
           firstNumber(message, FIELD_SLEEP_DURATION),
         ),
         sleepScore: trustedScore(firstNumber(message, FIELD_SLEEP_SCORE)),
+        sleepQuality: null,
+        deepSleepDurationMinutes: null,
+        lightSleepDurationMinutes: null,
+        remDurationMinutes: null,
+        awakeDurationMinutes: null,
+        restlessMoments: null,
         restingHeartRate: saneNumber(
           firstNumber(message, FIELD_DAILY_RESTING_HR),
           25,
           120,
         ),
+        averageOvernightHeartRate: null,
         overnightHrv: trustedHrv(
           firstNumber(message, FIELD_TRUSTED_OVERNIGHT_HRV),
         ),
@@ -206,7 +221,10 @@ function wellnessRecordFromMessage(
           4,
           40,
         ),
+        lowestRespirationRate: null,
         pulseOx: saneNumber(firstNumber(message, FIELD_PULSE_OX), 50, 100),
+        lowestPulseOx: null,
+        breathingVariations: null,
         intensityMinutes: saneNumber(
           firstNumber(message, FIELD_INTENSITY_MINUTES),
           0,
@@ -239,20 +257,14 @@ function wellnessRecordFromMessage(
         ),
       };
     case GLOBAL_SLEEP_SUMMARY:
-      return {
-        ...emptyRecord(date),
-        sleepDurationMinutes: trustedSleepDurationMinutes(
-          firstNumber(message, FIELD_SLEEP_DURATION),
-        ),
-        sleepScore: trustedScore(firstNumber(message, FIELD_SLEEP_SCORE)),
-        bedtime: localTimeFromField(message, FIELD_BEDTIME, timeZone),
-        wakeTime: localTimeFromField(message, FIELD_WAKE_TIME, timeZone),
-        sleepStages: valueString(firstValue(message, FIELD_SLEEP_STAGE)),
-        warnings: sleepWarnings(message),
-      };
+      return null;
     case GLOBAL_SLEEP_LEVEL:
     case GLOBAL_GARMIN_SLEEP_STAGE:
     case GLOBAL_GARMIN_SLEEP_DATA:
+      if (context.hasSleepSummary) {
+        return null;
+      }
+
       return {
         ...emptyRecord(date),
         warnings: [
@@ -337,22 +349,49 @@ function getAccumulator(
   return created;
 }
 
-function emptyRecord(date: string): Omit<
-  GarminWellnessSummary,
-  "sourceFitFiles" | "supportedRecords" | "warnings" | "bodyBattery"
-> & {
-  bodyBatteryValues: Array<{
-    value: number;
-    kind: "waking" | "high" | "low" | "single";
-  }>;
-  warnings: Array<{ key: string; message: string }>;
-} {
+function addWellnessRecordToAccumulator(
+  accumulator: WellnessAccumulator,
+  record: WellnessRecord,
+): void {
+  pushNumber(accumulator.steps, record.totalSteps);
+  pushNumber(accumulator.sleepDurations, record.sleepDurationMinutes);
+  pushNumber(accumulator.sleepScores, record.sleepScore);
+  pushNumber(accumulator.restingHeartRates, record.restingHeartRate);
+  pushNumber(accumulator.hrvValues, record.overnightHrv);
+  pushString(accumulator.hrvStatuses, record.hrvStatus);
+  pushNumber(accumulator.stressValues, record.garminStress);
+  pushNumber(accumulator.respirationRates, record.respirationRate);
+  pushNumber(accumulator.pulseOxValues, record.pulseOx);
+  pushNumber(accumulator.intensityMinutes, record.intensityMinutes);
+  pushNumber(accumulator.floorsClimbed, record.floorsClimbed);
+  pushNumber(accumulator.calories, record.calories);
+  pushString(accumulator.bedtimes, record.bedtime);
+  pushString(accumulator.wakeTimes, record.wakeTime);
+  pushString(accumulator.sleepStages, record.sleepStages);
+
+  for (const value of record.bodyBatteryValues) {
+    accumulator.bodyBatteryValues.push(value);
+  }
+
+  for (const warning of record.warnings) {
+    addAccumulatorWarning(accumulator, warning.key, warning.message);
+  }
+}
+
+function emptyRecord(date: string): WellnessRecord {
   return {
     date,
     totalSteps: null,
     sleepDurationMinutes: null,
     sleepScore: null,
+    sleepQuality: null,
+    deepSleepDurationMinutes: null,
+    lightSleepDurationMinutes: null,
+    remDurationMinutes: null,
+    awakeDurationMinutes: null,
+    restlessMoments: null,
     restingHeartRate: null,
+    averageOvernightHeartRate: null,
     overnightHrv: null,
     hrvStatus: null,
     garminStress: null,
@@ -360,7 +399,10 @@ function emptyRecord(date: string): Omit<
     bodyBatteryLow: null,
     bodyBatteryOnWaking: null,
     respirationRate: null,
+    lowestRespirationRate: null,
     pulseOx: null,
+    lowestPulseOx: null,
+    breathingVariations: null,
     intensityMinutes: null,
     floorsClimbed: null,
     calories: null,
@@ -370,6 +412,147 @@ function emptyRecord(date: string): Omit<
     bodyBatteryValues: [],
     warnings: [],
   };
+}
+
+function sleepRecordsFromMessages(
+  messages: FitParsedMessage[],
+  timeZone: string,
+): SleepSelectionResult {
+  const summaryMessages = messages.filter(
+    (message) => message.globalMessageNumber === GLOBAL_SLEEP_SUMMARY,
+  );
+  const sleepLevelPoints = messages
+    .filter((message) => message.globalMessageNumber === GLOBAL_SLEEP_LEVEL)
+    .map((message) => timestampFromMessage(message))
+    .filter((timestamp): timestamp is string => timestamp !== null)
+    .sort();
+
+  if (summaryMessages.length === 0) {
+    return {
+      records: [],
+      debugNotes:
+        sleepLevelPoints.length === 0
+          ? ["Sleep candidates: no supported sleep summary found."]
+          : [
+              `Sleep candidates: ${sleepLevelPoints.length} sleep_level records rejected because no trusted sleep_summary marker was present.`,
+            ],
+    };
+  }
+
+  const candidates = sleepTimelineCandidates(sleepLevelPoints);
+  const selected = candidates
+    .filter(isTrustedSleepTimelineCandidate)
+    .sort((left, right) => {
+      if (right.durationMinutes !== left.durationMinutes) {
+        return right.durationMinutes - left.durationMinutes;
+      }
+
+      return right.end.localeCompare(left.end);
+    })[0];
+
+  if (!selected) {
+    return {
+      records: [],
+      debugNotes: [
+        "Sleep candidates: daily sleep summary found but rejected because no plausible bounded overnight sleep_level timeline was available.",
+      ],
+    };
+  }
+
+  const date = toAthleteLocalDate(selected.end, timeZone);
+  const bedtime = toAthleteLocalTime(selected.start, timeZone);
+  const wakeTime = toAthleteLocalTime(selected.end, timeZone);
+
+  if (date === null) {
+    return {
+      records: [],
+      debugNotes: [
+        "Sleep candidates: daily sleep summary found but rejected because wake date could not be assigned.",
+      ],
+    };
+  }
+
+  const sleepScore = trustedScore(
+    firstNumber(summaryMessages[0], [14, 102, 2, 11]),
+  );
+  const record: WellnessRecord = {
+    ...emptyRecord(date),
+    sleepDurationMinutes: selected.durationMinutes,
+    sleepScore,
+    bedtime,
+    wakeTime,
+    warnings:
+      sleepScore === null &&
+      firstNumber(summaryMessages[0], [14, 102, 2, 11]) !== null
+        ? [
+            {
+              key: "sleep-score-unavailable",
+              message:
+                "Sleep score not imported; available value was unavailable.",
+            },
+          ]
+        : [],
+  };
+  const rejected = candidates.length - 1;
+
+  return {
+    records: [record],
+    debugNotes: [
+      `Sleep candidates: daily sleep summary selected; ${sleepLevelPoints.length} sleep_level records used as a bounded timeline; sleep assigned to ${date} by local wake timestamp.`,
+      ...(rejected > 0
+        ? [
+            `Sleep candidates: ${rejected} shorter sleep_level group${rejected === 1 ? "" : "s"} rejected by deterministic overnight ranking.`,
+          ]
+        : []),
+    ],
+  };
+}
+
+function sleepTimelineCandidates(points: string[]): SleepTimelineCandidate[] {
+  const groups: string[][] = [];
+
+  for (const point of points) {
+    const current = groups[groups.length - 1];
+
+    if (
+      !current ||
+      minutesBetween(current[current.length - 1], point) >
+        MAX_SLEEP_LEVEL_GAP_MINUTES
+    ) {
+      groups.push([point]);
+      continue;
+    }
+
+    current.push(point);
+  }
+
+  return groups
+    .filter((group) => group.length >= 2)
+    .map((group) => {
+      const start = group[0];
+      const end = group[group.length - 1];
+      const minutes = minutesBetween(start, end);
+
+      return {
+        start,
+        end,
+        durationMinutes:
+          minutes >= MIN_OVERNIGHT_SLEEP_MINUTES &&
+          minutes <= MAX_OVERNIGHT_SLEEP_MINUTES
+            ? Math.round(minutes)
+            : null,
+      };
+    });
+}
+
+function isTrustedSleepTimelineCandidate(
+  candidate: SleepTimelineCandidate,
+): candidate is TrustedSleepTimelineCandidate {
+  return candidate.durationMinutes !== null;
+}
+
+function minutesBetween(start: string, end: string): number {
+  return (new Date(end).getTime() - new Date(start).getTime()) / 60000;
 }
 
 function summaryFromAccumulator(
@@ -401,7 +584,14 @@ function summaryFromAccumulator(
     totalSteps: maxNumber(accumulator.steps),
     sleepDurationMinutes: maxNumber(accumulator.sleepDurations),
     sleepScore: lastNumber(accumulator.sleepScores),
+    sleepQuality: null,
+    deepSleepDurationMinutes: null,
+    lightSleepDurationMinutes: null,
+    remDurationMinutes: null,
+    awakeDurationMinutes: null,
+    restlessMoments: null,
     restingHeartRate: lastNumber(accumulator.restingHeartRates),
+    averageOvernightHeartRate: null,
     overnightHrv: lastNumber(accumulator.hrvValues),
     hrvStatus: lastString(accumulator.hrvStatuses),
     garminStress:
@@ -416,7 +606,10 @@ function summaryFromAccumulator(
     bodyBatteryLow,
     bodyBatteryOnWaking,
     respirationRate: roundedAverage(accumulator.respirationRates),
+    lowestRespirationRate: minNumber(accumulator.respirationRates),
     pulseOx: roundedAverage(accumulator.pulseOxValues),
+    lowestPulseOx: minNumber(accumulator.pulseOxValues),
+    breathingVariations: null,
     intensityMinutes: maxNumber(accumulator.intensityMinutes),
     floorsClimbed: maxNumber(accumulator.floorsClimbed),
     calories: maxNumber(accumulator.calories),
@@ -674,9 +867,12 @@ function addAccumulatorWarning(
   accumulator.warnings.push(message);
 }
 
-function debugNotes(messageCounts: Map<number, number>): string[] {
+function debugNotes(
+  messageCounts: Map<number, number>,
+  sleepNotes: string[],
+): string[] {
   if (messageCounts.size === 0) {
-    return [];
+    return sleepNotes;
   }
 
   const counts = [...messageCounts.entries()]
@@ -686,7 +882,8 @@ function debugNotes(messageCounts: Map<number, number>): string[] {
 
   return [
     `Observed FIT message types: ${counts}.`,
-    "Selection logic: steps use Garmin monitoring_info field 3 as cumulative daily steps; sleep uses trusted sleep_summary duration only; sleep-stage/segment records are ignored as totals; sleep score 0 is unavailable; resting HR uses daily_summary resting-HR fields only; overnight HRV rejects invalid sentinel values and unknown statuses.",
+    "Selection logic: steps use Garmin monitoring_info field 3 as cumulative daily steps; sleep requires a trusted sleep_summary marker plus a plausible bounded sleep_level timeline and is assigned by local wake date; orphan sleep-stage/segment records are ignored as totals; sleep score 0 is unavailable; resting HR uses daily_summary resting-HR fields only; overnight HRV rejects invalid sentinel values and unknown statuses.",
+    ...sleepNotes,
   ];
 }
 

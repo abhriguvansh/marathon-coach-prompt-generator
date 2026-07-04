@@ -68,7 +68,7 @@ export function renderDailyCheckIn(
     ...formatDailyWellnessMetrics(summary),
     `- Stress: ${formatRecoveryValue(daily?.stress, "unknown")}`,
     `- Motivation: ${formatRecoveryValue(daily?.motivation, "unknown")}`,
-    `- Daily notes: ${formatUnknown(daily?.notes, "not provided")}`,
+    `- Daily notes: ${formatDailyNotes(summary)}`,
     "",
     "## Gear And Fueling",
     "",
@@ -119,6 +119,25 @@ export function renderDailyCheckIn(
   ].join("\n");
 }
 
+function formatDailyNotes(summary: DailySummary): string {
+  let notes = summary.dailyNote?.notes ?? null;
+
+  if (notes && summary.journalEntry?.coachNotes) {
+    notes = notes.replace(summary.journalEntry.coachNotes, "").trim();
+  }
+
+  if (notes && summary.journalEntry?.questionsForCoach) {
+    notes = notes
+      .replace(
+        `Questions for coach: ${summary.journalEntry.questionsForCoach}`,
+        "",
+      )
+      .trim();
+  }
+
+  return formatUnknown(notes === "" ? null : notes, "not provided");
+}
+
 function formatJournalNutrition(
   journalEntry: DailySummary["journalEntry"],
 ): string {
@@ -151,9 +170,31 @@ function formatDailyWellnessMetrics(summary: DailySummary): string[] {
     daily.sleepScore === null || daily.sleepScore === undefined
       ? null
       : `- Sleep score: ${daily.sleepScore}`,
+    daily.sleepQualityDetail === null || daily.sleepQualityDetail === undefined
+      ? null
+      : `- Sleep quality: ${daily.sleepQualityDetail}`,
+    daily.deepSleepDuration === null || daily.deepSleepDuration === undefined
+      ? null
+      : `- Deep sleep duration: ${daily.deepSleepDuration}`,
+    daily.lightSleepDuration === null || daily.lightSleepDuration === undefined
+      ? null
+      : `- Light sleep duration: ${daily.lightSleepDuration}`,
+    daily.remDuration === null || daily.remDuration === undefined
+      ? null
+      : `- REM duration: ${daily.remDuration}`,
+    daily.awakeDuration === null || daily.awakeDuration === undefined
+      ? null
+      : `- Awake duration: ${daily.awakeDuration}`,
+    daily.restlessMoments === null || daily.restlessMoments === undefined
+      ? null
+      : `- Restless moments: ${daily.restlessMoments}`,
     daily.restingHeartRate === null || daily.restingHeartRate === undefined
       ? null
       : `- Resting heart rate: ${daily.restingHeartRate} bpm`,
+    daily.averageOvernightHeartRate === null ||
+    daily.averageOvernightHeartRate === undefined
+      ? null
+      : `- Average overnight heart rate: ${daily.averageOvernightHeartRate} bpm`,
     daily.overnightHrv === null || daily.overnightHrv === undefined
       ? null
       : `- Overnight HRV: ${daily.overnightHrv} ms`,
@@ -166,6 +207,22 @@ function formatDailyWellnessMetrics(summary: DailySummary): string[] {
     daily.bodyBattery === null || daily.bodyBattery === undefined
       ? null
       : `- Body Battery: ${daily.bodyBattery}`,
+    daily.averageRespiration === null || daily.averageRespiration === undefined
+      ? null
+      : `- Average respiration: ${daily.averageRespiration}`,
+    daily.lowestRespiration === null || daily.lowestRespiration === undefined
+      ? null
+      : `- Lowest respiration: ${daily.lowestRespiration}`,
+    daily.averageSpo2 === null || daily.averageSpo2 === undefined
+      ? null
+      : `- Average SpO2: ${daily.averageSpo2}%`,
+    daily.lowestSpo2 === null || daily.lowestSpo2 === undefined
+      ? null
+      : `- Lowest SpO2: ${daily.lowestSpo2}%`,
+    daily.breathingVariations === null ||
+    daily.breathingVariations === undefined
+      ? null
+      : `- Breathing variations: ${daily.breathingVariations}`,
   ].filter((value): value is string => value !== null);
 }
 
@@ -308,20 +365,61 @@ function formatActivitySummary(activity: ManualActivity): string {
     activity.maxCadence === null || activity.maxCadence === undefined
       ? null
       : `Max cadence ${Math.round(activity.maxCadence)} spm`,
+    ...formatPowerAndDynamics(activity),
     activity.calories === null || activity.calories === undefined
       ? null
       : `${Math.round(activity.calories)} calories`,
     activity.trainingEffect === null || activity.trainingEffect === undefined
       ? null
-      : `Training effect ${Number(activity.trainingEffect.toFixed(1))}`,
-    activity.temperatureC === null || activity.temperatureC === undefined
-      ? null
-      : `Temp ${Math.round(activity.temperatureC)} C`,
+      : `Aerobic training effect ${Number(activity.trainingEffect.toFixed(1))}`,
+    formatTemperature(activity),
     formatDevice(activity.device),
     activity.notes,
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
+}
+
+function formatPowerAndDynamics(activity: ManualActivity): string[] {
+  return [
+    activity.avgPowerWatts === null || activity.avgPowerWatts === undefined
+      ? null
+      : `Avg power ${Math.round(activity.avgPowerWatts)} W`,
+    activity.maxPowerWatts === null || activity.maxPowerWatts === undefined
+      ? null
+      : `Max power ${Math.round(activity.maxPowerWatts)} W`,
+    activity.avgWattsPerKg === null || activity.avgWattsPerKg === undefined
+      ? null
+      : `Avg W/kg ${Number(activity.avgWattsPerKg.toFixed(2))}`,
+    activity.avgGroundContactTimeMs === null ||
+    activity.avgGroundContactTimeMs === undefined
+      ? null
+      : `GCT ${Math.round(activity.avgGroundContactTimeMs)} ms`,
+    activity.avgStrideLengthMeters === null ||
+    activity.avgStrideLengthMeters === undefined
+      ? null
+      : `Stride ${Number(activity.avgStrideLengthMeters.toFixed(2))} m`,
+    activity.avgVerticalOscillationCm === null ||
+    activity.avgVerticalOscillationCm === undefined
+      ? null
+      : `Vert osc ${Number(activity.avgVerticalOscillationCm.toFixed(1))} cm`,
+    activity.avgVerticalRatioPct === null ||
+    activity.avgVerticalRatioPct === undefined
+      ? null
+      : `Vert ratio ${Number(activity.avgVerticalRatioPct.toFixed(1))}%`,
+  ].filter((value): value is string => value !== null);
+}
+
+function formatTemperature(activity: ManualActivity): string | null {
+  if (activity.temperatureF !== null && activity.temperatureF !== undefined) {
+    return `Avg temp ${Number(activity.temperatureF.toFixed(1))} F`;
+  }
+
+  if (activity.temperatureC !== null && activity.temperatureC !== undefined) {
+    return `Avg temp ${Math.round(activity.temperatureC)} C`;
+  }
+
+  return null;
 }
 
 function formatDevice(device: string | null | undefined): string | null {
@@ -525,9 +623,18 @@ function formatLap(
     lap.elevationGainFt === null
       ? null
       : `Elevation gain ${Math.round(lap.elevationGainFt)} ft`,
+    lap.elevationLossFt === null || lap.elevationLossFt === undefined
+      ? null
+      : `loss ${Math.round(lap.elevationLossFt)} ft`,
     lap.avgCadence === null
       ? null
       : `Cadence ${Math.round(lap.avgCadence)} spm`,
+    lap.maxCadence === null || lap.maxCadence === undefined
+      ? null
+      : `Max cadence ${Math.round(lap.maxCadence)} spm`,
+    lap.avgPowerWatts === null || lap.avgPowerWatts === undefined
+      ? null
+      : `Avg power ${Math.round(lap.avgPowerWatts)} W`,
   ]
     .filter((value): value is string => value !== null)
     .join(", ");

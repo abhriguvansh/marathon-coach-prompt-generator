@@ -14,8 +14,22 @@ import { parseGpxExport } from "./parse-gpx-export";
 import { parseJsonExport } from "./parse-json-export";
 import { parseTcxExport } from "./parse-tcx-export";
 import { resolveActivityTimezone } from "../utils/timezone";
+import { classifyFitContent } from "./fit-classification";
+import {
+  applyGarminCsvCompanions,
+  parseGarminCsvCompanion,
+  type GarminCsvCompanion,
+} from "./garmin-csv-companion";
+import { readFitEntriesFromZip } from "../garmin-wellness/zip-reader";
 
-const SUPPORTED_EXTENSIONS = new Set([".csv", ".tcx", ".gpx", ".json", ".fit"]);
+const SUPPORTED_EXTENSIONS = new Set([
+  ".csv",
+  ".tcx",
+  ".gpx",
+  ".json",
+  ".fit",
+  ".zip",
+]);
 
 const EXPORT_FOLDERS: Array<{
   relativePath: string;
@@ -48,13 +62,17 @@ export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
         continue;
       }
 
-      if (
-        isRecognizedGarminWellnessZip(relativePath, folder.source, extension)
-      ) {
+      if (shouldSkipGarminFitFile(absolutePath, folder.source, extension)) {
         continue;
       }
 
-      const supported = SUPPORTED_EXTENSIONS.has(extension);
+      if (shouldSkipGarminWellnessZip(absolutePath, folder.source, extension)) {
+        continue;
+      }
+
+      const supported =
+        SUPPORTED_EXTENSIONS.has(extension) &&
+        (extension !== ".zip" || folder.source === "garmin_export");
       files.push({
         relativePath,
         source: folder.source,
@@ -82,6 +100,7 @@ export function parseLocalExports(
   const scan = scanExportFiles(cwd);
   const activities: ManualActivity[] = [];
   const warnings = [...scan.warnings];
+  const garminCsvCompanions: GarminCsvCompanion[] = [];
   const timezone = resolveActivityTimezone(options.timezone);
 
   if (
@@ -99,6 +118,16 @@ export function parseLocalExports(
 
     try {
       const content = readFileSync(absolutePath);
+
+      if (file.source === "garmin_export" && file.extension === ".csv") {
+        const companion = parseGarminCsvCompanion(content.toString("utf8"));
+
+        if (companion) {
+          garminCsvCompanions.push(companion);
+          continue;
+        }
+      }
+
       const parsed = parseExportContent({
         content,
         extension: file.extension,
@@ -119,6 +148,8 @@ export function parseLocalExports(
       });
     }
   }
+
+  warnings.push(...applyGarminCsvCompanions(activities, garminCsvCompanions));
 
   return { activities, scan, warnings };
 }
@@ -146,8 +177,20 @@ export function summarizeExportScan(scan: ExportScanResult): string {
   ].join("\n");
 }
 
-function isRecognizedGarminWellnessZip(
-  relativePath: string,
+function shouldSkipGarminFitFile(
+  absolutePath: string,
+  source: ExportSource,
+  extension: string,
+): boolean {
+  if (source !== "garmin_export" || extension !== ".fit") {
+    return false;
+  }
+
+  return classifyFitContent(readFileSync(absolutePath)) === "wellness";
+}
+
+function shouldSkipGarminWellnessZip(
+  absolutePath: string,
   source: ExportSource,
   extension: string,
 ): boolean {
@@ -155,11 +198,15 @@ function isRecognizedGarminWellnessZip(
     return false;
   }
 
-  const pathAfterGarmin = relativePath.replace(/^input\/garmin\//, "");
+  try {
+    const zip = readFitEntriesFromZip(readFileSync(absolutePath));
 
-  return (
-    !pathAfterGarmin.includes("/") || pathAfterGarmin.startsWith("wellness/")
-  );
+    return !zip.fitEntries.some(
+      (entry) => classifyFitContent(entry.content) === "activity",
+    );
+  } catch {
+    return false;
+  }
 }
 
 function parseExportContent(input: {
@@ -175,6 +222,10 @@ function parseExportContent(input: {
       });
     case ".fit":
       return parseFitExport(input.content, input.source, {
+        timeZone: input.timeZone,
+      });
+    case ".zip":
+      return parseGarminZipExport(input.content, input.source, {
         timeZone: input.timeZone,
       });
     case ".tcx":
@@ -201,6 +252,59 @@ function parseExportContent(input: {
         ],
       };
   }
+}
+
+function parseGarminZipExport(
+  content: Buffer,
+  source: ExportSource,
+  options: { timeZone: string },
+): { activities: ManualActivity[]; warnings: ExportParseWarning[] } {
+  if (source !== "garmin_export") {
+    return {
+      activities: [],
+      warnings: [
+        {
+          source,
+          extension: ".zip",
+          message:
+            "ZIP export skipped; only Garmin activity ZIPs are supported.",
+        },
+      ],
+    };
+  }
+
+  const zip = readFitEntriesFromZip(content);
+  const activities: ManualActivity[] = [];
+  const warnings: ExportParseWarning[] = zip.warnings.map((message) => ({
+    source,
+    extension: ".zip",
+    message,
+  }));
+  let activityFitEntries = 0;
+
+  for (const entry of zip.fitEntries) {
+    if (classifyFitContent(entry.content) !== "activity") {
+      continue;
+    }
+
+    activityFitEntries += 1;
+    const parsed = parseFitExport(entry.content, source, {
+      timeZone: options.timeZone,
+    });
+    activities.push(...parsed.activities);
+    warnings.push(...parsed.warnings);
+  }
+
+  if (activityFitEntries === 0) {
+    warnings.push({
+      source,
+      extension: ".zip",
+      message:
+        "Garmin ZIP parsed but no activity FIT entries were found; wellness entries are handled by import:wellness.",
+    });
+  }
+
+  return { activities, warnings };
 }
 
 function walkFiles(root: string): string[] {

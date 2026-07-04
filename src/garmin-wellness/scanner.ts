@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { resolveActivityTimezone } from "../utils/timezone";
+import { classifyFitContent } from "../exports/fit-classification";
 import { parseGarminWellnessFit } from "./fit-wellness";
 import type { GarminWellnessScanResult, GarminWellnessSummary } from "./types";
 import { readFitEntriesFromZip } from "./zip-reader";
@@ -34,13 +35,21 @@ export function scanGarminWellness(
     const extension = extname(candidate.path).toLowerCase();
 
     if (extension === ".zip") {
-      zipFilesFound += 1;
       try {
         const zip = readFitEntriesFromZip(readFileSync(candidate.path));
+        const wellnessEntries = zip.fitEntries.filter(
+          (entry) => classifyFitContent(entry.content) !== "activity",
+        );
+
+        if (wellnessEntries.length === 0) {
+          continue;
+        }
+
+        zipFilesFound += 1;
         ignoredEntries += zip.ignoredEntries;
         warnings.push(...zip.warnings);
 
-        for (const entry of zip.fitEntries) {
+        for (const entry of wellnessEntries) {
           const result = parseOneFit(
             entry.content,
             entry.name,
@@ -62,9 +71,15 @@ export function scanGarminWellness(
     }
 
     if (extension === ".fit") {
+      const content = readFileSync(candidate.path);
+
+      if (classifyFitContent(content) === "activity") {
+        continue;
+      }
+
       looseFitFilesFound += 1;
       const result = parseOneFit(
-        readFileSync(candidate.path),
+        content,
         `loose-wellness-fit-${looseFitFilesFound}.fit`,
         timezone.timeZone,
       );
@@ -231,7 +246,27 @@ function mergeSummary(
       right.sleepDurationMinutes,
     ),
     sleepScore: right.sleepScore ?? left.sleepScore,
+    sleepQuality: right.sleepQuality ?? left.sleepQuality,
+    deepSleepDurationMinutes: maxNullable(
+      left.deepSleepDurationMinutes,
+      right.deepSleepDurationMinutes,
+    ),
+    lightSleepDurationMinutes: maxNullable(
+      left.lightSleepDurationMinutes,
+      right.lightSleepDurationMinutes,
+    ),
+    remDurationMinutes: maxNullable(
+      left.remDurationMinutes,
+      right.remDurationMinutes,
+    ),
+    awakeDurationMinutes: maxNullable(
+      left.awakeDurationMinutes,
+      right.awakeDurationMinutes,
+    ),
+    restlessMoments: maxNullable(left.restlessMoments, right.restlessMoments),
     restingHeartRate: right.restingHeartRate ?? left.restingHeartRate,
+    averageOvernightHeartRate:
+      right.averageOvernightHeartRate ?? left.averageOvernightHeartRate,
     overnightHrv: right.overnightHrv ?? left.overnightHrv,
     hrvStatus: right.hrvStatus ?? left.hrvStatus,
     garminStress: right.garminStress ?? left.garminStress,
@@ -240,7 +275,13 @@ function mergeSummary(
     bodyBatteryLow: minNullable(left.bodyBatteryLow, right.bodyBatteryLow),
     bodyBatteryOnWaking: right.bodyBatteryOnWaking ?? left.bodyBatteryOnWaking,
     respirationRate: right.respirationRate ?? left.respirationRate,
+    lowestRespirationRate: minNullable(
+      left.lowestRespirationRate,
+      right.lowestRespirationRate,
+    ),
     pulseOx: right.pulseOx ?? left.pulseOx,
+    lowestPulseOx: minNullable(left.lowestPulseOx, right.lowestPulseOx),
+    breathingVariations: right.breathingVariations ?? left.breathingVariations,
     intensityMinutes: maxNullable(
       left.intensityMinutes,
       right.intensityMinutes,

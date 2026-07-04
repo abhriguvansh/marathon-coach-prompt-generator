@@ -163,11 +163,14 @@ function preferredKeepIndex(
   leftIndex: number,
   rightIndex: number,
 ): number {
-  if (left.source === "manual" && right.source !== "manual") {
+  const leftPriority = sourcePriority(left.source);
+  const rightPriority = sourcePriority(right.source);
+
+  if (leftPriority < rightPriority) {
     return leftIndex;
   }
 
-  if (right.source === "manual" && left.source !== "manual") {
+  if (rightPriority < leftPriority) {
     return rightIndex;
   }
 
@@ -234,4 +237,22 @@ function minutesFromTime(value: string | null | undefined): number | null {
 
 function hasValue(value: string | null | undefined): boolean {
   return value !== null && value !== undefined && value.trim() !== "";
+}
+
+function sourcePriority(source: ManualActivity["source"]): number {
+  switch (source) {
+    case "manual":
+    case "journal":
+      return 0;
+    case "garmin_fit_export":
+      return 1;
+    case "strava_fit_export":
+      return 2;
+    case "garmin_export":
+      return 3;
+    case "strava_export":
+      return 4;
+    default:
+      return 5;
+  }
 }

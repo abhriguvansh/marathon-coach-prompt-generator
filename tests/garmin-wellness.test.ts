@@ -156,6 +156,67 @@ describe("Garmin wellness import", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("imports trusted sleep summary using local wake date", () => {
+    const dir = makeProject();
+    writeFile(
+      join(dir, "input/garmin/2026-07-03.zip"),
+      zipFile([
+        {
+          name: "fake-sleep.fit",
+          content: syntheticFitRecords([
+            {
+              globalMessageNumber: 346,
+              fields: [uint8Field(14, 75)],
+            },
+            {
+              globalMessageNumber: 275,
+              fields: [
+                uint32Field(253, fitTimestamp("2026-07-03T04:00:00Z")),
+                uint8Field(0, 2),
+              ],
+            },
+            {
+              globalMessageNumber: 275,
+              fields: [
+                uint32Field(253, fitTimestamp("2026-07-03T07:15:00Z")),
+                uint8Field(0, 3),
+              ],
+            },
+            {
+              globalMessageNumber: 275,
+              fields: [
+                uint32Field(253, fitTimestamp("2026-07-03T10:45:00Z")),
+                uint8Field(0, 1),
+              ],
+            },
+          ]),
+        },
+      ]),
+    );
+
+    const result = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-03",
+      timezone: "America/New_York",
+      debug: true,
+    });
+    const journal = readFileSync(
+      join(dir, "input/journal/2026-07-03.md"),
+      "utf8",
+    );
+    const report = formatGarminWellnessImportReport(result);
+
+    assert.match(journal, /Sleep Duration: 6h 45m/);
+    assert.match(journal, /Sleep Score: 75/);
+    assert.match(report, /daily sleep summary selected/);
+    assert.match(
+      report,
+      /sleep assigned to 2026-07-03 by local wake timestamp/,
+    );
+    assert.doesNotMatch(report, /fake-sleep|2026-07-03\.zip/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("rejects unavailable sleep score, HRV sentinel, unknown status, and short sleep segments", () => {
     const dir = makeProject();
     writeFile(
@@ -725,9 +786,36 @@ function syntheticFitFile(
   globalMessageNumber: number,
   fields: FitField[],
 ): Buffer {
+  return syntheticFitRecords([{ globalMessageNumber, fields }]);
+}
+
+function syntheticFitRecords(
+  records: Array<{ globalMessageNumber: number; fields: FitField[] }>,
+): Buffer {
+  const fitRecords = records.flatMap((record, index) =>
+    syntheticFitRecord(index, record.globalMessageNumber, record.fields),
+  );
+  const fitData = Buffer.concat(fitRecords);
+  const header = Buffer.alloc(14);
+  header.writeUInt8(14, 0);
+  header.writeUInt8(16, 1);
+  header.writeUInt16LE(0, 2);
+  header.writeUInt32LE(fitData.length, 4);
+  Buffer.from(".FIT").forEach((byte, index) => {
+    header.writeUInt8(byte, 8 + index);
+  });
+
+  return Buffer.concat([header, fitData, Buffer.from([0x00, 0x00])]);
+}
+
+function syntheticFitRecord(
+  localMessageType: number,
+  globalMessageNumber: number,
+  fields: FitField[],
+): Buffer[] {
   const definition = Buffer.alloc(1 + 1 + 1 + 2 + 1 + fields.length * 3);
   let definitionOffset = 0;
-  definition.writeUInt8(0x40, definitionOffset);
+  definition.writeUInt8(0x40 | localMessageType, definitionOffset);
   definitionOffset += 1;
   definition.writeUInt8(0, definitionOffset);
   definitionOffset += 1;
@@ -749,7 +837,7 @@ function syntheticFitFile(
     1 + fields.reduce((total, field) => total + field.size, 0),
   );
   let dataOffset = 0;
-  data.writeUInt8(0, dataOffset);
+  data.writeUInt8(localMessageType, dataOffset);
   dataOffset += 1;
 
   for (const field of fields) {
@@ -757,17 +845,7 @@ function syntheticFitFile(
     dataOffset += field.size;
   }
 
-  const fitData = Buffer.concat([definition, data]);
-  const header = Buffer.alloc(14);
-  header.writeUInt8(14, 0);
-  header.writeUInt8(16, 1);
-  header.writeUInt16LE(0, 2);
-  header.writeUInt32LE(fitData.length, 4);
-  Buffer.from(".FIT").forEach((byte, index) => {
-    header.writeUInt8(byte, 8 + index);
-  });
-
-  return Buffer.concat([header, fitData, Buffer.from([0x00, 0x00])]);
+  return [definition, data];
 }
 
 function fitTimestamp(dateTime: string): number {

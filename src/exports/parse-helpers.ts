@@ -27,15 +27,28 @@ export function buildExportActivity(input: {
   maxHr: number | null;
   avgCadence?: number | null;
   maxCadence?: number | null;
+  avgPowerWatts?: number | null;
+  maxPowerWatts?: number | null;
+  avgWattsPerKg?: number | null;
+  maxWattsPerKg?: number | null;
+  avgGroundContactTimeMs?: number | null;
+  avgStrideLengthMeters?: number | null;
+  avgVerticalOscillationCm?: number | null;
+  avgVerticalRatioPct?: number | null;
   calories?: number | null;
   elapsedTimeSeconds?: number | null;
+  timerTimeSeconds?: number | null;
   movingTimeSeconds?: number | null;
   stoppedTimeSeconds?: number | null;
+  gapPaceMinPerMile?: string | null;
+  avgMovingPaceMinPerMile?: string | null;
   avgSpeed?: number | null;
   maxSpeed?: number | null;
   bestPaceMinPerMile?: string | null;
   trainingEffect?: number | null;
+  anaerobicTrainingEffect?: number | null;
   temperatureC?: number | null;
+  temperatureF?: number | null;
   device?: string | null;
   laps?: ManualActivity["laps"];
   dataQualityNotes?: string[];
@@ -64,15 +77,28 @@ export function buildExportActivity(input: {
     maxHr: input.maxHr,
     avgCadence: input.avgCadence ?? null,
     maxCadence: input.maxCadence ?? null,
+    avgPowerWatts: input.avgPowerWatts ?? null,
+    maxPowerWatts: input.maxPowerWatts ?? null,
+    avgWattsPerKg: input.avgWattsPerKg ?? null,
+    maxWattsPerKg: input.maxWattsPerKg ?? null,
+    avgGroundContactTimeMs: input.avgGroundContactTimeMs ?? null,
+    avgStrideLengthMeters: input.avgStrideLengthMeters ?? null,
+    avgVerticalOscillationCm: input.avgVerticalOscillationCm ?? null,
+    avgVerticalRatioPct: input.avgVerticalRatioPct ?? null,
     calories: input.calories ?? null,
     elapsedTimeSeconds: input.elapsedTimeSeconds ?? null,
+    timerTimeSeconds: input.timerTimeSeconds ?? null,
     movingTimeSeconds: input.movingTimeSeconds ?? null,
     stoppedTimeSeconds: input.stoppedTimeSeconds ?? null,
+    gapPaceMinPerMile: input.gapPaceMinPerMile ?? null,
+    avgMovingPaceMinPerMile: input.avgMovingPaceMinPerMile ?? null,
     avgSpeed: input.avgSpeed ?? null,
     maxSpeed: input.maxSpeed ?? null,
     bestPaceMinPerMile: input.bestPaceMinPerMile ?? null,
     trainingEffect: input.trainingEffect ?? null,
+    anaerobicTrainingEffect: input.anaerobicTrainingEffect ?? null,
     temperatureC: input.temperatureC ?? null,
+    temperatureF: input.temperatureF ?? null,
     device: input.device ?? null,
     laps: input.laps ?? [],
     runWalkStructure: null,

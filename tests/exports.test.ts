@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { deflateRawSync } from "node:zlib";
 import { describe, it } from "node:test";
 import { createDailySummary } from "../src/generator/daily-summary";
 import { renderDailyCheckIn } from "../src/generator/daily-markdown";
@@ -52,10 +53,45 @@ describe("local export parsing", () => {
 
   it("skips recognized Garmin wellness ZIPs but warns for unrelated ZIP exports", () => {
     const dir = makeExportProject();
-    writeFile(join(dir, "input/garmin/2026-07-01.zip"), "fake zip placeholder");
+    writeFile(
+      join(dir, "input/garmin/2026-07-01.zip"),
+      zipFile([
+        {
+          name: "fake-wellness.fit",
+          content: syntheticFitFile([
+            fitSummaryDefinition(0, 346),
+            fitSummaryData(0, {
+              sport: 11,
+              dateTime: "2026-07-01T12:00:00Z",
+              distanceMiles: 0,
+              movingSeconds: 1,
+              avgHr: 100,
+              maxHr: 100,
+              avgCadence: 0,
+            }),
+          ]),
+        },
+      ]),
+    );
     writeFile(
       join(dir, "input/garmin/wellness/wellness-2026-07-01.zip"),
-      "fake zip placeholder",
+      zipFile([
+        {
+          name: "fake-wellness.fit",
+          content: syntheticFitFile([
+            fitSummaryDefinition(0, 346),
+            fitSummaryData(0, {
+              sport: 11,
+              dateTime: "2026-07-01T12:00:00Z",
+              distanceMiles: 0,
+              movingSeconds: 1,
+              avgHr: 100,
+              maxHr: 100,
+              avgCadence: 0,
+            }),
+          ]),
+        },
+      ]),
     );
     writeFile(join(dir, "input/strava/random.zip"), "fake zip placeholder");
     const scan = scanExportFiles(dir);
@@ -74,6 +110,98 @@ describe("local export parsing", () => {
       scan.warnings.some((warning) => warning.extension === ".zip"),
       true,
     );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("discovers standalone Garmin activity FIT files and activity ZIPs", () => {
+    const dir = makeExportProject();
+    writeFile(
+      join(dir, "input/garmin/morning-run.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-07-03T11:30:00Z",
+        distanceMiles: 3.1,
+        movingSeconds: 2100,
+        avgHr: 140,
+        maxHr: 158,
+        ascentMeters: 18,
+        avgCadence: 156,
+      }),
+    );
+    writeFile(
+      join(dir, "input/garmin/activities/evening-run.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-07-04T00:15:00Z",
+        distanceMiles: 2.2,
+        movingSeconds: 1500,
+        avgHr: 138,
+        maxHr: 152,
+        ascentMeters: 10,
+        avgCadence: 154,
+      }),
+    );
+    writeFile(
+      join(dir, "input/garmin/activity-download.zip"),
+      zipFile([
+        {
+          name: "activity.fit",
+          content: syntheticFitActivity({
+            sport: 1,
+            dateTime: "2026-07-03T13:00:00Z",
+            distanceMiles: 4,
+            movingSeconds: 2400,
+            avgHr: 142,
+            maxHr: 160,
+            ascentMeters: 20,
+            avgCadence: 155,
+          }),
+        },
+      ]),
+    );
+    const result = parseLocalExports(dir, { timezone: testTimezone });
+    const garminRuns = result.activities.filter(
+      (activity) => activity.source === "garmin_fit_export",
+    );
+
+    assert.equal(garminRuns.length, 3);
+    assert.equal(
+      garminRuns.every((activity) => activity.date === "2026-07-03"),
+      true,
+    );
+    assert.deepEqual(
+      garminRuns
+        .map((activity) => Number((activity.distanceMiles ?? 0).toFixed(1)))
+        .sort((left, right) => left - right),
+      [2.2, 3.1, 4],
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("excludes Garmin wellness FIT files from activity parsing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-garmin-wellness-skip-"));
+    writeFile(
+      join(dir, "input/garmin/wellness.fit"),
+      syntheticFitFile([
+        fitSummaryDefinition(0, 346),
+        fitSummaryData(0, {
+          sport: 11,
+          dateTime: "2026-07-03T12:00:00Z",
+          distanceMiles: 0,
+          movingSeconds: 1,
+          avgHr: 100,
+          maxHr: 100,
+          avgCadence: 0,
+        }),
+      ]),
+    );
+    mkdirSync(join(dir, "input/strava"), { recursive: true });
+    const scan = scanExportFiles(dir);
+    const result = parseLocalExports(dir);
+
+    assert.equal(scan.files.length, 0);
+    assert.equal(result.activities.length, 0);
+    assert.equal(result.warnings.length, 0);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -177,7 +305,7 @@ describe("local export parsing", () => {
     assert.match(dailyMarkdown, /Walks:/);
     assert.match(
       dailyMarkdown,
-      /walk, 3\.87 mi, 1:01:12 elapsed, 59:48 moving, 1:24 stopped\/paused, 15:27 min\/mi moving pace, Best pace \d+:\d{2} min\/mi, Avg speed 3\.9 mph, Max speed 4\.3 mph, Avg HR 121, Max HR 144, Elevation gain 85 ft, loss 72 ft, Cadence 108 spm, Max cadence 118 spm, 286 calories, Training effect 2\.3, Temp 22 C, Device Garmin Synthetic Watch, Parsed from local FIT export; route details omitted\./,
+      /walk, 3\.87 mi, 1:01:12 elapsed, 59:48 moving, 1:24 stopped\/paused, 15:27 min\/mi moving pace, Best pace \d+:\d{2} min\/mi, Avg speed 3\.9 mph, Max speed 4\.3 mph, Avg HR 121, Max HR 144, Elevation gain 85 ft, loss 72 ft, Cadence 108 spm, Max cadence 118 spm, 286 calories, Aerobic training effect 2\.3, Avg temp 22 C, Device Garmin Synthetic Watch, Parsed from local FIT export; route details omitted\./,
     );
     assert.match(
       dailyMarkdown,
@@ -188,7 +316,7 @@ describe("local export parsing", () => {
     assert.match(dailyMarkdown, /Runs: run, 2\.91 mi/);
     assert.match(
       weeklyMarkdown,
-      /walk, 3\.8\d+ mi, .*Avg HR 121, Elevation gain 85 ft, Elevation loss 72 ft, source strava_fit_export, route details omitted/,
+      /walk, 3\.8\d+ mi, .*Avg HR 121, .*Elevation gain 85 ft, Elevation loss 72 ft, .*source strava_fit_export, route details omitted/,
     );
     assert.doesNotMatch(
       dailyMarkdown,
@@ -200,13 +328,97 @@ describe("local export parsing", () => {
     );
     assert.match(
       parseSummary,
-      /walk \| strava_fit_export \| 2026-06-26 \| 3\.87 mi \| 1:01:12 elapsed \| 59:48 moving \| 1:24 stopped\/paused \| 15:27 min\/mi moving pace \| Best pace \d+:\d{2} min\/mi \| Avg speed 3\.9 mph \| Max speed 4\.3 mph \| Avg HR 121 \| Max HR 144 \| Elevation gain 85 ft, loss 72 ft \| Cadence 108 spm \| Max cadence 118 spm \| 286 calories \| Training effect 2\.3 \| Device Garmin Synthetic Watch \| route details omitted/,
+      /walk \| strava_fit_export \| 2026-06-26 \| 3\.87 mi \| 1:01:12 elapsed \| 59:48 moving \| 1:24 stopped\/paused \| 15:27 min\/mi moving pace \| Best pace \d+:\d{2} min\/mi \| Avg speed 3\.9 mph \| Max speed 4\.3 mph \| Avg HR 121 \| Max HR 144 \| Elevation gain 85 ft, loss 72 ft \| Cadence 108 spm \| Max cadence 118 spm \| 286 calories \| Aerobic training effect 2\.3 \| Avg temp 22 C \| Device Garmin Synthetic Watch \| route details omitted/,
     );
     assert.match(parseSummary, /laps: 4 privacy-safe lap summaries available/);
     assert.doesNotMatch(
       parseSummary,
       /lat=|lon=|trkpt|position_lat|position_long/,
     );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("uses a Garmin lap CSV as a companion without duplicating the FIT activity", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-garmin-companion-test-"));
+    writeFile(
+      join(dir, "input/garmin/synthetic-run.fit"),
+      syntheticFitActivity({
+        sport: 1,
+        dateTime: "2026-07-03T12:00:00Z",
+        distanceMiles: 2.81,
+        movingSeconds: 2435,
+        elapsedSeconds: 2440,
+        avgHr: 161,
+        maxHr: 190,
+        ascentMeters: 21,
+        descentMeters: 20,
+        avgCadence: 68,
+        maxCadence: 81,
+        calories: 580,
+        trainingEffect: 4.4,
+        temperatureC: 36,
+        laps: [
+          lapInput(1, 1, 852, 144, 171, 11, 68, 8),
+          lapInput(2, 1, 799, 171, 190, 6, 71, 5),
+          lapInput(3, 0.81, 784, 169, 188, 3, 64, 8),
+        ],
+      }),
+    );
+    writeFile(
+      join(dir, "input/garmin/synthetic-run.csv"),
+      [
+        '"Laps","Time","Cumulative Time","Distance mi","Avg Pace min/mi","Avg GAP min/mi","Avg HR bpm","Max HR bpm","Total Ascent ft","Total Descent ft","Avg Power W","Avg W/kg","Max Power W","Max W/kg","Avg Run Cadence spm","Avg Ground Contact Time ms","Avg Stride Length m","Avg Vertical Oscillation cm","Avg Vertical Ratio %","Calories C","Avg Temperature","Best Pace min/mi","Max Run Cadence spm","Moving Time","Avg Moving Pace min/mi"',
+        '"1","14:12","14:12","1.00","14:12","14:12","144","171","36","26","180","2.33","300","3.88","138","310","0.79","8.8","11.1","179","96.8","12:40","161","13:48","13:48"',
+        '"2","13:19","27:31","1.00","13:19","13:19","171","190","20","16","210","2.72","320","4.15","143","305","0.82","8.6","10.8","206","96.8","12:30","163","13:19","13:19"',
+        '"3","13:04","40:35","0.81","16:09","16:09","169","188","10","26","200","2.59","315","4.08","129","330","0.74","9.2","12.4","195","96.8","12:50","158","13:02","16:05"',
+        '"Summary","40:35","40:35","2.81","14:27","14:17","161","190","69","66","197","2.55","318","4.13","136","318","0.76","9.1","12.0","580","96.8","12:30","163","40:09","14:18"',
+      ].join("\n"),
+    );
+
+    const result = parseLocalExports(dir);
+    const activity = result.activities[0];
+    const parseSummary = renderExportParseSummary(result, { debug: true });
+
+    assert.equal(result.activities.length, 1);
+    assert.equal(activity.source, "garmin_fit_export");
+    assert.equal(activity.movingTimeSeconds, 2409);
+    assert.equal(activity.stoppedTimeSeconds, 31);
+    assert.equal(activity.paceMinPerMile, "14:17");
+    assert.equal(activity.avgHr, 161);
+    assert.equal(activity.maxHr, 190);
+    assert.equal(Math.round(activity.elevationGainFt ?? 0), 69);
+    assert.equal(Math.round(activity.elevationLossFt ?? 0), 66);
+    assert.equal(activity.avgCadence, 136);
+    assert.equal(activity.maxCadence, 163);
+    assert.equal(activity.avgPowerWatts, 197);
+    assert.equal(activity.maxPowerWatts, 318);
+    assert.equal(activity.avgWattsPerKg, 2.55);
+    assert.equal(activity.maxWattsPerKg, 4.13);
+    assert.equal(activity.avgGroundContactTimeMs, 318);
+    assert.equal(activity.avgStrideLengthMeters, 0.76);
+    assert.equal(activity.avgVerticalOscillationCm, 9.1);
+    assert.equal(activity.avgVerticalRatioPct, 12);
+    assert.equal(activity.calories, 580);
+    assert.equal(activity.temperatureF, 96.8);
+    assert.equal(activity.gapPaceMinPerMile, "14:17");
+    assert.equal(activity.avgMovingPaceMinPerMile, "14:18");
+    assert.equal(activity.bestPaceMinPerMile, "12:30");
+    assert.equal(activity.laps?.length, 3);
+    assert.equal(activity.laps?.[0]?.avgHr, 144);
+    assert.equal(activity.laps?.[0]?.maxHr, 171);
+    assert.equal(activity.laps?.[0]?.avgCadence, 138);
+    assert.equal(activity.laps?.[0]?.maxCadence, 161);
+    assert.equal(activity.laps?.[0]?.avgPowerWatts, 180);
+    assert.equal(activity.laps?.[0]?.maxPowerWatts, 300);
+    assert.match(
+      parseSummary,
+      /Garmin CSV companion validated or filled .*moving time.*maxCadence.*temperature.*CSV did not create a duplicate activity/,
+    );
+    assert.doesNotMatch(
+      parseSummary,
+      /position_lat|position_long|trkpt|lat=|lon=/,
+    );
+
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -1267,6 +1479,64 @@ function syntheticFitFile(records: Buffer[]): Buffer {
 
 function fitTimestamp(dateTime: string): number {
   return Math.round((Date.parse(dateTime) - Date.UTC(1989, 11, 31)) / 1000);
+}
+
+function zipFile(entries: Array<{ name: string; content: Buffer }>): Buffer {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name);
+    const compressed = deflateRawSync(entry.content);
+    const local = Buffer.alloc(30 + name.length);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(0, 10);
+    local.writeUInt32LE(0, 14);
+    local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(entry.content.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    name.copy(local, 30);
+    localParts.push(local, compressed);
+
+    const central = Buffer.alloc(46 + name.length);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(0, 12);
+    central.writeUInt32LE(0, 16);
+    central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt32LE(entry.content.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    name.copy(central, 46);
+    centralParts.push(central);
+    offset += local.length + compressed.length;
+  }
+
+  const centralDirectory = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralDirectory.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...localParts, centralDirectory, eocd]);
 }
 
 function derivedTrackpointGpx(): string {

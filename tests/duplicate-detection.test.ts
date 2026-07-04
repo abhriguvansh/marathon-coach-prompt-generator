@@ -63,6 +63,22 @@ describe("duplicate detection", () => {
     assert.equal(analysis.warnings.length, 0);
   });
 
+  it("prefers Garmin FIT over Strava FIT for high-confidence duplicates", () => {
+    const analysis = analyzeActivityDuplicates([
+      activity("strava_fit_export", "run", 3, 30),
+      activity("garmin_fit_export", "run", 3.01, 30.2),
+      activity("garmin_fit_export", "run", 6, 60),
+    ]);
+
+    assert.equal(analysis.activitiesForTotals.length, 2);
+    assert.equal(analysis.activitiesForTotals[0].source, "garmin_fit_export");
+    assert.equal(analysis.activitiesForTotals[1].distanceMiles, 6);
+    assert.match(
+      analysis.warnings[0].message,
+      /garmin_fit_export vs strava_fit_export/,
+    );
+  });
+
   it("warns but keeps uncertain duplicates in totals", () => {
     const analysis = analyzeActivityDuplicates([
       activity("manual", "run", 3, null),

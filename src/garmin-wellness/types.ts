@@ -3,7 +3,14 @@ export interface GarminWellnessSummary {
   totalSteps: number | null;
   sleepDurationMinutes: number | null;
   sleepScore: number | null;
+  sleepQuality: string | null;
+  deepSleepDurationMinutes: number | null;
+  lightSleepDurationMinutes: number | null;
+  remDurationMinutes: number | null;
+  awakeDurationMinutes: number | null;
+  restlessMoments: number | null;
   restingHeartRate: number | null;
+  averageOvernightHeartRate: number | null;
   overnightHrv: number | null;
   hrvStatus: string | null;
   garminStress: number | null;
@@ -12,7 +19,10 @@ export interface GarminWellnessSummary {
   bodyBatteryLow: number | null;
   bodyBatteryOnWaking: number | null;
   respirationRate: number | null;
+  lowestRespirationRate: number | null;
   pulseOx: number | null;
+  lowestPulseOx: number | null;
+  breathingVariations: string | null;
   intensityMinutes: number | null;
   floorsClimbed: number | null;
   calories: number | null;

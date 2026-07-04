@@ -362,17 +362,40 @@ function formatActivity(activity: ManualActivity): string {
       : formatMinutes(activity.durationMinutes),
     formatRunWalkRatio(activity.runWalkStructure),
     activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+    activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
     activity.elevationGainFt === null || activity.elevationGainFt === undefined
       ? null
       : `Elevation gain ${Math.round(activity.elevationGainFt)} ft`,
     activity.elevationLossFt === null || activity.elevationLossFt === undefined
       ? null
       : `Elevation loss ${Math.round(activity.elevationLossFt)} ft`,
+    activity.avgCadence === null || activity.avgCadence === undefined
+      ? null
+      : `Cadence ${Math.round(activity.avgCadence)} spm`,
+    activity.avgPowerWatts === null || activity.avgPowerWatts === undefined
+      ? null
+      : `Avg power ${Math.round(activity.avgPowerWatts)} W`,
+    activity.calories === null || activity.calories === undefined
+      ? null
+      : `${Math.round(activity.calories)} calories`,
+    formatTemperature(activity),
     `source ${activity.source}`,
     "route details omitted",
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
+}
+
+function formatTemperature(activity: ManualActivity): string | null {
+  if (activity.temperatureF !== null && activity.temperatureF !== undefined) {
+    return `Avg temp ${Number(activity.temperatureF.toFixed(1))} F`;
+  }
+
+  if (activity.temperatureC !== null && activity.temperatureC !== undefined) {
+    return `Avg temp ${Math.round(activity.temperatureC)} C`;
+  }
+
+  return null;
 }
 
 function formatActivityType(activity: ManualActivity): string {

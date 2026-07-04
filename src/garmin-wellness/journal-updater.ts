@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { renderJournalTemplate } from "../parsers/journal";
+import {
+  refreshImportedActivitiesSection,
+  renderJournalTemplate,
+} from "../parsers/journal";
 import type { ManualActivity } from "../types";
 import { parseStepDetails } from "../utils/steps";
 import type { GarminWellnessSummary } from "./types";
@@ -50,12 +53,24 @@ const RECOVERY_FIELD_ORDER = [
   "Sleep",
   "Sleep Duration",
   "Sleep Score",
+  "Sleep Quality",
+  "Deep Sleep Duration",
+  "Light Sleep Duration",
+  "REM Duration",
+  "Awake Duration",
+  "Restless Moments",
   "Resting Heart Rate",
+  "Average Overnight Heart Rate",
   "Overnight HRV",
   "HRV Status",
   "Stress (0-10 or words)",
   "Garmin Stress",
   "Body Battery",
+  "Average Respiration",
+  "Lowest Respiration",
+  "Average SpO2",
+  "Lowest SpO2",
+  "Breathing Variations",
   "Total Steps",
   "Workout Structure",
 ];
@@ -68,9 +83,15 @@ export function updateJournalWithGarminWellness(input: {
 }): WellnessJournalUpdateResult {
   const journalPath = join(input.cwd, JOURNAL_FOLDER, `${input.date}.md`);
   const fields = wellnessFields(input.summary);
+  const hasImportableFields = hasImportableField(fields);
+  const hasImportedActivities = (input.importedActivities ?? []).length > 0;
   let journalCreated = false;
 
-  if (!hasImportableField(fields)) {
+  if (
+    !hasImportableFields &&
+    !hasImportedActivities &&
+    !existsSync(journalPath)
+  ) {
     return {
       journalPath,
       journalCreated: false,
@@ -101,14 +122,20 @@ export function updateJournalWithGarminWellness(input: {
   const populated: string[] = [];
   const preserved: string[] = [];
   const warnings: string[] = [];
-  const updated = updateRecoverySection({
+  const refreshed = refreshImportedActivitiesSection({
     content,
-    lineEnding,
-    fields,
-    populated,
-    preserved,
-    warnings,
+    importedActivities: input.importedActivities ?? [],
   });
+  const updated = hasImportableFields
+    ? updateRecoverySection({
+        content: refreshed.content,
+        lineEnding,
+        fields,
+        populated,
+        preserved,
+        warnings,
+      })
+    : refreshed.content;
   const finalContent = hadBom ? `\ufeff${updated}` : updated;
   const changed = finalContent !== original;
 
@@ -134,7 +161,9 @@ function updateRecoverySection(input: {
   preserved: string[];
   warnings: string[];
 }): string {
-  const lines = input.content.split(/\r?\n/);
+  const lines = coalesceRecoverySections(input.content, input.lineEnding).split(
+    /\r?\n/,
+  );
   const recoveryStart = findSectionStart(lines, "Recovery");
 
   if (recoveryStart === -1) {
@@ -214,6 +243,109 @@ function updateRecoverySection(input: {
   ].join(input.lineEnding);
 }
 
+function coalesceRecoverySections(content: string, lineEnding: string): string {
+  const lines = content.split(/\r?\n/);
+  const starts = lines
+    .map((line, index) => ({ line, index }))
+    .filter((entry) => /^##\s+Recovery\s*$/i.test(entry.line))
+    .map((entry) => entry.index);
+
+  if (starts.length <= 1) {
+    return content;
+  }
+
+  const firstStart = starts[0];
+  const firstEnd = sectionEnd(lines, firstStart);
+  const firstBody = lines.slice(firstStart + 1, firstEnd);
+  const firstFields = indexFieldLines(firstBody);
+  const customLines: string[] = [];
+  const removeRanges: Array<{ start: number; end: number }> = [];
+
+  for (const start of starts.slice(1)) {
+    const end = sectionEnd(lines, start);
+    const body = lines.slice(start + 1, end);
+
+    for (const line of body) {
+      const parsed = parseFieldLine(line);
+
+      if (!parsed) {
+        if (line.trim() !== "") {
+          customLines.push(line);
+        }
+        continue;
+      }
+
+      const existingIndex = firstFields.get(parsed.label);
+
+      if (existingIndex === undefined) {
+        firstBody.push(`${parsed.label}: ${parsed.value}`, "");
+        rebuildFieldIndex(firstFields, firstBody);
+        continue;
+      }
+
+      if (
+        isBlankish(currentFieldValue(firstBody[existingIndex])) &&
+        !isBlankish(parsed.value)
+      ) {
+        firstBody[existingIndex] = `${parsed.label}: ${parsed.value}`;
+      }
+    }
+
+    removeRanges.push({ start, end });
+  }
+
+  if (customLines.length > 0) {
+    firstBody.push("", ...customLines);
+  }
+
+  const rebuilt = [
+    ...lines.slice(0, firstStart + 1),
+    ...firstBody,
+    ...lines.slice(firstEnd),
+  ];
+
+  for (const range of removeRanges.reverse()) {
+    const adjustedStart =
+      range.start - (firstEnd - firstStart - 1) + firstBody.length;
+    const adjustedEnd =
+      range.end - (firstEnd - firstStart - 1) + firstBody.length;
+    rebuilt.splice(adjustedStart, adjustedEnd - adjustedStart);
+  }
+
+  return rebuilt.join(lineEnding);
+}
+
+function sectionEnd(lines: string[], start: number): number {
+  const next = findNextSection(lines, start + 1);
+
+  return next === -1 ? lines.length : next;
+}
+
+function parseFieldLine(line: string): { label: string; value: string } | null {
+  const match = line.match(/^([^:]+):\s*(.*)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    label: canonicalRecoveryLabel(match[1].trim()),
+    value: match[2].trim(),
+  };
+}
+
+function canonicalRecoveryLabel(label: string): string {
+  const match = RECOVERY_FIELD_ORDER.find(
+    (candidate) => normalizeLabel(candidate) === normalizeLabel(label),
+  );
+
+  return match ?? label;
+}
+
+function normalizeLabel(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 function wellnessFields(
   summary: GarminWellnessSummary | null,
 ): WellnessField[] {
@@ -235,6 +367,42 @@ function wellnessFields(
       kind: "sleepScore",
       value: summary.sleepScore === null ? null : String(summary.sleepScore),
     },
+    { label: "Sleep Quality", value: nonBlank(summary.sleepQuality) },
+    {
+      label: "Deep Sleep Duration",
+      value:
+        summary.deepSleepDurationMinutes === null
+          ? null
+          : formatSleepDuration(summary.deepSleepDurationMinutes),
+    },
+    {
+      label: "Light Sleep Duration",
+      value:
+        summary.lightSleepDurationMinutes === null
+          ? null
+          : formatSleepDuration(summary.lightSleepDurationMinutes),
+    },
+    {
+      label: "REM Duration",
+      value:
+        summary.remDurationMinutes === null
+          ? null
+          : formatSleepDuration(summary.remDurationMinutes),
+    },
+    {
+      label: "Awake Duration",
+      value:
+        summary.awakeDurationMinutes === null
+          ? null
+          : formatSleepDuration(summary.awakeDurationMinutes),
+    },
+    {
+      label: "Restless Moments",
+      value:
+        summary.restlessMoments === null
+          ? null
+          : String(summary.restlessMoments),
+    },
     {
       label: "Resting Heart Rate",
       kind: "restingHeartRate",
@@ -242,6 +410,13 @@ function wellnessFields(
         summary.restingHeartRate === null
           ? null
           : `${summary.restingHeartRate} bpm`,
+    },
+    {
+      label: "Average Overnight Heart Rate",
+      value:
+        summary.averageOvernightHeartRate === null
+          ? null
+          : `${summary.averageOvernightHeartRate} bpm`,
     },
     {
       label: "Overnight HRV",
@@ -260,6 +435,33 @@ function wellnessFields(
         summary.garminStress === null ? null : String(summary.garminStress),
     },
     { label: "Body Battery", value: nonBlank(summary.bodyBattery) },
+    {
+      label: "Average Respiration",
+      value:
+        summary.respirationRate === null
+          ? null
+          : String(summary.respirationRate),
+    },
+    {
+      label: "Lowest Respiration",
+      value:
+        summary.lowestRespirationRate === null
+          ? null
+          : String(summary.lowestRespirationRate),
+    },
+    {
+      label: "Average SpO2",
+      value: summary.pulseOx === null ? null : `${summary.pulseOx}%`,
+    },
+    {
+      label: "Lowest SpO2",
+      value:
+        summary.lowestPulseOx === null ? null : `${summary.lowestPulseOx}%`,
+    },
+    {
+      label: "Breathing Variations",
+      value: nonBlank(summary.breathingVariations),
+    },
     {
       label: "Total Steps",
       value:
