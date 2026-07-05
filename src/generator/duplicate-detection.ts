@@ -24,6 +24,7 @@ export function analyzeActivityDuplicates(
 ): DuplicateAnalysis {
   const candidates: DuplicateCandidate[] = [];
   const excludedIndexes = new Set<number>();
+  const mergedActivities = activities.map((activity) => ({ ...activity }));
 
   for (let leftIndex = 0; leftIndex < activities.length; leftIndex += 1) {
     for (
@@ -46,18 +47,30 @@ export function analyzeActivityDuplicates(
 
       if (candidate.confidence === "high_confidence") {
         excludedIndexes.add(candidate.duplicateIndex);
+        mergeDuplicateContext(
+          mergedActivities[candidate.keepIndex],
+          mergedActivities[candidate.duplicateIndex],
+        );
       }
     }
   }
 
   return {
-    activitiesForTotals: activities.filter(
-      (_, index) => !excludedIndexes.has(index),
+    activitiesForTotals: activityTotalsFromMerged(
+      mergedActivities,
+      excludedIndexes,
     ),
     warnings: candidates.map((candidate) =>
-      duplicateWarning(activities, candidate),
+      duplicateWarning(mergedActivities, candidate),
     ),
   };
+}
+
+function activityTotalsFromMerged(
+  activities: ManualActivity[],
+  excludedIndexes: Set<number>,
+): ManualActivity[] {
+  return activities.filter((_, index) => !excludedIndexes.has(index));
 }
 
 function compareActivities(
@@ -102,7 +115,7 @@ function compareActivities(
   const durationComparable =
     left.durationMinutes !== null && right.durationMinutes !== null;
 
-  if (distanceClose && durationClose) {
+  if (distanceClose && durationClose && !(isTennis(left) && isTennis(right))) {
     return {
       keepIndex: preferredKeepIndex(left, right, leftIndex, rightIndex),
       duplicateIndex: preferredDuplicateIndex(
@@ -115,6 +128,25 @@ function compareActivities(
       reason: startTimeClose
         ? "same date/type with close start time, distance, and duration"
         : "same date/type with close distance and duration",
+    };
+  }
+
+  if (isTennis(left) && isTennis(right) && durationClose) {
+    return {
+      keepIndex: preferredKeepIndex(left, right, leftIndex, rightIndex),
+      duplicateIndex: preferredDuplicateIndex(
+        left,
+        right,
+        leftIndex,
+        rightIndex,
+      ),
+      confidence:
+        startTimeClose || hasExportAndManual(left, right)
+          ? "high_confidence"
+          : "uncertain",
+      reason: startTimeClose
+        ? "same date/type with close start time and duration"
+        : "same date/type with close duration",
     };
   }
 
@@ -163,8 +195,8 @@ function preferredKeepIndex(
   leftIndex: number,
   rightIndex: number,
 ): number {
-  const leftPriority = sourcePriority(left.source);
-  const rightPriority = sourcePriority(right.source);
+  const leftPriority = sourcePriority(left);
+  const rightPriority = sourcePriority(right);
 
   if (leftPriority < rightPriority) {
     return leftIndex;
@@ -239,8 +271,23 @@ function hasValue(value: string | null | undefined): boolean {
   return value !== null && value !== undefined && value.trim() !== "";
 }
 
-function sourcePriority(source: ManualActivity["source"]): number {
-  switch (source) {
+function sourcePriority(activity: ManualActivity): number {
+  if (isTennis(activity)) {
+    switch (activity.source) {
+      case "garmin_fit_export":
+      case "strava_fit_export":
+      case "garmin_export":
+      case "strava_export":
+        return 0;
+      case "manual":
+      case "journal":
+        return 1;
+      default:
+        return 5;
+    }
+  }
+
+  switch (activity.source) {
     case "manual":
     case "journal":
       return 0;
@@ -255,4 +302,38 @@ function sourcePriority(source: ManualActivity["source"]): number {
     default:
       return 5;
   }
+}
+
+function mergeDuplicateContext(
+  kept: ManualActivity,
+  duplicate: ManualActivity,
+): void {
+  if (duplicate.notes && !kept.notes?.includes(duplicate.notes)) {
+    kept.notes = kept.notes
+      ? `${kept.notes} Manual duplicate note: ${duplicate.notes}`
+      : duplicate.notes;
+  }
+
+  kept.dataQualityNotes = [
+    ...(kept.dataQualityNotes ?? []),
+    `${kept.activityType} duplicate handled once for totals; objective export metrics were kept when available and manual notes were retained.`,
+  ];
+}
+
+function isTennis(activity: ManualActivity): boolean {
+  return normalizeActivityType(activity.activityType) === "tennis";
+}
+
+function hasExportAndManual(
+  left: ManualActivity,
+  right: ManualActivity,
+): boolean {
+  const sources = [left.source, right.source].map((source) =>
+    source.toLowerCase(),
+  );
+
+  return (
+    sources.some((source) => source.includes("export")) &&
+    sources.some((source) => source === "manual" || source === "journal")
+  );
 }

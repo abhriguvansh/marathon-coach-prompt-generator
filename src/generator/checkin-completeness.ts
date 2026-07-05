@@ -95,7 +95,7 @@ export function evaluateCheckInCompleteness(
   const manualOnlyActivityReminder =
     summary.manualActivities.filter((activity) => activity.source === "journal")
       .length === 0
-      ? "Manual-only activities are not detected from exports. Add climbing, weights, tennis, mobility, or other untracked activity if they happened."
+      ? manualOnlyActivityReminderText(summary)
       : null;
 
   return {
@@ -108,6 +108,44 @@ export function evaluateCheckInCompleteness(
     optionalReminders,
     manualOnlyActivityReminder,
   };
+}
+
+function manualOnlyActivityReminderText(
+  summary: Omit<DailySummary, "checkInCompleteness">,
+): string {
+  const represented = new Set(
+    summary.manualActivities.map((activity) =>
+      activity.activityType.trim().toLowerCase(),
+    ),
+  );
+  const missing = [
+    represented.has("rock_climbing") ? null : "climbing",
+    represented.has("weights") || represented.has("strength")
+      ? null
+      : "weights",
+    represented.has("tennis") ? null : "tennis",
+    represented.has("mobility") ? null : "mobility",
+  ].filter((value): value is string => value !== null);
+
+  if (missing.length === 0) {
+    return "Manual-only activities are not detected from exports. Add any other untracked activity if it happened.";
+  }
+
+  return `Manual-only activities are not detected from exports. Add ${joinHumanList(
+    missing,
+  )}, or any other untracked activity if they happened.`;
+}
+
+function joinHumanList(values: string[]): string {
+  if (values.length <= 1) {
+    return values.join("");
+  }
+
+  if (values.length === 2) {
+    return `${values[0]} or ${values[1]}`;
+  }
+
+  return `${values.slice(0, -1).join(", ")}, or ${values.at(-1)}`;
 }
 
 function addMissing(fields: string[], field: string, present: boolean): void {

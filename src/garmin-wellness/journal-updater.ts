@@ -20,6 +20,8 @@ export interface WellnessJournalUpdateResult {
 interface WellnessField {
   label: string;
   value: string | null;
+  source?: string;
+  lowerPriorityValue?: string | null;
   kind?:
     | "steps"
     | "sleepDuration"
@@ -210,6 +212,16 @@ function updateRecoverySection(input: {
           recoveryLines[existingIndex] = replacement;
           input.populated.push(field.label);
         }
+      } else if (shouldReplaceLowerPriorityAutomatedValue(field, current)) {
+        const replacement = `${field.label}: ${field.value}`;
+
+        if (recoveryLines[existingIndex] !== replacement) {
+          recoveryLines[existingIndex] = replacement;
+          input.populated.push(field.label);
+          input.warnings.push(
+            `${field.label} updated from Garmin sleep CSV because it matched an older lower-priority automated value.`,
+          );
+        }
       } else {
         input.preserved.push(field.label);
         maybeWarnConflict(field, current, input.warnings);
@@ -241,6 +253,30 @@ function updateRecoverySection(input: {
     ...recoveryLines,
     ...lines.slice(end),
   ].join(input.lineEnding);
+}
+
+function shouldReplaceLowerPriorityAutomatedValue(
+  field: WellnessField,
+  current: string,
+): boolean {
+  if (
+    field.source !== "garmin_sleep_csv" ||
+    field.value === null ||
+    field.lowerPriorityValue === null ||
+    field.lowerPriorityValue === undefined
+  ) {
+    return false;
+  }
+
+  return (
+    normalizeComparableValue(current) ===
+      normalizeComparableValue(field.lowerPriorityValue) &&
+    normalizeComparableValue(current) !== normalizeComparableValue(field.value)
+  );
+}
+
+function normalizeComparableValue(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function coalesceRecoverySections(content: string, lineEnding: string): string {
@@ -353,7 +389,8 @@ function wellnessFields(
     return [];
   }
 
-  return [
+  const fields: WellnessField[] = [
+    { label: "Sleep", value: nonBlank(summary.sleepQuality) },
     {
       label: "Sleep Duration",
       kind: "sleepDuration",
@@ -471,6 +508,20 @@ function wellnessFields(
       kind: "steps",
     },
   ];
+
+  return fields.map((field) => ({
+    ...field,
+    source:
+      summary.fieldSources?.[
+        field.label as keyof NonNullable<GarminWellnessSummary["fieldSources"]>
+      ],
+    lowerPriorityValue:
+      summary.lowerPriorityJournalValues?.[
+        field.label as keyof NonNullable<
+          GarminWellnessSummary["lowerPriorityJournalValues"]
+        >
+      ] ?? null,
+  }));
 }
 
 function recoveryFieldLines(

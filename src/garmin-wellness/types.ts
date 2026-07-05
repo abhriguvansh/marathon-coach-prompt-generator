@@ -1,3 +1,30 @@
+export type GarminWellnessMetricSource =
+  | "garmin_sleep_csv"
+  | "garmin_wellness_zip";
+
+export type GarminWellnessJournalField =
+  | "Sleep"
+  | "Sleep Duration"
+  | "Sleep Score"
+  | "Sleep Quality"
+  | "Deep Sleep Duration"
+  | "Light Sleep Duration"
+  | "REM Duration"
+  | "Awake Duration"
+  | "Restless Moments"
+  | "Resting Heart Rate"
+  | "Average Overnight Heart Rate"
+  | "Overnight HRV"
+  | "HRV Status"
+  | "Garmin Stress"
+  | "Body Battery"
+  | "Average Respiration"
+  | "Lowest Respiration"
+  | "Average SpO2"
+  | "Lowest SpO2"
+  | "Breathing Variations"
+  | "Total Steps";
+
 export interface GarminWellnessSummary {
   date: string;
   totalSteps: number | null;
@@ -32,6 +59,12 @@ export interface GarminWellnessSummary {
   sourceFitFiles: number;
   supportedRecords: number;
   warnings: string[];
+  fieldSources?: Partial<
+    Record<GarminWellnessJournalField, GarminWellnessMetricSource>
+  >;
+  lowerPriorityJournalValues?: Partial<
+    Record<GarminWellnessJournalField, string>
+  >;
 }
 
 export interface GarminWellnessScanResult {
@@ -39,6 +72,8 @@ export interface GarminWellnessScanResult {
   summaries: GarminWellnessSummary[];
   zipFilesFound: number;
   looseFitFilesFound: number;
+  sleepCsvFilesFound: number;
+  sleepCsvRecordsRead: number;
   fitFilesDecoded: number;
   fitFilesSkipped: number;
   ignoredEntries: number;

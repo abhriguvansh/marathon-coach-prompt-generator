@@ -134,6 +134,7 @@ export function createWeeklySummary(input: {
       higherLoadActivities: higherLoadActivities([
         ...groups.runs,
         ...groups.walks,
+        ...groups.tennis,
       ]),
       wellnessCoverageDays: dailyNotes.filter(hasGarminWellnessMetric).length,
       averageSleepDurationMinutes: averageNullable(

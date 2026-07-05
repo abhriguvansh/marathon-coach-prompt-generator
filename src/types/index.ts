@@ -111,6 +111,10 @@ export interface ManualActivity {
   startTime?: string | null;
   source: string;
   activityType: string;
+  loadCategory?: string | null;
+  fitSport?: number | null;
+  fitSubSport?: number | null;
+  activityTypeConfidence?: "explicit" | "profile" | "fallback" | null;
   distanceMiles: number | null;
   durationMinutes: number | null;
   paceMinPerMile: string | null;

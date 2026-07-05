@@ -33,6 +33,10 @@ interface FitActivitySummary {
   startDate: string | null;
   startTime: string | null;
   activityType: string | null;
+  loadCategory: string | null;
+  fitSport: number | null;
+  fitSubSport: number | null;
+  activityTypeConfidence: ManualActivity["activityTypeConfidence"];
   distanceMiles: number | null;
   durationMinutes: number | null;
   elevationFt: number | null;
@@ -63,6 +67,13 @@ interface FitActivitySummary {
   laps: ActivityLap[];
   dataQualityNotes: string[];
   notes: string | null;
+}
+
+interface FitSportMapping {
+  activityType: string | null;
+  loadCategory: string | null;
+  confidence: ManualActivity["activityTypeConfidence"];
+  note: string;
 }
 
 const FIT_MAGIC = ".FIT";
@@ -114,6 +125,10 @@ export function parseFitExport(
         buildExportActivity({
           source: fitSource,
           activityType: summary.activityType,
+          loadCategory: summary.loadCategory,
+          fitSport: summary.fitSport,
+          fitSubSport: summary.fitSubSport,
+          activityTypeConfidence: summary.activityTypeConfidence,
           startDate: summary.startDate,
           startTime: summary.startTime,
           distanceMiles: summary.distanceMiles,
@@ -418,10 +433,10 @@ function summaryFromMessage(
     return null;
   }
 
-  const activityType = mapFitSport(
-    valueNumber(message.fields[5]) ?? activitySport(messages),
-    valueNumber(message.fields[6]),
-  );
+  const fitSport = valueNumber(message.fields[5]) ?? activitySport(messages);
+  const fitSubSport = valueNumber(message.fields[6]);
+  const sportMapping = mapFitSport(fitSport, fitSubSport);
+  const activityType = sportMapping.activityType;
   const distanceMeters = scaledNumber(message.fields[9], 100);
   const elapsedTimeSeconds = scaledNumber(message.fields[7], 1000);
   const rawMovingTimeSeconds =
@@ -447,12 +462,12 @@ function summaryFromMessage(
     valueNumber(message.fields[23]) ?? valueNumber(message.fields[22]);
   const hr = heartRatePair(message.fields[16], message.fields[17]);
   const avgCadence = cadenceStepsPerMinute({
-    base: message.fields[18],
+    base: activityType === "tennis" ? null : message.fields[18],
     fractional: message.fields[80],
     activityType,
   });
   const maxCadence = cadenceStepsPerMinute({
-    base: message.fields[19],
+    base: activityType === "tennis" ? null : message.fields[19],
     fractional: message.fields[81],
     activityType,
   });
@@ -483,18 +498,25 @@ function summaryFromMessage(
   const durationMinutes =
     durationSeconds === null ? null : durationSeconds / 60;
   const elevation = elevationSummary(messages, ascentMeters, descentMeters);
-  const fitLaps = canUseLaps
-    ? validFitLaps(messages, distanceMiles, durationSeconds, activityType)
-    : [];
+  const fitLaps =
+    canUseLaps && activityType !== "tennis"
+      ? validFitLaps(messages, distanceMiles, durationSeconds, activityType)
+      : [];
   const laps =
-    fitLaps.length > 0
-      ? fitLaps
-      : derivedMileSplits(messages, distanceMiles, durationSeconds);
+    activityType === "tennis"
+      ? []
+      : fitLaps.length > 0
+        ? fitLaps
+        : derivedMileSplits(messages, distanceMiles, durationSeconds);
 
   return {
     startDate: toAthleteLocalDate(startDateTime, timeZone),
     startTime: toAthleteLocalTime(startDateTime, timeZone),
     activityType,
+    loadCategory: sportMapping.loadCategory,
+    fitSport,
+    fitSubSport,
+    activityTypeConfidence: sportMapping.confidence,
     distanceMiles,
     durationMinutes,
     elevationFt: elevation.gainFt,
@@ -530,8 +552,19 @@ function summaryFromMessage(
     device: deviceName(messages),
     laps,
     dataQualityNotes: [
+      sportMapping.note,
       ...(laps.length > 0
         ? [`${laps.length} privacy-safe split summaries parsed.`]
+        : []),
+      ...(activityType === "tennis" && distanceMiles !== null
+        ? [
+            "Tennis movement distance is device-estimated context and is not running or walking mileage.",
+          ]
+        : []),
+      ...(activityType === "tennis"
+        ? [
+            "Tennis cadence and running-style split analysis omitted because they are not reliable tennis coaching metrics.",
+          ]
         : []),
       ...(stoppedTimeSeconds !== null && stoppedTimeSeconds > 0
         ? [
@@ -1101,28 +1134,163 @@ function deviceName(messages: FitParsedMessage[]): string | null {
 function mapFitSport(
   sport: number | null,
   subSport: number | null,
-): string | null {
+): FitSportMapping {
   if (subSport === 13 || subSport === 20) {
-    return "weights";
+    return {
+      activityType: "weights",
+      loadCategory: "strength",
+      confidence: "profile",
+      note: fitSportNote(
+        sport,
+        subSport,
+        "weights",
+        "subsport strength profile",
+      ),
+    };
   }
 
   switch (sport) {
     case 1:
-      return "run";
+      return {
+        activityType: "run",
+        loadCategory: "running",
+        confidence: "explicit",
+        note: fitSportNote(sport, subSport, "run", "explicit sport mapping"),
+      };
     case 2:
-      return "bike";
+      return {
+        activityType: "bike",
+        loadCategory: "cycling",
+        confidence: "explicit",
+        note: fitSportNote(sport, subSport, "bike", "explicit sport mapping"),
+      };
     case 5:
-      return "swim";
+      return {
+        activityType: "swim",
+        loadCategory: "swimming",
+        confidence: "explicit",
+        note: fitSportNote(sport, subSport, "swim", "explicit sport mapping"),
+      };
+    case 8:
+      return {
+        activityType: "tennis",
+        loadCategory: "racquet_sport",
+        confidence: "explicit",
+        note: fitSportNote(
+          sport,
+          subSport,
+          "tennis",
+          "explicit tennis sport mapping",
+        ),
+      };
     case 11:
-      return "walk";
+      return {
+        activityType: "walk",
+        loadCategory: "walking",
+        confidence: "explicit",
+        note: fitSportNote(sport, subSport, "walk", "explicit sport mapping"),
+      };
     case 17:
-      return "hike";
+      return {
+        activityType: "hike",
+        loadCategory: "walking",
+        confidence: "explicit",
+        note: fitSportNote(sport, subSport, "hike", "explicit sport mapping"),
+      };
     case 10:
-      return "weights";
+      return {
+        activityType: "weights",
+        loadCategory: "strength",
+        confidence: "explicit",
+        note: fitSportNote(
+          sport,
+          subSport,
+          "weights",
+          "explicit sport mapping",
+        ),
+      };
+    case 64:
+      return {
+        activityType: "tennis",
+        loadCategory: "racquet_sport",
+        confidence: "profile",
+        note: fitSportNote(
+          sport,
+          subSport,
+          "tennis",
+          "generic racquet sport profile mapped to tennis load category",
+        ),
+      };
     case null:
-      return null;
+      return {
+        activityType: null,
+        loadCategory: null,
+        confidence: "fallback",
+        note: fitSportNote(null, subSport, "other", "missing sport field"),
+      };
     default:
-      return "other";
+      return {
+        activityType: "other",
+        loadCategory: "other",
+        confidence: "fallback",
+        note: fitSportNote(
+          sport,
+          subSport,
+          "other",
+          "unrecognized sport/subsport fallback",
+        ),
+      };
+  }
+}
+
+function fitSportNote(
+  sport: number | null,
+  subSport: number | null,
+  activityType: string,
+  reason: string,
+): string {
+  return `FIT sport ${sportLabel(sport)}, subsport ${subSportLabel(
+    subSport,
+  )}; canonical activity type ${activityType}; confidence ${reason}.`;
+}
+
+function sportLabel(value: number | null): string {
+  switch (value) {
+    case 1:
+      return "run(1)";
+    case 2:
+      return "bike(2)";
+    case 5:
+      return "swim(5)";
+    case 8:
+      return "tennis(8)";
+    case 10:
+      return "training(10)";
+    case 11:
+      return "walk(11)";
+    case 17:
+      return "hike(17)";
+    case 64:
+      return "racquet_sport(64)";
+    case null:
+      return "missing";
+    default:
+      return `unrecognized(${value})`;
+  }
+}
+
+function subSportLabel(value: number | null): string {
+  switch (value) {
+    case 0:
+      return "generic(0)";
+    case 13:
+      return "track_cycling_or_strength_legacy(13)";
+    case 20:
+      return "strength_training(20)";
+    case null:
+      return "missing";
+    default:
+      return `value(${value})`;
   }
 }
 

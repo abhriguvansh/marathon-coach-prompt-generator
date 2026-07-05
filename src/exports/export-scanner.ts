@@ -21,6 +21,7 @@ import {
   type GarminCsvCompanion,
 } from "./garmin-csv-companion";
 import { readFitEntriesFromZip } from "../garmin-wellness/zip-reader";
+import { isGarminSleepCsvContent } from "../garmin-wellness/sleep-csv";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".csv",
@@ -120,6 +121,10 @@ export function parseLocalExports(
       const content = readFileSync(absolutePath);
 
       if (file.source === "garmin_export" && file.extension === ".csv") {
+        if (isGarminSleepCsvContent(content.toString("utf8"))) {
+          continue;
+        }
+
         const companion = parseGarminCsvCompanion(content.toString("utf8"));
 
         if (companion) {

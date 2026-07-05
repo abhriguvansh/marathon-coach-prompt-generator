@@ -18,6 +18,8 @@ import {
   formatGarminWellnessImportReport,
   importGarminWellness,
 } from "../src/garmin-wellness/importer";
+import { scanGarminWellness } from "../src/garmin-wellness/scanner";
+import { parseGarminSleepCsv } from "../src/garmin-wellness/sleep-csv";
 import { readFitEntriesFromZip } from "../src/garmin-wellness/zip-reader";
 import { parseJournal } from "../src/parsers/journal";
 import type { AthleteConfig, DailyNote } from "../src/types";
@@ -674,6 +676,187 @@ describe("Garmin wellness import", () => {
     assert.doesNotMatch(`${daily}\n${weekly}`, /readiness score|diagnosis/i);
     rmSync(dir, { recursive: true, force: true });
   });
+
+  it("parses Garmin sleep CSV label/value and tabular exports", () => {
+    const labelValue = parseGarminSleepCsv(labelValueSleepCsv(), {
+      fallbackDate: "2026-07-04",
+    });
+    const tabular = parseGarminSleepCsv(
+      [
+        "Date,Sleep Duration,Sleep Score,Quality,Resting Heart Rate,Avg Overnight HRV,Avg SpO2,Lowest SpO2,Body Battery Change",
+        "2026-07-05,07:12:00,82,Excellent,56 bpm,51 ms,96%,92%,+44",
+      ].join("\n"),
+    );
+
+    assert.equal(labelValue.summaries.length, 1);
+    assert.equal(labelValue.summaries[0].date, "2026-07-04");
+    assert.equal(labelValue.summaries[0].sleepDurationMinutes, 400);
+    assert.equal(labelValue.summaries[0].sleepScore, 75);
+    assert.equal(labelValue.summaries[0].sleepQuality, "good");
+    assert.equal(labelValue.summaries[0].restingHeartRate, 58);
+    assert.equal(labelValue.summaries[0].averageOvernightHeartRate, 64);
+    assert.equal(labelValue.summaries[0].overnightHrv, 49);
+    assert.equal(labelValue.summaries[0].pulseOx, 95);
+    assert.equal(labelValue.summaries[0].lowestPulseOx, 91);
+    assert.equal(labelValue.summaries[0].respirationRate, 14);
+    assert.equal(labelValue.summaries[0].lowestRespirationRate, 11);
+    assert.equal(labelValue.summaries[0].bodyBattery, "+51");
+    assert.equal(tabular.summaries[0].date, "2026-07-05");
+    assert.equal(tabular.summaries[0].sleepDurationMinutes, 432);
+    assert.equal(tabular.summaries[0].sleepQuality, "excellent");
+  });
+
+  it("discovers sleep CSVs without treating activity CSVs as wellness data", () => {
+    const dir = makeProject();
+    writeFile(join(dir, "input/garmin/root-sleep.csv"), labelValueSleepCsv());
+    writeFile(
+      join(dir, "input/garmin/wellness/wellness-sleep.csv"),
+      labelValueSleepCsv().replace("2026-07-04", "2026-07-05"),
+    );
+    writeFile(
+      join(dir, "input/garmin/activity-laps.csv"),
+      [
+        '"Laps","Time","Distance mi","Avg HR bpm"',
+        '"Summary","40:00","3.00","140"',
+      ].join("\n"),
+    );
+    writeFile(
+      join(dir, "input/garmin/unrelated.csv"),
+      ["Name,Value", "Demo,Only"].join("\n"),
+    );
+
+    const scan = scanGarminWellness(dir, {
+      date: "2026-07-04",
+      timezone: "America/New_York",
+      debug: true,
+    });
+
+    assert.equal(scan.sleepCsvFilesFound, 2);
+    assert.equal(scan.sleepCsvRecordsRead, 2);
+    assert.equal(scan.summaries.length, 1);
+    assert.equal(scan.summaries[0].sleepScore, 75);
+    assert.equal(scan.zipFilesFound, 0);
+    assert.doesNotMatch(scan.debugNotes.join("\n"), /root-sleep|activity-laps/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("prefers sleep CSV over wellness ZIP and lets ZIP fill missing fields", () => {
+    const dir = makeProject();
+    const journalPath = join(dir, "input/journal/2026-07-04.md");
+    writeFile(
+      join(dir, "input/garmin/2026-07-04.zip"),
+      zipFile([
+        {
+          name: "fake-wellness.fit",
+          content: syntheticWellnessFit({
+            dateTime: "2026-07-04T12:00:00Z",
+            steps: 7962,
+            sleepDurationMinutes: 300,
+            sleepScore: 50,
+            restingHeartRate: 55,
+            overnightHrv: 42,
+            hrvStatus: "balanced",
+            garminStress: 18,
+          }),
+        },
+      ]),
+    );
+    writeFile(
+      join(dir, "input/garmin/2026-07-04-sleep.csv"),
+      labelValueSleepCsv(),
+    );
+    writeFile(
+      journalPath,
+      [
+        "# Daily Journal",
+        "",
+        "Date: 2026-07-04",
+        "",
+        "## Recovery",
+        "",
+        "Sleep Duration: 5h 0m",
+        "Sleep Score: 50",
+        "Resting Heart Rate: 55 bpm",
+        "Body Battery: manual battery note",
+        "",
+      ].join("\n"),
+    );
+
+    const first = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-04",
+      timezone: "America/New_York",
+      debug: true,
+    });
+    const afterFirst = readFileSync(journalPath, "utf8");
+    const second = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-04",
+      timezone: "America/New_York",
+      debug: true,
+    });
+    const afterSecond = readFileSync(journalPath, "utf8");
+    const report = formatGarminWellnessImportReport(first);
+
+    assert.match(afterFirst, /Sleep: good/);
+    assert.match(afterFirst, /Sleep Duration: 6h 40m/);
+    assert.match(afterFirst, /Sleep Score: 75/);
+    assert.match(afterFirst, /Resting Heart Rate: 58 bpm/);
+    assert.match(afterFirst, /Overnight HRV: 49 ms/);
+    assert.match(afterFirst, /HRV Status: balanced/);
+    assert.match(afterFirst, /Garmin Stress: 11/);
+    assert.match(afterFirst, /Total Steps: 7,962/);
+    assert.match(afterFirst, /Body Battery: manual battery note/);
+    assert.equal(matchCount(afterFirst, "## Recovery"), 1);
+    assert.equal(afterSecond, afterFirst);
+    assert.equal(second.journalUpdated, false);
+    assert.match(report, /Sleep CSV files found: 1/);
+    assert.match(report, /Sleep Duration: garmin_sleep_csv/);
+    assert.match(report, /Total Steps: garmin_wellness_zip/);
+    assert.doesNotMatch(
+      report,
+      /fake-wellness|2026-07-04-sleep|Sleep Duration,75/,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("preserves manual journal sleep values over sleep CSV", () => {
+    const dir = makeProject();
+    const journalPath = join(dir, "input/journal/2026-07-04.md");
+    writeFile(
+      join(dir, "input/garmin/2026-07-04-sleep.csv"),
+      labelValueSleepCsv(),
+    );
+    writeFile(
+      journalPath,
+      [
+        "# Daily Journal",
+        "",
+        "Date: 2026-07-04",
+        "",
+        "## Recovery",
+        "",
+        "Sleep: manually good",
+        "Sleep Duration: 7h 0m",
+        "Sleep Score: 88",
+        "",
+      ].join("\n"),
+    );
+
+    const result = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-04",
+      timezone: "America/New_York",
+    });
+    const journal = readFileSync(journalPath, "utf8");
+
+    assert.match(journal, /Sleep: manually good/);
+    assert.match(journal, /Sleep Duration: 7h 0m/);
+    assert.match(journal, /Sleep Score: 88/);
+    assert.equal(result.fieldsPreserved.includes("Sleep Duration"), true);
+    assert.equal(matchCount(journal, "## Recovery"), 1);
+    rmSync(dir, { recursive: true, force: true });
+  });
 });
 
 function makeProject(): string {
@@ -691,6 +874,37 @@ function writeJson(path: string, value: unknown): void {
 
 function matchCount(value: string, pattern: string): number {
   return value.split(pattern).length - 1;
+}
+
+function labelValueSleepCsv(): string {
+  return [
+    "Sleep Score 1 Day,Demo",
+    "Date,2026-07-04",
+    "Sleep Duration,6h 40m",
+    "Sleep Score,75",
+    "Quality,Good",
+    "",
+    "Sleep Score Factors,Demo section",
+    "Sleep Duration,6h 40m",
+    "Stress Avg,11",
+    "Deep Sleep Duration,1h 10m",
+    "Light Sleep Duration,4h 0m",
+    "REM Duration,1h 20m",
+    "Awake Time,0h 30m",
+    "",
+    "Sleep Timeline Metrics,Demo section",
+    "Breathing Variations,Low",
+    "Restless Moments,12",
+    "Avg Overnight Heart Rate,64 bpm",
+    "Resting Heart Rate,58 bpm",
+    "Body Battery Change,+51",
+    "Avg SpO₂,95%",
+    "Lowest SpO2,91%",
+    "Avg Respiration,14 brpm",
+    "Lowest Respiration,11 brpm",
+    "Avg Overnight HRV,49 ms",
+    "7d Avg HRV,51 ms",
+  ].join("\n");
 }
 
 function syntheticWellnessFit(input: {

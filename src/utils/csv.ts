@@ -1,7 +1,7 @@
 export type CsvRecord = Record<string, string>;
 
 export function parseCsv(content: string): CsvRecord[] {
-  const rows = parseRows(content);
+  const rows = parseCsvRows(content);
 
   if (rows.length === 0) {
     return [];
@@ -23,7 +23,7 @@ export function parseCsv(content: string): CsvRecord[] {
     });
 }
 
-function parseRows(content: string): string[][] {
+export function parseCsvRows(content: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let value = "";

@@ -48,7 +48,10 @@ export function importGarminWellness(input: {
     fieldsPopulated: journal.fieldsPopulated,
     fieldsPreserved: journal.fieldsPreserved,
     journalUpdated: journal.journalUpdated,
-    debugNotes: scan.debugNotes,
+    debugNotes:
+      input.debug === true && summary !== null
+        ? [...scan.debugNotes, ...metricSourceDebugNotes(summary)]
+        : scan.debugNotes,
     warnings: unique(filterResolvedWarnings(warnings, summary)),
   };
 }
@@ -63,6 +66,8 @@ export function formatGarminWellnessImportReport(
     "",
     `ZIP files found: ${result.zipFilesFound}`,
     `Loose FIT files found: ${result.looseFitFilesFound}`,
+    `Sleep CSV files found: ${result.sleepCsvFilesFound}`,
+    `Sleep CSV records read: ${result.sleepCsvRecordsRead}`,
     `FIT files decoded: ${result.fitFilesDecoded}`,
     `FIT files skipped: ${result.fitFilesSkipped}`,
     `Ignored non-FIT entries: ${result.ignoredEntries}`,
@@ -91,6 +96,19 @@ function formatList(values: string[]): string[] {
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function metricSourceDebugNotes(
+  summary: NonNullable<
+    ReturnType<typeof scanGarminWellness>["summaries"][number]
+  >,
+): string[] {
+  const sources = summary.fieldSources ?? {};
+  const notes = Object.entries(sources).map(
+    ([field, source]) => `${field}: ${source}`,
+  );
+
+  return notes.length === 0 ? [] : ["Metric source priority:", ...notes.sort()];
 }
 
 function filterResolvedWarnings(

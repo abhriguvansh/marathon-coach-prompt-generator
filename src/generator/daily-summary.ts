@@ -14,7 +14,10 @@ import { numericRecoveryValue } from "../utils/recovery";
 import { enrichRunWalkStructures } from "../utils/run-walk";
 import { classifyActivities, sumMileage } from "./activity-classification";
 import { evaluateCheckInCompleteness } from "./checkin-completeness";
-import { classifyDayLoad } from "./day-classification";
+import {
+  classifyDayLoad,
+  notesMentionFatigueLimitedStopping,
+} from "./day-classification";
 import { analyzeActivityDuplicates } from "./duplicate-detection";
 import { buildRecentCoachingContext } from "./recent-context";
 import { buildDailyRecoveryTrendFlags } from "./recovery-trends";
@@ -268,6 +271,18 @@ function buildMissingDataFlags(input: {
     });
   }
 
+  if (
+    input.dailyNote &&
+    isFatigueRecordedAsNone(input.dailyNote.fatigue) &&
+    notesMentionFatigueLimitedStopping(input.dailyNote, input.journalEntry)
+  ) {
+    flags.push({
+      field: "fatigue",
+      message:
+        "Coach Notes mention fatigue-limited stopping, but structured Fatigue is recorded as none; structured recovery fields were left unchanged.",
+    });
+  }
+
   if (input.manualActivities.length === 0) {
     flags.push({
       field: "manual-activities.csv",
@@ -283,6 +298,18 @@ function buildMissingDataFlags(input: {
   }
 
   return flags;
+}
+
+function isFatigueRecordedAsNone(value: DailyNote["fatigue"]): boolean {
+  if (value === 0) {
+    return true;
+  }
+
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return /\b(none|no fatigue|0)\b/i.test(value.trim());
 }
 
 function hasBlankSorenessButNoSorenessNote(input: {

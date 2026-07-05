@@ -100,12 +100,11 @@ export function classifyDayLoad(input: {
   }
 
   if (hasTennis) {
-    return {
-      dayType: "tennis day",
-      loadClassification: "lateral/impact cross-training load",
-      coachingInterpretation:
-        "tennis can add lower-body and lateral movement load.",
-    };
+    return tennisClassification(
+      groups.tennis,
+      input.dailyNote,
+      input.journalEntry,
+    );
   }
 
   if (hasMobility) {
@@ -153,6 +152,98 @@ export function classifyDayLoad(input: {
     coachingInterpretation:
       "no running was found, but total daily load is uncertain because steps/manual activities are missing.",
   };
+}
+
+function tennisClassification(
+  tennis: ManualActivity[],
+  dailyNote: DailyNote | null,
+  journalEntry: JournalEntry | null | undefined,
+): DayLoadClassification {
+  const load = tennisLoadLevel(tennis, dailyNote, journalEntry ?? null);
+  const heat = tennis.some((activity) => activityTemperatureC(activity) >= 30);
+  const fatigueLimited = notesMentionFatigueLimitedStopping(
+    dailyNote,
+    journalEntry ?? null,
+  );
+  const context = [
+    "tennis adds cardiovascular, lateral, acceleration/deceleration, and heat load that is not reflected by running mileage or daily steps",
+    heat
+      ? "environmental heat increased cardiovascular and hydration stress"
+      : null,
+    fatigueLimited ? "coach notes mention fatigue-limited stopping" : null,
+  ].filter((value): value is string => value !== null);
+
+  return {
+    dayType: "tennis / cross-training day",
+    loadClassification: `${load} non-running cardiovascular and lateral load`,
+    coachingInterpretation: `${context.join("; ")}.`,
+  };
+}
+
+function tennisLoadLevel(
+  tennis: ManualActivity[],
+  dailyNote: DailyNote | null,
+  journalEntry: JournalEntry | null,
+): "low" | "moderate" | "high" {
+  const score = tennis.reduce((total, activity) => {
+    const duration = activity.durationMinutes ?? 0;
+    const avgHr = activity.avgHr ?? 0;
+    const maxHr = activity.maxHr ?? 0;
+    const trainingEffect = activity.trainingEffect ?? 0;
+    const anaerobicTrainingEffect = activity.anaerobicTrainingEffect ?? 0;
+    const tempC = activityTemperatureC(activity);
+
+    return (
+      total +
+      (duration >= 45 ? 1 : 0) +
+      (duration >= 90 ? 1 : 0) +
+      (avgHr >= 130 ? 1 : 0) +
+      (maxHr >= 170 ? 1 : 0) +
+      (trainingEffect >= 3 ? 1 : 0) +
+      (anaerobicTrainingEffect >= 2.5 ? 1 : 0) +
+      (tempC >= 30 ? 1 : 0)
+    );
+  }, 0);
+  const fatigueLimited = notesMentionFatigueLimitedStopping(
+    dailyNote,
+    journalEntry,
+  );
+
+  if (score >= 5 || (fatigueLimited && score >= 3)) {
+    return "high";
+  }
+
+  if (score >= 2 || fatigueLimited) {
+    return "moderate";
+  }
+
+  return "low";
+}
+
+function activityTemperatureC(activity: ManualActivity): number {
+  if (activity.temperatureC !== null && activity.temperatureC !== undefined) {
+    return activity.temperatureC;
+  }
+
+  if (activity.temperatureF !== null && activity.temperatureF !== undefined) {
+    return (activity.temperatureF - 32) / 1.8;
+  }
+
+  return Number.NEGATIVE_INFINITY;
+}
+
+export function notesMentionFatigueLimitedStopping(
+  dailyNote: DailyNote | null,
+  journalEntry: JournalEntry | null,
+): boolean {
+  const text = [dailyNote?.notes, journalEntry?.coachNotes]
+    .filter((value): value is string => value !== null && value !== undefined)
+    .join(" ")
+    .toLowerCase();
+
+  return /\b(stopped|ended|quit|cut (?:it )?short|had to stop)\b[^.]{0,80}\bfatigue\b|\bfatigue\b[^.]{0,80}\b(stopped|ended|quit|cut (?:it )?short|had to stop)\b/.test(
+    text,
+  );
 }
 
 export function hasExplicitRest(

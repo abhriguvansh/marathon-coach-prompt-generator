@@ -18,7 +18,7 @@ import {
   parseDailyNotes,
   parseManualActivities,
 } from "../src/parsers/manual-notes";
-import type { AthleteConfig } from "../src/types";
+import type { AthleteConfig, DailyNote, ManualActivity } from "../src/types";
 import { parseCsv } from "../src/utils/csv";
 
 const fakeConfig: AthleteConfig = {
@@ -342,8 +342,8 @@ describe("daily summary generation", () => {
         summary: buildClassificationSummary({
           activities: [fakeActivityOn("2026-06-27", "tennis", null)],
         }),
-        dayType: "tennis day",
-        load: "lateral/impact cross-training load",
+        dayType: "tennis / cross-training day",
+        load: "low non-running cardiovascular and lateral load",
       },
       {
         name: "mobility-only day",
@@ -424,6 +424,107 @@ describe("daily summary generation", () => {
         testCase.name,
       );
     }
+  });
+
+  it("renders tennis as cross-training without running pace, cadence, or splits", () => {
+    const tennis = {
+      ...fakeActivityOn("2026-06-27", "tennis", 2.01),
+      source: "garmin_fit_export",
+      durationMinutes: 74 + 26 / 60,
+      elapsedTimeSeconds: 4466,
+      avgHr: 140,
+      maxHr: 176,
+      avgCadence: 14,
+      maxCadence: 107,
+      calories: 620,
+      trainingEffect: 3.6,
+      temperatureC: 35,
+      laps: [
+        {
+          lapNumber: 1,
+          kind: "fit_lap" as const,
+          distanceMiles: 1,
+          durationSeconds: 2200,
+          paceMinPerMile: "36:40",
+          avgHr: 140,
+          maxHr: 170,
+          elevationGainFt: null,
+          avgCadence: 14,
+        },
+        {
+          lapNumber: 2,
+          kind: "fit_lap" as const,
+          distanceMiles: 1.01,
+          durationSeconds: 2266,
+          paceMinPerMile: "37:24",
+          avgHr: 142,
+          maxHr: 176,
+          elevationGainFt: null,
+          avgCadence: 15,
+        },
+      ],
+      notes: "Parsed from local FIT export; route details omitted.",
+    };
+    const summary = buildClassificationSummary({
+      dailyNote: fakeDailyNote(
+        "2026-06-27",
+        9000,
+        1,
+        0,
+        "Stopped because of fatigue in the heat.",
+      ),
+      activities: [tennis],
+    });
+    const markdown = renderDailyCheckIn(summary);
+
+    assert.equal(summary.runningMileage, 0);
+    assert.equal(summary.walkingMileage, 0);
+    assert.equal(summary.runs.length, 0);
+    assert.equal(summary.tennis.length, 1);
+    assert.match(markdown, /- Tennis: tennis, 1:14:26 elapsed/);
+    assert.match(markdown, /Device-estimated movement distance 2\.01 mi/);
+    assert.match(markdown, /Avg HR 140/);
+    assert.match(markdown, /Max HR 176/);
+    assert.match(markdown, /620 calories/);
+    assert.match(markdown, /Aerobic training effect 3\.6/);
+    assert.match(markdown, /Avg temp 35 C/);
+    assert.match(markdown, /Day type: tennis \/ cross-training day/);
+    assert.match(
+      markdown,
+      /Load classification: high non-running cardiovascular and lateral load/,
+    );
+    assert.match(markdown, /environmental heat increased/);
+    assert.match(markdown, /coach notes mention fatigue-limited stopping/i);
+    assert.doesNotMatch(markdown, /Rest\/other activity:.*tennis/);
+    assert.doesNotMatch(markdown, /37:04 min\/mi/);
+    assert.doesNotMatch(markdown, /Cadence 14 spm/);
+    assert.doesNotMatch(markdown, /Splits \/ Laps/);
+    assert.doesNotMatch(markdown, /weights, tennis, mobility/);
+    assert.match(markdown, /Add climbing, weights, or mobility/);
+  });
+
+  it("warns when fatigue notes conflict with structured fatigue none", () => {
+    const dailyNote = {
+      ...fakeDailyNote(
+        "2026-06-27",
+        7000,
+        1,
+        0,
+        "Tennis stopped because of fatigue.",
+      ),
+      fatigue: "none",
+    };
+    const markdown = renderDailyCheckIn(
+      buildClassificationSummary({
+        dailyNote,
+        activities: [fakeActivityOn("2026-06-27", "tennis", null)],
+      }),
+    );
+
+    assert.match(
+      markdown,
+      /Coach Notes mention fatigue-limited stopping, but structured Fatigue is recorded as none/,
+    );
   });
 
   it("does not count steps as walking mileage or call high-step no-run days rest", () => {
@@ -828,7 +929,10 @@ function fakeJournalEntry(date: string, workoutStructure: string) {
   };
 }
 
-function fakeActivity(activityType: string, distanceMiles: number | null) {
+function fakeActivity(
+  activityType: string,
+  distanceMiles: number | null,
+): ManualActivity {
   return {
     date: "2026-06-26",
     source: "manual",
@@ -848,7 +952,7 @@ function fakeActivityOn(
   date: string,
   activityType: string,
   distanceMiles: number | null,
-) {
+): ManualActivity {
   return {
     ...fakeActivity(activityType, distanceMiles),
     date,
@@ -861,7 +965,7 @@ function fakeDailyNote(
   legSoreness: number | string | null,
   pain: number | string | null,
   notes: string | null = null,
-) {
+): DailyNote {
   return {
     date,
     totalSteps,
@@ -880,8 +984,8 @@ function fakeDailyNote(
 }
 
 function buildClassificationSummary(input: {
-  dailyNote?: ReturnType<typeof fakeDailyNote> | null;
-  activities?: ReturnType<typeof fakeActivityOn>[];
+  dailyNote?: DailyNote | null;
+  activities?: ManualActivity[];
 }) {
   return createDailySummary({
     date: "2026-06-28",

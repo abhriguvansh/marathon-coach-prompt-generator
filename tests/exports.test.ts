@@ -178,6 +178,128 @@ describe("local export parsing", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("maps Garmin tennis and racquet FIT sport profiles to tennis", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-tennis-fit-test-"));
+    mkdirSync(join(dir, "input/garmin"), { recursive: true });
+    mkdirSync(join(dir, "input/strava"), { recursive: true });
+    writeFile(
+      join(dir, "input/garmin/explicit-tennis.fit"),
+      syntheticFitActivity({
+        sport: 8,
+        dateTime: "2026-07-04T18:00:00Z",
+        distanceMiles: 2.01,
+        movingSeconds: 4466,
+        avgHr: 140,
+        maxHr: 176,
+        avgCadence: 14,
+        maxCadence: 107,
+        calories: 620,
+        trainingEffect: 3.6,
+        temperatureC: 35,
+        laps: [
+          lapInput(1, 1.05, 2200, 138, 170, 0, 12),
+          lapInput(2, 0.96, 2266, 142, 176, 0, 15),
+        ],
+      }),
+    );
+    writeFile(
+      join(dir, "input/garmin/generic-racquet.fit"),
+      syntheticFitActivity({
+        sport: 64,
+        dateTime: "2026-07-05T18:00:00Z",
+        distanceMiles: 1.2,
+        movingSeconds: 2400,
+        avgHr: 125,
+        maxHr: 150,
+        avgCadence: 10,
+      }),
+    );
+    const result = parseLocalExports(dir, { timezone: testTimezone });
+    const tennis = result.activities.filter(
+      (activity) => activity.activityType === "tennis",
+    );
+
+    assert.equal(tennis.length, 2);
+    assert.equal(tennis[0]?.loadCategory, "racquet_sport");
+    assert.equal(tennis[0]?.paceMinPerMile, null);
+    assert.equal(tennis[0]?.avgCadence, null);
+    assert.equal(tennis[0]?.laps?.length, 0);
+    assert.match(
+      tennis[0]?.dataQualityNotes?.join(" ") ?? "",
+      /FIT sport tennis\(8\).*canonical activity type tennis/,
+    );
+    assert.match(
+      tennis[1]?.dataQualityNotes?.join(" ") ?? "",
+      /FIT sport racquet_sport\(64\).*canonical activity type tennis/,
+    );
+
+    const parseSummary = renderExportParseSummary(result, { debug: true });
+    assert.match(parseSummary, /Activities by type: .*tennis: 2/);
+    assert.match(parseSummary, /tennis \| garmin_fit_export \| 2026-07-04/);
+    assert.match(parseSummary, /Device-estimated movement distance 2\.01 mi/);
+    assert.match(parseSummary, /Avg HR 140/);
+    assert.match(parseSummary, /Max HR 176/);
+    assert.match(parseSummary, /620 calories/);
+    assert.match(parseSummary, /Aerobic training effect 3\.6/);
+    assert.match(parseSummary, /Avg temp 35 C/);
+    assert.doesNotMatch(parseSummary, /min\/mi/);
+    assert.doesNotMatch(parseSummary, /Cadence 14 spm/);
+    assert.doesNotMatch(parseSummary, /laps: 2 privacy-safe/);
+    assert.doesNotMatch(parseSummary, /explicit-tennis|generic-racquet/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not infer tennis from filenames or ambiguous FIT sport values", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marathon-tennis-safe-test-"));
+    mkdirSync(join(dir, "input/garmin"), { recursive: true });
+    mkdirSync(join(dir, "input/strava"), { recursive: true });
+    writeFile(
+      join(dir, "input/garmin/tennis-looking-name.fit"),
+      syntheticFitActivity({
+        sport: 11,
+        dateTime: "2026-07-04T18:00:00Z",
+        distanceMiles: 2,
+        movingSeconds: 3600,
+        avgHr: 110,
+        maxHr: 130,
+        avgCadence: 80,
+      }),
+    );
+    writeFile(
+      join(dir, "input/garmin/ambiguous.fit"),
+      syntheticFitActivity({
+        sport: 99,
+        dateTime: "2026-07-04T20:00:00Z",
+        distanceMiles: 1,
+        movingSeconds: 1800,
+        avgHr: 120,
+        maxHr: 140,
+        avgCadence: 20,
+      }),
+    );
+    const result = parseLocalExports(dir, { timezone: testTimezone });
+
+    assert.equal(
+      result.activities.some((activity) => activity.activityType === "tennis"),
+      false,
+    );
+    assert.equal(
+      result.activities.some((activity) => activity.activityType === "walk"),
+      true,
+    );
+    assert.equal(
+      result.activities.some((activity) => activity.activityType === "other"),
+      true,
+    );
+    assert.match(
+      result.activities
+        .flatMap((activity) => activity.dataQualityNotes ?? [])
+        .join(" "),
+      /unrecognized sport\/subsport fallback/,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("excludes Garmin wellness FIT files from activity parsing", () => {
     const dir = mkdtempSync(join(tmpdir(), "marathon-garmin-wellness-skip-"));
     writeFile(
@@ -1079,6 +1201,7 @@ function writeFile(path: string, content: string | Uint8Array): void {
 
 function syntheticFitActivity(input: {
   sport: number;
+  subSport?: number;
   dateTime: string;
   distanceMiles: number;
   movingSeconds: number;
@@ -1139,6 +1262,7 @@ function syntheticFitActivity(input: {
       fitSummaryDefinition(index + 3, 19),
       fitSummaryData(index + 3, {
         sport: input.sport,
+        subSport: input.subSport,
         dateTime: input.dateTime,
         distanceMiles: lap.distanceMiles,
         movingSeconds: lap.durationSeconds,
@@ -1231,11 +1355,14 @@ function fitSummaryDefinition(
     0x00,
     0x00,
     0x00,
-    0x10,
+    0x11,
     0x02,
     0x04,
     0x86,
     0x05,
+    0x01,
+    0x02,
+    0x06,
     0x01,
     0x02,
     0x07,
@@ -1290,6 +1417,7 @@ function fitSummaryData(
   localMessageType: number,
   input: {
     sport: number;
+    subSport?: number;
     dateTime: string;
     distanceMiles: number;
     movingSeconds: number;
@@ -1306,7 +1434,7 @@ function fitSummaryData(
   },
 ): Buffer {
   const data = Buffer.alloc(
-    1 + 4 + 1 + 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 1 + 2 + 2 + 1,
+    1 + 4 + 1 + 1 + 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 1 + 2 + 2 + 1,
   );
   let offset = 0;
   data.writeUInt8(localMessageType, offset);
@@ -1314,6 +1442,8 @@ function fitSummaryData(
   data.writeUInt32LE(fitTimestamp(input.dateTime), offset);
   offset += 4;
   data.writeUInt8(input.sport, offset);
+  offset += 1;
+  data.writeUInt8(input.subSport ?? 0xff, offset);
   offset += 1;
   data.writeUInt32LE(
     (input.elapsedSeconds ?? input.movingSeconds) * 1000,

@@ -162,6 +162,26 @@ describe("check-in completeness validation", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("omits represented imported activities from the manual-only reminder", () => {
+    const dir = makeProject();
+    writeJournal(dir, "2026-06-27", completeRestJournal());
+    writeManualActivitiesWithSource(dir, "garmin_fit_export", "tennis");
+
+    const result = validateCheckIn(dir, {
+      evidenceDate: "2026-06-27",
+    });
+
+    assert.match(
+      result.completeness.manualOnlyActivityReminder ?? "",
+      /Add climbing, weights, or mobility/,
+    );
+    assert.doesNotMatch(
+      result.completeness.manualOnlyActivityReminder ?? "",
+      /weights, tennis, mobility/,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("throws for invalid evidence dates", () => {
     const dir = makeProject();
 
@@ -199,11 +219,19 @@ function writeJournal(dir: string, date: string, content: string): void {
 }
 
 function writeManualActivities(dir: string, activityType: string): void {
+  writeManualActivitiesWithSource(dir, "manual", activityType);
+}
+
+function writeManualActivitiesWithSource(
+  dir: string,
+  source: string,
+  activityType: string,
+): void {
   writeFile(
     join(dir, "input/manual/manual-activities.csv"),
     [
       "date,source,activity_type,distance_miles,duration_minutes,pace_min_per_mile,elevation_ft,avg_hr,max_hr,steps,notes",
-      `2026-06-27,manual,${activityType},3,45,,,,,,Fake ${activityType}`,
+      `2026-06-27,${source},${activityType},3,45,,,,,,Fake ${activityType}`,
     ].join("\n"),
   );
 }

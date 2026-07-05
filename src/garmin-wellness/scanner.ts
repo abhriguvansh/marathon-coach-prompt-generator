@@ -3,8 +3,17 @@ import { basename, extname, join } from "node:path";
 import { resolveActivityTimezone } from "../utils/timezone";
 import { classifyFitContent } from "../exports/fit-classification";
 import { parseGarminWellnessFit } from "./fit-wellness";
-import type { GarminWellnessScanResult, GarminWellnessSummary } from "./types";
+import type {
+  GarminWellnessJournalField,
+  GarminWellnessScanResult,
+  GarminWellnessSummary,
+} from "./types";
 import { readFitEntriesFromZip } from "./zip-reader";
+import {
+  dateHintFromPath,
+  isGarminSleepCsvContent,
+  parseGarminSleepCsv,
+} from "./sleep-csv";
 
 const GARMIN_ROOT = "input/garmin";
 const WELLNESS_ROOT = "input/garmin/wellness";
@@ -18,11 +27,14 @@ export function scanGarminWellness(
   input: { date: string; timezone?: string | null; debug?: boolean },
 ): GarminWellnessScanResult {
   const timezone = resolveActivityTimezone(input.timezone);
-  const summaries = new Map<string, GarminWellnessSummary>();
+  const zipSummaries = new Map<string, GarminWellnessSummary>();
+  const csvSummaries = new Map<string, GarminWellnessSummary>();
   const warnings: string[] = [];
   const debugNotes: string[] = [];
   let zipFilesFound = 0;
   let looseFitFilesFound = 0;
+  let sleepCsvFilesFound = 0;
+  let sleepCsvRecordsRead = 0;
   let fitFilesDecoded = 0;
   let fitFilesSkipped = 0;
   let ignoredEntries = 0;
@@ -59,7 +71,7 @@ export function scanGarminWellness(
           fitFilesSkipped += result.skipped;
           warnings.push(...result.warnings);
           debugNotes.push(...result.debugNotes);
-          mergeSummaries(summaries, result.summaries);
+          mergeSummaries(zipSummaries, result.summaries.map(markZipSources));
         }
       } catch (error) {
         fitFilesSkipped += 1;
@@ -67,6 +79,24 @@ export function scanGarminWellness(
           safeError(`Wellness ZIP skipped: ${basename(candidate.path)}`, error),
         );
       }
+      continue;
+    }
+
+    if (extension === ".csv") {
+      const content = readFileSync(candidate.path, "utf8");
+
+      if (!isGarminSleepCsvContent(content)) {
+        continue;
+      }
+
+      sleepCsvFilesFound += 1;
+      const parsed = parseGarminSleepCsv(content, {
+        fallbackDate: dateHintFromPath(candidate.path),
+      });
+      sleepCsvRecordsRead += parsed.recordsRead;
+      warnings.push(...parsed.warnings);
+      debugNotes.push(...parsed.debugNotes);
+      mergeCsvSummaryCandidates(csvSummaries, parsed.summaries, debugNotes);
       continue;
     }
 
@@ -87,17 +117,21 @@ export function scanGarminWellness(
       fitFilesSkipped += result.skipped;
       warnings.push(...result.warnings);
       debugNotes.push(...result.debugNotes);
-      mergeSummaries(summaries, result.summaries);
+      mergeSummaries(zipSummaries, result.summaries.map(markZipSources));
     }
   }
 
+  const summaries = mergeCsvAndZipSummaries(zipSummaries, csvSummaries, {
+    debugNotes,
+  });
+
   return {
     requestedDate: input.date,
-    summaries: [...summaries.values()].filter(
-      (summary) => summary.date === input.date,
-    ),
+    summaries: summaries.filter((summary) => summary.date === input.date),
     zipFilesFound,
     looseFitFilesFound,
+    sleepCsvFilesFound,
+    sleepCsvRecordsRead,
     fitFilesDecoded,
     fitFilesSkipped,
     ignoredEntries,
@@ -159,6 +193,7 @@ function wellnessCandidateFiles(cwd: string): WellnessCandidateFile[] {
     for (const path of recursiveCandidateFiles(wellnessRoot, {
       zip: true,
       fit: true,
+      csv: true,
     })) {
       files.set(path, {
         path,
@@ -170,7 +205,10 @@ function wellnessCandidateFiles(cwd: string): WellnessCandidateFile[] {
     for (const entry of readdirSync(garminRoot, { withFileTypes: true })) {
       const path = join(garminRoot, entry.name);
 
-      if (entry.isFile() && extname(entry.name).toLowerCase() === ".zip") {
+      if (
+        entry.isFile() &&
+        [".zip", ".csv"].includes(extname(entry.name).toLowerCase())
+      ) {
         files.set(path, { path });
         continue;
       }
@@ -179,6 +217,7 @@ function wellnessCandidateFiles(cwd: string): WellnessCandidateFile[] {
         for (const fitPath of recursiveCandidateFiles(path, {
           zip: false,
           fit: true,
+          csv: false,
         })) {
           files.set(fitPath, {
             path: fitPath,
@@ -193,7 +232,7 @@ function wellnessCandidateFiles(cwd: string): WellnessCandidateFile[] {
 
 function recursiveCandidateFiles(
   root: string,
-  extensions: { zip: boolean; fit: boolean },
+  extensions: { zip: boolean; fit: boolean; csv: boolean },
 ): string[] {
   const files: string[] = [];
 
@@ -210,7 +249,8 @@ function recursiveCandidateFiles(
 
       if (
         (extensions.zip && extension === ".zip") ||
-        (extensions.fit && extension === ".fit")
+        (extensions.fit && extension === ".fit") ||
+        (extensions.csv && extension === ".csv")
       ) {
         files.push(path);
       }
@@ -232,6 +272,163 @@ function mergeSummaries(
       existing ? mergeSummary(existing, summary) : summary,
     );
   }
+}
+
+function mergeCsvAndZipSummaries(
+  zipSummaries: Map<string, GarminWellnessSummary>,
+  csvSummaries: Map<string, GarminWellnessSummary>,
+  output: { debugNotes: string[] },
+): GarminWellnessSummary[] {
+  const dates = new Set([...zipSummaries.keys(), ...csvSummaries.keys()]);
+  const merged: GarminWellnessSummary[] = [];
+
+  for (const date of dates) {
+    const zip = zipSummaries.get(date) ?? null;
+    const csv = csvSummaries.get(date) ?? null;
+
+    if (zip !== null && csv !== null) {
+      merged.push(mergeSummaryWithCsvPriority(zip, csv));
+      output.debugNotes.push(
+        "Garmin sleep CSV supplied primary sleep metrics; wellness ZIP filled non-overlapping wellness fields.",
+      );
+      continue;
+    }
+
+    if (csv !== null) {
+      merged.push(csv);
+      continue;
+    }
+
+    if (zip !== null) {
+      merged.push(zip);
+    }
+  }
+
+  return merged;
+}
+
+function mergeSummaryWithCsvPriority(
+  zip: GarminWellnessSummary,
+  csv: GarminWellnessSummary,
+): GarminWellnessSummary {
+  const merged: GarminWellnessSummary = {
+    date: csv.date,
+    totalSteps: zip.totalSteps,
+    sleepDurationMinutes: csv.sleepDurationMinutes ?? zip.sleepDurationMinutes,
+    sleepScore: csv.sleepScore ?? zip.sleepScore,
+    sleepQuality: csv.sleepQuality ?? zip.sleepQuality,
+    deepSleepDurationMinutes:
+      csv.deepSleepDurationMinutes ?? zip.deepSleepDurationMinutes,
+    lightSleepDurationMinutes:
+      csv.lightSleepDurationMinutes ?? zip.lightSleepDurationMinutes,
+    remDurationMinutes: csv.remDurationMinutes ?? zip.remDurationMinutes,
+    awakeDurationMinutes: csv.awakeDurationMinutes ?? zip.awakeDurationMinutes,
+    restlessMoments: csv.restlessMoments ?? zip.restlessMoments,
+    restingHeartRate: csv.restingHeartRate ?? zip.restingHeartRate,
+    averageOvernightHeartRate:
+      csv.averageOvernightHeartRate ?? zip.averageOvernightHeartRate,
+    overnightHrv: csv.overnightHrv ?? zip.overnightHrv,
+    hrvStatus: csv.hrvStatus ?? zip.hrvStatus,
+    garminStress: csv.garminStress ?? zip.garminStress,
+    bodyBattery: csv.bodyBattery ?? zip.bodyBattery,
+    bodyBatteryHigh: zip.bodyBatteryHigh,
+    bodyBatteryLow: zip.bodyBatteryLow,
+    bodyBatteryOnWaking: zip.bodyBatteryOnWaking,
+    respirationRate: csv.respirationRate ?? zip.respirationRate,
+    lowestRespirationRate:
+      csv.lowestRespirationRate ?? zip.lowestRespirationRate,
+    pulseOx: csv.pulseOx ?? zip.pulseOx,
+    lowestPulseOx: csv.lowestPulseOx ?? zip.lowestPulseOx,
+    breathingVariations: csv.breathingVariations ?? zip.breathingVariations,
+    intensityMinutes: zip.intensityMinutes,
+    floorsClimbed: zip.floorsClimbed,
+    calories: zip.calories,
+    bedtime: zip.bedtime,
+    wakeTime: zip.wakeTime,
+    sleepStages: zip.sleepStages,
+    sourceFitFiles: zip.sourceFitFiles,
+    supportedRecords: zip.supportedRecords + csv.supportedRecords,
+    warnings: [...zip.warnings, ...csv.warnings],
+    fieldSources: mergeFieldSources(zip, csv),
+    lowerPriorityJournalValues: lowerPriorityValuesForCsvFields(zip, csv),
+  };
+
+  return merged;
+}
+
+function mergeFieldSources(
+  zip: GarminWellnessSummary,
+  csv: GarminWellnessSummary,
+): GarminWellnessSummary["fieldSources"] {
+  return {
+    ...(zip.fieldSources ?? {}),
+    ...(csv.fieldSources ?? {}),
+  };
+}
+
+function lowerPriorityValuesForCsvFields(
+  zip: GarminWellnessSummary,
+  csv: GarminWellnessSummary,
+): GarminWellnessSummary["lowerPriorityJournalValues"] {
+  const zipValues = journalValues(zip);
+  const csvSources = csv.fieldSources ?? {};
+  const lowerPriorityValues: GarminWellnessSummary["lowerPriorityJournalValues"] =
+    {};
+
+  for (const label of Object.keys(csvSources) as GarminWellnessJournalField[]) {
+    const value = zipValues[label];
+
+    if (value !== undefined) {
+      lowerPriorityValues[label] = value;
+    }
+  }
+
+  return lowerPriorityValues;
+}
+
+function markZipSources(summary: GarminWellnessSummary): GarminWellnessSummary {
+  return {
+    ...summary,
+    fieldSources: {
+      ...summary.fieldSources,
+      ...Object.fromEntries(
+        Object.keys(journalValues(summary)).map((field) => [
+          field,
+          "garmin_wellness_zip",
+        ]),
+      ),
+    },
+  };
+}
+
+function mergeCsvSummaryCandidates(
+  summaries: Map<string, GarminWellnessSummary>,
+  incoming: GarminWellnessSummary[],
+  debugNotes: string[],
+): void {
+  for (const summary of incoming) {
+    const existing = summaries.get(summary.date);
+
+    if (!existing) {
+      summaries.set(summary.date, summary);
+      continue;
+    }
+
+    const existingScore = populatedSourceCount(existing);
+    const incomingScore = populatedSourceCount(summary);
+
+    if (incomingScore > existingScore) {
+      summaries.set(summary.date, summary);
+    }
+
+    debugNotes.push(
+      "Multiple Garmin sleep CSV candidates existed for one wake date; the row with the most populated sleep fields was selected.",
+    );
+  }
+}
+
+function populatedSourceCount(summary: GarminWellnessSummary): number {
+  return Object.keys(summary.fieldSources ?? {}).length;
 }
 
 function mergeSummary(
@@ -294,7 +491,100 @@ function mergeSummary(
     sourceFitFiles: left.sourceFitFiles + right.sourceFitFiles,
     supportedRecords: left.supportedRecords + right.supportedRecords,
     warnings: [...left.warnings, ...right.warnings],
+    fieldSources: {
+      ...(left.fieldSources ?? {}),
+      ...(right.fieldSources ?? {}),
+    },
+    lowerPriorityJournalValues: {
+      ...(left.lowerPriorityJournalValues ?? {}),
+      ...(right.lowerPriorityJournalValues ?? {}),
+    },
   };
+}
+
+function journalValues(
+  summary: GarminWellnessSummary,
+): Partial<Record<GarminWellnessJournalField, string>> {
+  return {
+    ...(summary.sleepQuality === null ? {} : { Sleep: summary.sleepQuality }),
+    ...(summary.sleepDurationMinutes === null
+      ? {}
+      : {
+          "Sleep Duration": formatSleepDuration(summary.sleepDurationMinutes),
+        }),
+    ...(summary.sleepScore === null
+      ? {}
+      : { "Sleep Score": String(summary.sleepScore) }),
+    ...(summary.deepSleepDurationMinutes === null
+      ? {}
+      : {
+          "Deep Sleep Duration": formatSleepDuration(
+            summary.deepSleepDurationMinutes,
+          ),
+        }),
+    ...(summary.lightSleepDurationMinutes === null
+      ? {}
+      : {
+          "Light Sleep Duration": formatSleepDuration(
+            summary.lightSleepDurationMinutes,
+          ),
+        }),
+    ...(summary.remDurationMinutes === null
+      ? {}
+      : { "REM Duration": formatSleepDuration(summary.remDurationMinutes) }),
+    ...(summary.awakeDurationMinutes === null
+      ? {}
+      : {
+          "Awake Duration": formatSleepDuration(summary.awakeDurationMinutes),
+        }),
+    ...(summary.restlessMoments === null
+      ? {}
+      : { "Restless Moments": String(summary.restlessMoments) }),
+    ...(summary.restingHeartRate === null
+      ? {}
+      : { "Resting Heart Rate": `${summary.restingHeartRate} bpm` }),
+    ...(summary.averageOvernightHeartRate === null
+      ? {}
+      : {
+          "Average Overnight Heart Rate": `${summary.averageOvernightHeartRate} bpm`,
+        }),
+    ...(summary.overnightHrv === null
+      ? {}
+      : { "Overnight HRV": `${summary.overnightHrv} ms` }),
+    ...(summary.hrvStatus === null ? {} : { "HRV Status": summary.hrvStatus }),
+    ...(summary.garminStress === null
+      ? {}
+      : { "Garmin Stress": String(summary.garminStress) }),
+    ...(summary.bodyBattery === null
+      ? {}
+      : { "Body Battery": summary.bodyBattery }),
+    ...(summary.respirationRate === null
+      ? {}
+      : { "Average Respiration": String(summary.respirationRate) }),
+    ...(summary.lowestRespirationRate === null
+      ? {}
+      : { "Lowest Respiration": String(summary.lowestRespirationRate) }),
+    ...(summary.pulseOx === null
+      ? {}
+      : { "Average SpO2": `${summary.pulseOx}%` }),
+    ...(summary.lowestPulseOx === null
+      ? {}
+      : { "Lowest SpO2": `${summary.lowestPulseOx}%` }),
+    ...(summary.breathingVariations === null
+      ? {}
+      : { "Breathing Variations": summary.breathingVariations }),
+    ...(summary.totalSteps === null
+      ? {}
+      : { "Total Steps": summary.totalSteps.toLocaleString("en-US") }),
+  };
+}
+
+function formatSleepDuration(minutes: number): string {
+  const rounded = Math.round(minutes);
+  const hours = Math.floor(rounded / 60);
+  const remainingMinutes = rounded % 60;
+
+  return `${hours}h ${remainingMinutes}m`;
 }
 
 function maxNullable(left: number | null, right: number | null): number | null {

@@ -339,6 +339,10 @@ function formatActivityGroup(
 }
 
 function formatActivitySummary(activity: ManualActivity): string {
+  if (isTennisActivity(activity)) {
+    return formatTennisActivitySummary(activity);
+  }
+
   return [
     activity.activityType,
     activity.distanceMiles === null
@@ -378,6 +382,59 @@ function formatActivitySummary(activity: ManualActivity): string {
   ]
     .filter((value): value is string => value !== null)
     .join(", ");
+}
+
+function formatTennisActivitySummary(activity: ManualActivity): string {
+  return [
+    activity.activityType,
+    ...formatTennisTimeDetails(activity),
+    activity.distanceMiles === null
+      ? null
+      : `Device-estimated movement distance ${Number(activity.distanceMiles.toFixed(2))} mi`,
+    activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+    activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
+    activity.calories === null || activity.calories === undefined
+      ? null
+      : `${Math.round(activity.calories)} calories`,
+    activity.trainingEffect === null || activity.trainingEffect === undefined
+      ? null
+      : `Aerobic training effect ${Number(activity.trainingEffect.toFixed(1))}`,
+    activity.anaerobicTrainingEffect === null ||
+    activity.anaerobicTrainingEffect === undefined
+      ? null
+      : `Anaerobic training effect ${Number(activity.anaerobicTrainingEffect.toFixed(1))}`,
+    formatTemperature(activity),
+    formatDevice(activity.device),
+    activity.notes,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(", ");
+}
+
+function formatTennisTimeDetails(activity: ManualActivity): string[] {
+  if (
+    activity.elapsedTimeSeconds !== null &&
+    activity.elapsedTimeSeconds !== undefined
+  ) {
+    return [
+      `${secondsToReadableDuration(activity.elapsedTimeSeconds)} elapsed`,
+      activity.movingTimeSeconds === null ||
+      activity.movingTimeSeconds === undefined
+        ? null
+        : `${secondsToReadableDuration(activity.movingTimeSeconds)} active/timer`,
+      activity.stoppedTimeSeconds === null ||
+      activity.stoppedTimeSeconds === undefined ||
+      activity.stoppedTimeSeconds <= 0
+        ? null
+        : `${secondsToReadableDuration(activity.stoppedTimeSeconds)} stopped/paused`,
+    ].filter((value): value is string => value !== null);
+  }
+
+  return [
+    activity.durationMinutes === null
+      ? null
+      : formatDuration(activity.durationMinutes),
+  ].filter((value): value is string => value !== null);
 }
 
 function formatPowerAndDynamics(activity: ManualActivity): string[] {
@@ -570,6 +627,10 @@ function formatCooldownSplitNote(
 }
 
 function validRenderableSplits(activity: ManualActivity) {
+  if (isTennisActivity(activity)) {
+    return [];
+  }
+
   const splits = activity.laps ?? [];
 
   if (splits.length < 2) {
@@ -588,6 +649,10 @@ function validRenderableSplits(activity: ManualActivity) {
   );
 
   return valid.length < 2 ? [] : valid;
+}
+
+function isTennisActivity(activity: ManualActivity): boolean {
+  return activity.activityType.trim().toLowerCase() === "tennis";
 }
 
 function duplicatesActivity(

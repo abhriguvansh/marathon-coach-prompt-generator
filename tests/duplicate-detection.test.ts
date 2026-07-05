@@ -90,6 +90,44 @@ describe("duplicate detection", () => {
     assert.equal(analysis.warnings[0].excludedFromTotals, false);
   });
 
+  it("deduplicates matching manual and imported tennis while preserving manual notes", () => {
+    const manual = {
+      ...activity("journal", "tennis", null, 75),
+      notes: "Stopped because of fatigue.",
+    };
+    const garmin = {
+      ...activity("garmin_fit_export", "tennis", 2.01, 74.4),
+      avgHr: 140,
+      maxHr: 176,
+      calories: 620,
+      trainingEffect: 3.6,
+      notes: "Parsed from local FIT export; route details omitted.",
+    };
+    const analysis = analyzeActivityDuplicates([manual, garmin]);
+
+    assert.equal(analysis.activitiesForTotals.length, 1);
+    assert.equal(analysis.activitiesForTotals[0].source, "garmin_fit_export");
+    assert.equal(analysis.activitiesForTotals[0].avgHr, 140);
+    assert.match(
+      analysis.activitiesForTotals[0].notes ?? "",
+      /Stopped because of fatigue/,
+    );
+    assert.equal(analysis.warnings[0].level, "high_confidence");
+  });
+
+  it("keeps unrelated same-day tennis sessions separate", () => {
+    const analysis = analyzeActivityDuplicates([
+      activity("journal", "tennis", null, 30),
+      {
+        ...activity("garmin_fit_export", "tennis", 2.01, 75),
+        startTime: "17:00:00",
+      },
+    ]);
+
+    assert.equal(analysis.activitiesForTotals.length, 2);
+    assert.equal(analysis.warnings.length, 0);
+  });
+
   it("excludes high-confidence duplicates from daily totals", () => {
     const summary = createDailySummary({
       date: "2026-06-27",

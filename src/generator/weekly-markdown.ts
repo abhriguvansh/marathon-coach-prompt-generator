@@ -175,7 +175,10 @@ function formatDayTypeSummary(summary: WeeklySummary): string[] {
     ],
     ["Climbing days", counts.get("climbing day") ?? 0],
     ["Strength days", counts.get("strength day") ?? 0],
-    ["Tennis days", counts.get("tennis day") ?? 0],
+    [
+      "Tennis days",
+      countDayTypes(counts, ["tennis day", "tennis / cross-training day"]),
+    ],
     ["Mobility/recovery days", counts.get("mobility/recovery day") ?? 0],
     ["Confirmed rest/no-run days", countConfirmedRestDays(summary)],
     ["Days with no activity data found", countMissingActivityDays(summary)],
@@ -352,6 +355,10 @@ function formatActivityListByDay(summary: WeeklySummary): string {
 }
 
 function formatActivity(activity: ManualActivity): string {
+  if (isTennisActivity(activity)) {
+    return formatTennisActivity(activity);
+  }
+
   return [
     formatActivityType(activity),
     activity.distanceMiles === null
@@ -378,6 +385,31 @@ function formatActivity(activity: ManualActivity): string {
     activity.calories === null || activity.calories === undefined
       ? null
       : `${Math.round(activity.calories)} calories`,
+    formatTemperature(activity),
+    `source ${activity.source}`,
+    "route details omitted",
+  ]
+    .filter((value): value is string => value !== null)
+    .join(", ");
+}
+
+function formatTennisActivity(activity: ManualActivity): string {
+  return [
+    formatActivityType(activity),
+    activity.durationMinutes === null
+      ? null
+      : formatMinutes(activity.durationMinutes),
+    activity.distanceMiles === null
+      ? null
+      : `device-estimated movement ${formatMiles(activity.distanceMiles)}`,
+    activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+    activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
+    activity.calories === null || activity.calories === undefined
+      ? null
+      : `${Math.round(activity.calories)} calories`,
+    activity.trainingEffect === null || activity.trainingEffect === undefined
+      ? null
+      : `Aerobic training effect ${Number(activity.trainingEffect.toFixed(1))}`,
     formatTemperature(activity),
     `source ${activity.source}`,
     "route details omitted",
@@ -558,25 +590,47 @@ function formatHigherLoadActivities(activities: ManualActivity[]): string {
 
   return activities
     .map((activity) =>
-      [
-        activity.date,
-        formatActivityType(activity),
-        activity.distanceMiles === null
-          ? null
-          : `${Number(activity.distanceMiles.toFixed(2))} mi`,
-        activity.durationMinutes === null
-          ? null
-          : formatMinutes(activity.durationMinutes),
-        formatRunWalkRatio(activity.runWalkStructure),
-        activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
-        activity.calories === null || activity.calories === undefined
-          ? null
-          : `${Math.round(activity.calories)} calories`,
-      ]
+      (isTennisActivity(activity)
+        ? [
+            activity.date,
+            formatActivityType(activity),
+            activity.durationMinutes === null
+              ? null
+              : formatMinutes(activity.durationMinutes),
+            activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+            activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
+            activity.trainingEffect === null ||
+            activity.trainingEffect === undefined
+              ? null
+              : `Aerobic training effect ${Number(activity.trainingEffect.toFixed(1))}`,
+            activity.calories === null || activity.calories === undefined
+              ? null
+              : `${Math.round(activity.calories)} calories`,
+          ]
+        : [
+            activity.date,
+            formatActivityType(activity),
+            activity.distanceMiles === null
+              ? null
+              : `${Number(activity.distanceMiles.toFixed(2))} mi`,
+            activity.durationMinutes === null
+              ? null
+              : formatMinutes(activity.durationMinutes),
+            formatRunWalkRatio(activity.runWalkStructure),
+            activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
+            activity.calories === null || activity.calories === undefined
+              ? null
+              : `${Math.round(activity.calories)} calories`,
+          ]
+      )
         .filter((value): value is string => value !== null)
         .join(", "),
     )
     .join("; ");
+}
+
+function isTennisActivity(activity: ManualActivity): boolean {
+  return activity.activityType.trim().toLowerCase() === "tennis";
 }
 
 function formatFlags(flags: string[]): string {

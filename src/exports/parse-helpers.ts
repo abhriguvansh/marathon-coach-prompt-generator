@@ -13,6 +13,10 @@ import { toAthleteLocalDate, toAthleteLocalTime } from "../utils/timezone";
 export function buildExportActivity(input: {
   source: ExportSource;
   activityType: string | null;
+  loadCategory?: string | null;
+  fitSport?: number | null;
+  fitSubSport?: number | null;
+  activityTypeConfidence?: ManualActivity["activityTypeConfidence"];
   startDate: string | null;
   startTime?: string | null;
   distanceMiles: number | null;
@@ -64,9 +68,15 @@ export function buildExportActivity(input: {
     startTime: input.startTime ?? null,
     source: input.source,
     activityType: normalizeActivityType(input.activityType),
+    loadCategory: input.loadCategory ?? null,
+    fitSport: input.fitSport ?? null,
+    fitSubSport: input.fitSubSport ?? null,
+    activityTypeConfidence: input.activityTypeConfidence ?? null,
     distanceMiles: input.distanceMiles,
     durationMinutes: input.durationMinutes,
-    paceMinPerMile: formatPace(input.distanceMiles, input.durationMinutes),
+    paceMinPerMile: usesPace(input.activityType)
+      ? formatPace(input.distanceMiles, input.durationMinutes)
+      : null,
     elevationFt: input.elevationFt,
     elevationGainFt: input.elevationGainFt ?? input.elevationFt,
     elevationLossFt: input.elevationLossFt ?? null,
@@ -106,6 +116,12 @@ export function buildExportActivity(input: {
     steps: input.steps ?? null,
     notes: input.notes ?? "Parsed from local export; route details omitted.",
   };
+}
+
+function usesPace(activityType: string | null): boolean {
+  const normalized = normalizeActivityType(activityType);
+
+  return ["run", "walk", "hike"].includes(normalized);
 }
 
 export function warning(
