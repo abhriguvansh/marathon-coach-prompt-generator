@@ -17,6 +17,7 @@ import {
 import { numericRecoveryValue } from "../utils/recovery";
 import { enrichRunWalkStructures } from "../utils/run-walk";
 import { isHighStepNote, stepApprox } from "../utils/steps";
+import { applyJournalFullSessionOverrides } from "./activity-overrides";
 import {
   classifyActivities,
   sumDurationMinutes,
@@ -40,8 +41,8 @@ export function createWeeklySummary(input: {
   const weekEnd = formatDate(addDays(parseDate(input.weekStart), 6));
   const evidenceStart = formatDate(addDays(parseDate(input.weekStart), -7));
   const evidenceEnd = formatDate(addDays(parseDate(input.weekStart), -1));
-  const dailyNotes = input.dailyNotes.filter((note) =>
-    isDateWithinRange(note.date, evidenceStart, evidenceEnd),
+  const dailyNotes = canonicalDailyNotesByDate(input.dailyNotes).filter(
+    (note) => isDateWithinRange(note.date, evidenceStart, evidenceEnd),
   );
   const activityNotes = input.activityNotes.filter((note) =>
     isDateWithinRange(note.date, evidenceStart, evidenceEnd),
@@ -50,8 +51,10 @@ export function createWeeklySummary(input: {
     isDateWithinRange(entry.date, evidenceStart, evidenceEnd),
   );
   const manualActivities = enrichWeeklyRunWalkStructures(
-    input.manualActivities.filter((activity) =>
-      isDateWithinRange(activity.date, evidenceStart, evidenceEnd),
+    applyJournalFullSessionOverrides(
+      input.manualActivities.filter((activity) =>
+        isDateWithinRange(activity.date, evidenceStart, evidenceEnd),
+      ),
     ),
     activityNotes,
     dailyNotes,
@@ -67,6 +70,91 @@ export function createWeeklySummary(input: {
   const recoveryTrendFlags = buildWeeklyRecoveryTrendFlags({
     dailyNotes,
     manualActivities,
+  });
+
+  const activityListByDay = buildActivityListByDay(
+    evidenceStart,
+    evidenceEnd,
+    manualActivities,
+    dailyNotes,
+    journalEntries,
+  );
+  const totals = {
+    runningMileage,
+    walkingMileage,
+    totalActiveMileage: runningMileage + walkingMileage,
+    runningDurationMinutes,
+    walkingDurationMinutes,
+    runCount: groups.runs.length,
+    walkCount: groups.walks.length,
+    rockClimbingCount: groups.rockClimbing.length,
+    tennisCount: groups.tennis.length,
+    weightsCount: groups.weights.length,
+    mobilityRestOtherCount: groups.mobility.length + groups.restOrOther.length,
+    totalSteps: sumNullable(dailyNotes.map((note) => stepApprox(note))),
+    averageDailySteps: averageNullable(
+      dailyNotes.map((note) => stepApprox(note)),
+    ),
+    stepDaysWithData: dailyNotes.filter((note) => stepApprox(note) !== null)
+      .length,
+    highStepDays: dailyNotes.filter((note) => isHighStepNote(note)).length,
+    longestRun: longestByDistance(groups.runs),
+    longestWalk: longestByDistance(groups.walks),
+    runElevationGainFt: sumNullable(groups.runs.map(activityElevationGain)),
+    runElevationLossFt: sumNullable(groups.runs.map(activityElevationLoss)),
+    walkElevationGainFt: sumNullable(groups.walks.map(activityElevationGain)),
+    walkElevationLossFt: sumNullable(groups.walks.map(activityElevationLoss)),
+    totalElevationGainFt: sumNullable(
+      [...groups.runs, ...groups.walks].map(activityElevationGain),
+    ),
+    totalElevationLossFt: sumNullable(
+      [...groups.runs, ...groups.walks].map(activityElevationLoss),
+    ),
+    averageRunPaceSecondsPerMile:
+      runningMileage > 0 && runningDurationMinutes > 0
+        ? (runningDurationMinutes * 60) / runningMileage
+        : null,
+    averageWalkPaceSecondsPerMile:
+      walkingMileage > 0 && walkingDurationMinutes > 0
+        ? (walkingDurationMinutes * 60) / walkingMileage
+        : null,
+    averageRunHr: weightedAverageHr(groups.runs),
+    averageWalkHr: weightedAverageHr(groups.walks),
+    totalCalories: sumNullable(
+      activitiesForTotals.map((activity) => activity.calories ?? null),
+    ),
+    higherLoadActivities: higherLoadActivities([
+      ...groups.runs,
+      ...groups.walks,
+      ...groups.tennis,
+    ]),
+    wellnessCoverageDays: dailyNotes.filter(hasGarminWellnessMetric).length,
+    averageSleepDurationMinutes: averageNullable(
+      dailyNotes.map((note) => note.sleepDurationMinutes ?? null),
+    ),
+    averageSleepScore: averageNullable(
+      dailyNotes.map((note) => note.sleepScore ?? null),
+    ),
+    averageGarminStress: averageNullable(
+      dailyNotes.map((note) => note.garminStress ?? null),
+    ),
+    averageRestingHeartRate: averageNullable(
+      dailyNotes.map((note) => note.restingHeartRate ?? null),
+    ),
+    hrvStatusCoverageDays: dailyNotes.filter(
+      (note) => note.overnightHrv != null || note.hrvStatus != null,
+    ).length,
+    bodyBatteryCoverageDays: dailyNotes.filter(
+      (note) => note.bodyBattery != null,
+    ).length,
+  };
+  const reconciliationWarnings = buildWeeklyReconciliationWarnings({
+    evidenceStart,
+    evidenceEnd,
+    totals,
+    dailyNotes,
+    activityListByDay,
+    activitiesForTotals,
   });
 
   return {
@@ -86,76 +174,7 @@ export function createWeeklySummary(input: {
     journalEntries,
     exportWarnings: input.exportWarnings ?? [],
     duplicateWarnings: duplicateAnalysis.warnings,
-    totals: {
-      runningMileage,
-      walkingMileage,
-      totalActiveMileage: runningMileage + walkingMileage,
-      runningDurationMinutes,
-      walkingDurationMinutes,
-      runCount: groups.runs.length,
-      walkCount: groups.walks.length,
-      rockClimbingCount: groups.rockClimbing.length,
-      tennisCount: groups.tennis.length,
-      weightsCount: groups.weights.length,
-      mobilityRestOtherCount:
-        groups.mobility.length + groups.restOrOther.length,
-      totalSteps: sumNullable(dailyNotes.map((note) => stepApprox(note))),
-      averageDailySteps: averageNullable(
-        dailyNotes.map((note) => stepApprox(note)),
-      ),
-      stepDaysWithData: dailyNotes.filter((note) => stepApprox(note) !== null)
-        .length,
-      highStepDays: dailyNotes.filter((note) => isHighStepNote(note)).length,
-      longestRun: longestByDistance(groups.runs),
-      longestWalk: longestByDistance(groups.walks),
-      runElevationGainFt: sumNullable(groups.runs.map(activityElevationGain)),
-      runElevationLossFt: sumNullable(groups.runs.map(activityElevationLoss)),
-      walkElevationGainFt: sumNullable(groups.walks.map(activityElevationGain)),
-      walkElevationLossFt: sumNullable(groups.walks.map(activityElevationLoss)),
-      totalElevationGainFt: sumNullable(
-        [...groups.runs, ...groups.walks].map(activityElevationGain),
-      ),
-      totalElevationLossFt: sumNullable(
-        [...groups.runs, ...groups.walks].map(activityElevationLoss),
-      ),
-      averageRunPaceSecondsPerMile:
-        runningMileage > 0 && runningDurationMinutes > 0
-          ? (runningDurationMinutes * 60) / runningMileage
-          : null,
-      averageWalkPaceSecondsPerMile:
-        walkingMileage > 0 && walkingDurationMinutes > 0
-          ? (walkingDurationMinutes * 60) / walkingMileage
-          : null,
-      averageRunHr: weightedAverageHr(groups.runs),
-      averageWalkHr: weightedAverageHr(groups.walks),
-      totalCalories: sumNullable(
-        activitiesForTotals.map((activity) => activity.calories ?? null),
-      ),
-      higherLoadActivities: higherLoadActivities([
-        ...groups.runs,
-        ...groups.walks,
-        ...groups.tennis,
-      ]),
-      wellnessCoverageDays: dailyNotes.filter(hasGarminWellnessMetric).length,
-      averageSleepDurationMinutes: averageNullable(
-        dailyNotes.map((note) => note.sleepDurationMinutes ?? null),
-      ),
-      averageSleepScore: averageNullable(
-        dailyNotes.map((note) => note.sleepScore ?? null),
-      ),
-      averageGarminStress: averageNullable(
-        dailyNotes.map((note) => note.garminStress ?? null),
-      ),
-      averageRestingHeartRate: averageNullable(
-        dailyNotes.map((note) => note.restingHeartRate ?? null),
-      ),
-      hrvStatusCoverageDays: dailyNotes.filter(
-        (note) => note.overnightHrv != null || note.hrvStatus != null,
-      ).length,
-      bodyBatteryCoverageDays: dailyNotes.filter(
-        (note) => note.bodyBattery != null,
-      ).length,
-    },
+    totals,
     recovery: {
       sorenessAverage: averageNullable(
         dailyNotes.map((note) => numericRecoveryValue(note.legSoreness)),
@@ -183,13 +202,7 @@ export function createWeeklySummary(input: {
         dailyNotes.map((note) => numericRecoveryValue(note.stress)),
       ),
     },
-    activityListByDay: buildActivityListByDay(
-      evidenceStart,
-      evidenceEnd,
-      manualActivities,
-      dailyNotes,
-      journalEntries,
-    ),
+    activityListByDay,
     travelBreakNote: buildTravelBreakNote(
       input.athleteConfig,
       input.weekStart,
@@ -206,7 +219,7 @@ export function createWeeklySummary(input: {
       exportWarnings: input.exportWarnings ?? [],
       duplicateWarnings: duplicateAnalysis.warnings,
       journalEntries,
-    }),
+    }).concat(reconciliationWarnings),
   };
 }
 
@@ -228,6 +241,39 @@ function enrichWeeklyRunWalkStructures(
         journalEntries.find((entry) => entry.date === activity.date) ?? null,
     }),
   );
+}
+
+function canonicalDailyNotesByDate(notes: DailyNote[]): DailyNote[] {
+  const byDate = new Map<string, DailyNote>();
+
+  for (const note of notes) {
+    const existing = byDate.get(note.date);
+
+    if (!existing || stepSourcePriority(note) >= stepSourcePriority(existing)) {
+      byDate.set(note.date, note);
+    }
+  }
+
+  return [...byDate.values()];
+}
+
+function stepSourcePriority(note: DailyNote): number {
+  switch (note.stepsSource) {
+    case "journal_manual":
+      return 4;
+    case "garmin_daily_export":
+    case "strava_daily_export":
+      return 3;
+    case "manual_csv":
+      return 2;
+    case "unknown":
+      return 1;
+    case null:
+    case undefined:
+      return 0;
+    default:
+      return 0;
+  }
 }
 
 function buildActivityListByDay(
@@ -434,6 +480,92 @@ function buildWeeklyMissingDataFlags(input: {
   }
 
   return flags;
+}
+
+function buildWeeklyReconciliationWarnings(input: {
+  evidenceStart: string;
+  evidenceEnd: string;
+  totals: WeeklySummary["totals"];
+  dailyNotes: DailyNote[];
+  activityListByDay: WeeklySummary["activityListByDay"];
+  activitiesForTotals: ManualActivity[];
+}): WeeklySummary["missingDataFlags"] {
+  const flags: WeeklySummary["missingDataFlags"] = [];
+  const dayRunTotal = sumMileage(
+    input.activityListByDay.flatMap((day) =>
+      day.activities.filter(
+        (activity) => activity.activityType.trim().toLowerCase() === "run",
+      ),
+    ),
+  );
+  const dayWalkTotal = sumMileage(
+    input.activityListByDay.flatMap((day) =>
+      day.activities.filter((activity) =>
+        ["walk", "hike"].includes(activity.activityType.trim().toLowerCase()),
+      ),
+    ),
+  );
+
+  if (!approximatelyEqual(dayRunTotal, input.totals.runningMileage)) {
+    flags.push({
+      field: "weekly running mileage",
+      message: `Weekly running mileage reconciliation warning: day details sum to ${formatMileageForWarning(dayRunTotal)} while the total is ${formatMileageForWarning(input.totals.runningMileage)}.`,
+    });
+  }
+
+  if (!approximatelyEqual(dayWalkTotal, input.totals.walkingMileage)) {
+    flags.push({
+      field: "weekly walking mileage",
+      message: `Weekly walking mileage reconciliation warning: day details sum to ${formatMileageForWarning(dayWalkTotal)} while the total is ${formatMileageForWarning(input.totals.walkingMileage)}.`,
+    });
+  }
+
+  const manualOverrideCount = input.activitiesForTotals.filter(
+    (activity) =>
+      activity.distanceSource === "manual_full_session" ||
+      activity.durationSource === "manual_full_session",
+  ).length;
+
+  if (manualOverrideCount > 0) {
+    flags.push({
+      field: "manual full-session overrides",
+      message: `${manualOverrideCount} manual full-session correction(s) were applied before weekly totals were rendered.`,
+    });
+  }
+
+  const missingStepDays =
+    countDatesInRange(input.evidenceStart, input.evidenceEnd) -
+    input.dailyNotes.filter((note) => stepApprox(note) !== null).length;
+
+  if (missingStepDays > 0) {
+    flags.push({
+      field: "weekly steps",
+      message: `Weekly step trend is based on ${input.totals.stepDaysWithData} of 7 evidence days.`,
+    });
+  }
+
+  return flags;
+}
+
+function approximatelyEqual(left: number, right: number): boolean {
+  return Math.abs(left - right) < 0.005;
+}
+
+function formatMileageForWarning(value: number): string {
+  return `${Number(value.toFixed(2))} mi`;
+}
+
+function countDatesInRange(start: string, end: string): number {
+  let count = 0;
+  let current = parseDate(start);
+  const endDate = parseDate(end);
+
+  while (current.getTime() <= endDate.getTime()) {
+    count += 1;
+    current = addDays(current, 1);
+  }
+
+  return count;
 }
 
 function isLegacyManualPath(path: string): boolean {

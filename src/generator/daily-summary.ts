@@ -12,6 +12,7 @@ import type {
 import { daysUntilRace, formatDate, parseDate } from "../utils/dates";
 import { numericRecoveryValue } from "../utils/recovery";
 import { enrichRunWalkStructures } from "../utils/run-walk";
+import { applyJournalFullSessionOverrides } from "./activity-overrides";
 import { classifyActivities, sumMileage } from "./activity-classification";
 import { evaluateCheckInCompleteness } from "./checkin-completeness";
 import {
@@ -49,15 +50,17 @@ export function createDailySummary(input: {
     (input.journalEntries ?? []).find((entry) => entry.date === evidenceDate) ??
     null;
   const manualActivities = enrichRunWalkStructures({
-    activities: input.manualActivities.filter(
-      (activity) => activity.date === evidenceDate,
+    activities: applyJournalFullSessionOverrides(
+      input.manualActivities.filter(
+        (activity) => activity.date === evidenceDate,
+      ),
     ),
     activityNotes,
     dailyNoteText: dailyNote?.notes,
     journalEntry,
   });
   const allManualActivities = enrichActivitiesByDate(
-    input.manualActivities,
+    applyJournalFullSessionOverrides(input.manualActivities),
     input.activityNotes,
     input.dailyNotes,
     input.journalEntries ?? [],

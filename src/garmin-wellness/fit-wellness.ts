@@ -6,11 +6,19 @@ import {
   valueString,
 } from "../fit/decoder";
 import { toAthleteLocalDate, toAthleteLocalTime } from "../utils/timezone";
-import type { GarminWellnessSummary } from "./types";
+import type { GarminStepSource, GarminWellnessSummary } from "./types";
+
+interface StepCandidate {
+  value: number;
+  source: Exclude<GarminStepSource, "unavailable">;
+  timestamp: string;
+  activityType: number | null;
+}
 
 interface WellnessAccumulator {
   date: string;
-  steps: number[];
+  stepCandidates: StepCandidate[];
+  stepRejectedReasons: string[];
   sleepDurations: number[];
   sleepScores: number[];
   restingHeartRates: number[];
@@ -46,6 +54,8 @@ type WellnessRecord = Omit<
   GarminWellnessSummary,
   "sourceFitFiles" | "supportedRecords" | "warnings" | "bodyBattery"
 > & {
+  stepCandidates: StepCandidate[];
+  stepRejectedReasons: string[];
   bodyBatteryValues: Array<{
     value: number;
     kind: "waking" | "high" | "low" | "single";
@@ -86,7 +96,8 @@ const MIN_OVERNIGHT_SLEEP_MINUTES = 60;
 const MAX_OVERNIGHT_SLEEP_MINUTES = 900;
 const MAX_SLEEP_LEVEL_GAP_MINUTES = 240;
 const FIELD_SYNTHETIC_STEPS = [100];
-const FIELD_MONITORING_INFO_STEPS = [3];
+const FIELD_MONITORING_CYCLES = [3];
+const FIELD_MONITORING_ACTIVITY_TYPE = [5];
 const FIELD_SLEEP_DURATION = [1, 10, 101];
 const FIELD_SLEEP_SCORE = [2, 11, 102];
 const FIELD_DAILY_RESTING_HR = [13, 103];
@@ -171,11 +182,12 @@ function wellnessRecordFromMessage(
     case GLOBAL_SYNTHETIC_WELLNESS:
       return {
         date,
-        totalSteps: saneNumber(
-          firstNumber(message, FIELD_SYNTHETIC_STEPS),
-          0,
-          200000,
-        ),
+        totalSteps: null,
+        totalStepsSource: null,
+        stepCandidateCount: 0,
+        stepRejectedCount: 0,
+        stepCandidates: stepCandidateFromDailySummary(message),
+        stepRejectedReasons: [],
         sleepDurationMinutes: trustedSleepDurationMinutes(
           firstNumber(message, FIELD_SLEEP_DURATION),
         ),
@@ -241,11 +253,12 @@ function wellnessRecordFromMessage(
     case GLOBAL_MONITORING_INFO:
       return {
         ...emptyRecord(date),
-        totalSteps: saneNumber(
-          firstNumber(message, FIELD_MONITORING_INFO_STEPS),
-          0,
-          200000,
-        ),
+        stepRejectedReasons:
+          firstNumber(message, [3]) === null
+            ? []
+            : [
+                "monitoring_info field 3 rejected because it is metadata, not a daily step total",
+              ],
       };
     case GLOBAL_DAILY_SUMMARY:
       return {
@@ -298,6 +311,8 @@ function wellnessRecordFromMessage(
     case GLOBAL_MONITORING:
       return {
         ...emptyRecord(date),
+        stepCandidates: stepCandidatesFromMonitoring(message),
+        stepRejectedReasons: monitoringStepRejectedReasons(message),
         warnings: [
           {
             key: "monitoring-samples-ignored",
@@ -323,7 +338,8 @@ function getAccumulator(
 
   const created: WellnessAccumulator = {
     date,
-    steps: [],
+    stepCandidates: [],
+    stepRejectedReasons: [],
     sleepDurations: [],
     sleepScores: [],
     restingHeartRates: [],
@@ -353,7 +369,8 @@ function addWellnessRecordToAccumulator(
   accumulator: WellnessAccumulator,
   record: WellnessRecord,
 ): void {
-  pushNumber(accumulator.steps, record.totalSteps);
+  accumulator.stepCandidates.push(...record.stepCandidates);
+  accumulator.stepRejectedReasons.push(...record.stepRejectedReasons);
   pushNumber(accumulator.sleepDurations, record.sleepDurationMinutes);
   pushNumber(accumulator.sleepScores, record.sleepScore);
   pushNumber(accumulator.restingHeartRates, record.restingHeartRate);
@@ -382,6 +399,11 @@ function emptyRecord(date: string): WellnessRecord {
   return {
     date,
     totalSteps: null,
+    totalStepsSource: null,
+    stepCandidateCount: 0,
+    stepRejectedCount: 0,
+    stepCandidates: [],
+    stepRejectedReasons: [],
     sleepDurationMinutes: null,
     sleepScore: null,
     sleepQuality: null,
@@ -578,10 +600,15 @@ function summaryFromAccumulator(
         .filter((value) => value.kind === "waking")
         .map((value) => value.value),
     ) ?? null;
+  const stepSelection = selectStepTotal(accumulator.stepCandidates);
 
   return {
     date: accumulator.date,
-    totalSteps: maxNumber(accumulator.steps),
+    totalSteps: stepSelection.value,
+    totalStepsSource: stepSelection.source,
+    stepCandidateCount: accumulator.stepCandidates.length,
+    stepRejectedCount: accumulator.stepRejectedReasons.length,
+    stepRejectedReasons: unique(accumulator.stepRejectedReasons),
     sleepDurationMinutes: maxNumber(accumulator.sleepDurations),
     sleepScore: lastNumber(accumulator.sleepScores),
     sleepQuality: null,
@@ -624,6 +651,128 @@ function summaryFromAccumulator(
 
 function timestampFromMessage(message: FitParsedMessage): string | null {
   return fitTimestamp(valueNumber(message.fields[FIELD_TIMESTAMP]));
+}
+
+function stepCandidateFromDailySummary(
+  message: FitParsedMessage,
+): StepCandidate[] {
+  const value = saneNumber(
+    firstNumber(message, FIELD_SYNTHETIC_STEPS),
+    1,
+    200000,
+  );
+  const timestamp = timestampFromMessage(message);
+
+  if (value === null || timestamp === null) {
+    return [];
+  }
+
+  return [
+    {
+      value,
+      source: "garmin_daily_summary",
+      timestamp,
+      activityType: null,
+    },
+  ];
+}
+
+function stepCandidatesFromMonitoring(
+  message: FitParsedMessage,
+): StepCandidate[] {
+  const value = saneNumber(
+    firstNumber(message, FIELD_MONITORING_CYCLES),
+    1,
+    200000,
+  );
+  const activityType = firstNumber(message, FIELD_MONITORING_ACTIVITY_TYPE);
+  const timestamp = timestampFromMessage(message);
+
+  if (
+    value === null ||
+    timestamp === null ||
+    !isStepLikeMonitoringActivityType(activityType)
+  ) {
+    return [];
+  }
+
+  return [
+    {
+      value,
+      source: "garmin_cumulative_snapshot",
+      timestamp,
+      activityType,
+    },
+  ];
+}
+
+function monitoringStepRejectedReasons(message: FitParsedMessage): string[] {
+  const value = firstNumber(message, FIELD_MONITORING_CYCLES);
+  const activityType = firstNumber(message, FIELD_MONITORING_ACTIVITY_TYPE);
+
+  if (
+    value === null ||
+    value <= 0 ||
+    isStepLikeMonitoringActivityType(activityType)
+  ) {
+    return [];
+  }
+
+  return [
+    "monitoring cycles rejected because the activity type is not step-like",
+  ];
+}
+
+function isStepLikeMonitoringActivityType(value: number | null): boolean {
+  return value === 1 || value === 6;
+}
+
+function selectStepTotal(candidates: StepCandidate[]): {
+  value: number | null;
+  source: GarminStepSource;
+} {
+  const dailySummaries = candidates
+    .filter((candidate) => candidate.source === "garmin_daily_summary")
+    .sort(compareStepCandidates);
+
+  if (dailySummaries.length > 0) {
+    const selected = dailySummaries[dailySummaries.length - 1];
+
+    return { value: selected.value, source: selected.source };
+  }
+
+  const cumulative = candidates
+    .filter((candidate) => candidate.source === "garmin_cumulative_snapshot")
+    .sort(compareStepCandidates);
+  const latestByActivityType = new Map<number, StepCandidate>();
+
+  for (const candidate of cumulative) {
+    if (candidate.activityType === null) {
+      continue;
+    }
+
+    latestByActivityType.set(candidate.activityType, candidate);
+  }
+
+  const selected = [...latestByActivityType.values()];
+
+  if (selected.length === 0) {
+    return { value: null, source: "unavailable" };
+  }
+
+  return {
+    value: selected.reduce((total, candidate) => total + candidate.value, 0),
+    source: "garmin_cumulative_snapshot",
+  };
+}
+
+function compareStepCandidates(
+  left: StepCandidate,
+  right: StepCandidate,
+): number {
+  return (
+    new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime()
+  );
 }
 
 function firstValue(
@@ -882,7 +1031,7 @@ function debugNotes(
 
   return [
     `Observed FIT message types: ${counts}.`,
-    "Selection logic: steps use Garmin monitoring_info field 3 as cumulative daily steps; sleep requires a trusted sleep_summary marker plus a plausible bounded sleep_level timeline and is assigned by local wake date; orphan sleep-stage/segment records are ignored as totals; sleep score 0 is unavailable; resting HR uses daily_summary resting-HR fields only; overnight HRV rejects invalid sentinel values and unknown statuses.",
+    "Selection logic: steps use trusted daily summaries when present, otherwise same-local-date monitoring cumulative snapshots for step-like activity types; monitoring_info metadata is not treated as steps; sleep requires a trusted sleep_summary marker plus a plausible bounded sleep_level timeline and is assigned by local wake date; orphan sleep-stage/segment records are ignored as totals; sleep score 0 is unavailable; resting HR uses daily_summary resting-HR fields only; overnight HRV rejects invalid sentinel values and unknown statuses.",
     ...sleepNotes,
   ];
 }
@@ -964,4 +1113,8 @@ function pushString(values: string[], value: string | null): void {
   if (value !== null) {
     values.push(value);
   }
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }

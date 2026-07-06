@@ -95,6 +95,12 @@ Each activity should be written as:
 
 Duration:
 
+Full Session Distance:
+
+Full Session Duration:
+
+Recording Note:
+
 Intensity:
 
 Notes:

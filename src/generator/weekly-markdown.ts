@@ -28,17 +28,21 @@ export function renderWeeklySummary(summary: WeeklySummary): string {
     "",
     "## Recent Training Summary",
     "",
-    `- Running days: ${summary.totals.runCount}`,
+    `- Running sessions: ${summary.totals.runCount}`,
+    `- Running days: ${countActivityDays(summary, "run")}`,
     `- Running mileage: ${formatMiles(summary.totals.runningMileage)}`,
     `- Longest run: ${formatActivityDistance(summary.totals.longestRun)}`,
     `- Walking mileage: ${formatMiles(summary.totals.walkingMileage)}`,
     `- Step load: total ${formatUnknown(summary.totals.totalSteps, "unknown")}; average ${formatRounded(summary.totals.averageDailySteps, "unknown")}`,
     `- High-step days: ${summary.totals.highStepDays}; step trend: ${formatStepTrend(summary)}`,
     `- Rock climbing sessions: ${summary.totals.rockClimbingCount}`,
+    `- Rock climbing days: ${countActivityDays(summary, "rock_climbing")}`,
     `- Weights/strength sessions: ${summary.totals.weightsCount}`,
+    `- Weights/strength days: ${countActivityDays(summary, "weights", "strength")}`,
     `- Tennis sessions: ${summary.totals.tennisCount}`,
+    `- Tennis days: ${countActivityDays(summary, "tennis")}`,
     `- Mobility/rest/other activity count: ${summary.totals.mobilityRestOtherCount}`,
-    `- Confirmed rest/no-run days: ${countConfirmedRestDays(summary)}`,
+    `- Confirmed rest/no-run days: ${countConfirmedRestStatuses(summary)}`,
     `- Days with no activity data found: ${countMissingActivityDays(summary)}`,
     "",
     "## Day Type Summary",
@@ -161,26 +165,37 @@ function formatDayTypeSummary(summary: WeeklySummary): string[] {
   }
 
   return [
-    [
-      "Run days",
-      countDayTypes(counts, ["run day", "run day with high step load"]),
-    ],
+    ["Run-only days", counts.get("run day") ?? 0],
+    ["Run-only high-step days", counts.get("run day with high step load") ?? 0],
     ["Walk-only days", counts.get("walk-only day") ?? 0],
-    ["High-step no-run days", counts.get("high-step no-run day") ?? 0],
-    ["Moderate-step no-run days", counts.get("moderate-step no-run day") ?? 0],
+    [
+      "Tennis-only days",
+      countDayTypes(counts, ["tennis day", "tennis / cross-training day"]),
+    ],
+    ["Climbing-only days", counts.get("climbing day") ?? 0],
+    ["Strength-only days", counts.get("strength day") ?? 0],
     ["Mixed-load days", counts.get("mixed-load day") ?? 0],
+    [
+      "Mixed-load days containing running",
+      countMixedDaysContaining(summary, "run"),
+    ],
+    [
+      "Mixed-load days containing climbing",
+      countMixedDaysContaining(summary, "rock_climbing"),
+    ],
+    [
+      "Mixed-load days containing tennis",
+      countMixedDaysContaining(summary, "tennis"),
+    ],
     [
       "Mixed non-running load days",
       counts.get("mixed non-running load day") ?? 0,
     ],
-    ["Climbing days", counts.get("climbing day") ?? 0],
-    ["Strength days", counts.get("strength day") ?? 0],
-    [
-      "Tennis days",
-      countDayTypes(counts, ["tennis day", "tennis / cross-training day"]),
-    ],
+    ["High-step no-run days", counts.get("high-step no-run day") ?? 0],
+    ["Moderate-step no-run days", counts.get("moderate-step no-run day") ?? 0],
     ["Mobility/recovery days", counts.get("mobility/recovery day") ?? 0],
-    ["Confirmed rest/no-run days", countConfirmedRestDays(summary)],
+    ["Confirmed rest days", countConfirmedRestDays(summary)],
+    ["Recovery-note-only days", countRecoveryNoteOnlyDays(summary)],
     ["Days with no activity data found", countMissingActivityDays(summary)],
   ].map(([label, count]) => `- ${label}: ${count}`);
 }
@@ -231,6 +246,33 @@ function formatMinutes(minutes: number): string {
   return secondsToReadableDuration(minutes * 60);
 }
 
+function formatActivityMiles(activity: ManualActivity): string {
+  const miles =
+    activity.distanceMiles === null
+      ? null
+      : formatMiles(activity.distanceMiles);
+
+  if (miles === null) {
+    return "unknown";
+  }
+
+  return activity.distanceSource === "manual_full_session"
+    ? `${miles} full session`
+    : miles;
+}
+
+function formatActivityDuration(activity: ManualActivity): string {
+  if (activity.durationMinutes === null) {
+    return "unknown";
+  }
+
+  const duration = formatMinutes(activity.durationMinutes);
+
+  return activity.durationSource === "manual_full_session"
+    ? `${duration} full session`
+    : duration;
+}
+
 function formatRounded(value: number | null, fallback: string): string {
   return value === null ? fallback : String(Number(value.toFixed(1)));
 }
@@ -243,12 +285,8 @@ function formatActivityDistance(activity: ManualActivity | null): string {
   return [
     activity.date,
     formatActivityType(activity),
-    activity.distanceMiles === null
-      ? null
-      : formatMiles(activity.distanceMiles),
-    activity.durationMinutes === null
-      ? null
-      : formatMinutes(activity.durationMinutes),
+    activity.distanceMiles === null ? null : formatActivityMiles(activity),
+    activity.durationMinutes === null ? null : formatActivityDuration(activity),
     formatRunWalkRatio(activity.runWalkStructure),
     activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
     activity.calories === null || activity.calories === undefined
@@ -338,6 +376,23 @@ function formatActivityListByDay(summary: WeeklySummary): string {
   return summary.activityListByDay
     .map((day) => {
       if (day.activities.length === 0) {
+        const dayType = day.dayLoadClassification.dayType;
+
+        if (day.confirmedRest && dayType === "true rest day") {
+          return `- ${day.date}: confirmed no-run/rest day`;
+        }
+
+        if (
+          dayType === "high-step no-run day" ||
+          dayType === "moderate-step no-run day"
+        ) {
+          return `- ${day.date}: ${dayType}; ${
+            day.confirmedRest
+              ? "confirmed no-run/rest noted"
+              : "no imported or manual activities"
+          }`;
+        }
+
         if (day.confirmedRest) {
           return `- ${day.date}: confirmed no-run/rest day`;
         }
@@ -361,12 +416,8 @@ function formatActivity(activity: ManualActivity): string {
 
   return [
     formatActivityType(activity),
-    activity.distanceMiles === null
-      ? null
-      : formatMiles(activity.distanceMiles),
-    activity.durationMinutes === null
-      ? null
-      : formatMinutes(activity.durationMinutes),
+    activity.distanceMiles === null ? null : formatActivityMiles(activity),
+    activity.durationMinutes === null ? null : formatActivityDuration(activity),
     formatRunWalkRatio(activity.runWalkStructure),
     activity.avgHr === null ? null : `Avg HR ${activity.avgHr}`,
     activity.maxHr === null ? null : `Max HR ${activity.maxHr}`,
@@ -386,6 +437,11 @@ function formatActivity(activity: ManualActivity): string {
       ? null
       : `${Math.round(activity.calories)} calories`,
     formatTemperature(activity),
+    activity.distanceSource === "manual_full_session" &&
+    activity.metricsSource !== null &&
+    activity.metricsSource !== undefined
+      ? `Garmin-recorded metrics from ${activity.metricsSource}`
+      : null,
     `source ${activity.source}`,
     "route details omitted",
   ]
@@ -437,6 +493,12 @@ function formatActivityType(activity: ManualActivity): string {
 }
 
 function countConfirmedRestDays(summary: WeeklySummary): number {
+  return summary.activityListByDay.filter(
+    (day) => day.dayLoadClassification.dayType === "true rest day",
+  ).length;
+}
+
+function countConfirmedRestStatuses(summary: WeeklySummary): number {
   return summary.activityListByDay.filter((day) => day.confirmedRest).length;
 }
 
@@ -447,6 +509,43 @@ function countMissingActivityDays(summary: WeeklySummary): number {
       !day.confirmedRest &&
       !day.hasJournal &&
       !day.hasRecoveryNotes,
+  ).length;
+}
+
+function countRecoveryNoteOnlyDays(summary: WeeklySummary): number {
+  return summary.activityListByDay.filter(
+    (day) =>
+      day.activities.length === 0 &&
+      !day.confirmedRest &&
+      day.dayLoadClassification.dayType === "no-run day" &&
+      (day.hasJournal || day.hasRecoveryNotes),
+  ).length;
+}
+
+function countActivityDays(
+  summary: WeeklySummary,
+  ...activityTypes: string[]
+): number {
+  const types = new Set(activityTypes);
+
+  return summary.activityListByDay.filter((day) =>
+    day.activities.some((activity) =>
+      types.has(activity.activityType.trim().toLowerCase()),
+    ),
+  ).length;
+}
+
+function countMixedDaysContaining(
+  summary: WeeklySummary,
+  activityType: string,
+): number {
+  return summary.activityListByDay.filter(
+    (day) =>
+      day.dayLoadClassification.dayType === "mixed-load day" &&
+      day.activities.some(
+        (activity) =>
+          activity.activityType.trim().toLowerCase() === activityType,
+      ),
   ).length;
 }
 
@@ -550,12 +649,14 @@ function formatLoadRiskFlags(summary: WeeklySummary): string[] {
 function formatUpcomingConstraints(summary: WeeklySummary): string[] {
   const constraints = [
     summary.travelBreakNote,
-    summary.planNotes === null ? null : `Plan notes: ${summary.planNotes}`,
+    isFutureConstraint(summary.planNotes)
+      ? `Plan notes: ${summary.planNotes}`
+      : null,
     ...summary.journalEntries
       .map((entry) => entry.coachNotes)
       .filter((note): note is string => note !== null)
-      .filter((note) => hasConstraintLanguage(note))
-      .map((note) => `Recent journal constraint note: ${note}`),
+      .filter(isFutureConstraint)
+      .map((note) => `Upcoming journal constraint note: ${note}`),
   ].filter((value): value is string => value !== null);
 
   return constraints.length === 0
@@ -563,14 +664,43 @@ function formatUpcomingConstraints(summary: WeeklySummary): string[] {
     : constraints.map((constraint) => `- ${constraint}`);
 }
 
-function hasConstraintLanguage(value: string): boolean {
+function isFutureConstraint(value: string | null): value is string {
+  if (value === null) {
+    return false;
+  }
+
   const normalized = value.toLowerCase();
+
+  if (
+    /\b(today|tonight|yesterday|this morning|this afternoon|this evening)\b/.test(
+      normalized,
+    ) &&
+    !/\b(tomorrow|upcoming|next|future|later this week|this weekend)\b/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    /\b(no run|no running|no activity|rest day|rested)\b/.test(normalized) &&
+    !/\b(tomorrow|upcoming|next|future|planned|scheduled|travel|trip|appointment)\b/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
 
   return [
     "travel",
     "trip",
     "no-running",
     "no running",
+    "tomorrow",
+    "upcoming",
+    "appointment",
+    "schedule",
+    "scheduled",
     "constraint",
     "busy",
     "work",
@@ -579,7 +709,8 @@ function hasConstraintLanguage(value: string): boolean {
     "park",
     "race",
     "event",
-    "climb",
+    "logistics",
+    "weather",
   ].some((term) => normalized.includes(term));
 }
 

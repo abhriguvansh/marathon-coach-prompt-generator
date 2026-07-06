@@ -192,6 +192,11 @@ export function runCoachWorkflow(input: {
   for (const warning of wellness.warnings) {
     log(`Garmin wellness warning: ${warning}`);
   }
+  if (input.args.debug) {
+    for (const note of wellness.debugNotes.filter(isConciseWellnessDebugNote)) {
+      log(`Garmin wellness debug: ${note}`);
+    }
+  }
 
   log(
     "Add subjective details such as soreness, pain, steps, energy, shoes, and tomorrow constraints.",
@@ -239,6 +244,13 @@ export function runCoachWorkflow(input: {
     outputPath: daily.outputPath,
     canonicalActivities: exports.activities,
   };
+}
+
+function isConciseWellnessDebugNote(note: string): boolean {
+  return (
+    note.startsWith("Step selection for requested date") ||
+    note.startsWith("Step winner:")
+  );
 }
 
 function formatJournalDebugLine(

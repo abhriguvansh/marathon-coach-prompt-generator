@@ -50,7 +50,10 @@ export function importGarminWellness(input: {
     journalUpdated: journal.journalUpdated,
     debugNotes:
       input.debug === true && summary !== null
-        ? [...scan.debugNotes, ...metricSourceDebugNotes(summary)]
+        ? [
+            ...scan.debugNotes,
+            ...metricSourceDebugNotes(summary, journal.fieldsPreserved),
+          ]
         : scan.debugNotes,
     warnings: unique(filterResolvedWarnings(warnings, summary)),
   };
@@ -102,13 +105,23 @@ function metricSourceDebugNotes(
   summary: NonNullable<
     ReturnType<typeof scanGarminWellness>["summaries"][number]
   >,
+  fieldsPreserved: string[],
 ): string[] {
   const sources = summary.fieldSources ?? {};
   const notes = Object.entries(sources).map(
     ([field, source]) => `${field}: ${source}`,
   );
+  const selectedSteps =
+    summary.totalSteps === null
+      ? "unavailable"
+      : summary.totalSteps.toLocaleString("en-US");
+  const stepNotes = [
+    `Step winner: ${fieldsPreserved.includes("Total Steps") ? "manual_journal preserved; Garmin value not written" : (summary.totalStepsSource ?? "unavailable")}; Garmin selected value ${selectedSteps}.`,
+  ];
 
-  return notes.length === 0 ? [] : ["Metric source priority:", ...notes.sort()];
+  return notes.length === 0
+    ? stepNotes
+    : [...stepNotes, "Metric source priority:", ...notes.sort()];
 }
 
 function filterResolvedWarnings(

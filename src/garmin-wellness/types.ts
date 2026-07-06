@@ -2,6 +2,11 @@ export type GarminWellnessMetricSource =
   | "garmin_sleep_csv"
   | "garmin_wellness_zip";
 
+export type GarminStepSource =
+  | "garmin_daily_summary"
+  | "garmin_cumulative_snapshot"
+  | "unavailable";
+
 export type GarminWellnessJournalField =
   | "Sleep"
   | "Sleep Duration"
@@ -53,6 +58,10 @@ export interface GarminWellnessSummary {
   intensityMinutes: number | null;
   floorsClimbed: number | null;
   calories: number | null;
+  totalStepsSource?: GarminStepSource | null;
+  stepCandidateCount?: number;
+  stepRejectedCount?: number;
+  stepRejectedReasons?: string[];
   bedtime: string | null;
   wakeTime: string | null;
   sleepStages: string | null;

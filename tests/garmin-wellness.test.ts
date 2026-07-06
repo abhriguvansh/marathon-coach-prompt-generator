@@ -300,9 +300,12 @@ describe("Garmin wellness import", () => {
         },
         {
           name: "fake-steps.fit",
-          content: syntheticFitFile(103, [
-            uint32Field(253, fitTimestamp("2026-07-01T12:20:00Z")),
-            uint32Field(3, 14032),
+          content: syntheticMonitoringStepsFit([
+            {
+              dateTime: "2026-07-01T12:20:00Z",
+              activityType: 6,
+              steps: 14032,
+            },
           ]),
         },
       ]),
@@ -343,9 +346,12 @@ describe("Garmin wellness import", () => {
       zipFile([
         {
           name: "fake-wellness.fit",
-          content: syntheticFitFile(103, [
-            uint32Field(253, fitTimestamp("2026-07-01T12:00:00Z")),
-            uint32Field(3, 14032),
+          content: syntheticMonitoringStepsFit([
+            {
+              dateTime: "2026-07-01T12:00:00Z",
+              activityType: 6,
+              steps: 14032,
+            },
           ]),
         },
       ]),
@@ -402,6 +408,95 @@ describe("Garmin wellness import", () => {
     assert.doesNotMatch(
       report,
       /454995658802|raw record|position_lat|position_long/i,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not treat monitoring_info metadata as daily steps", () => {
+    const dir = makeProject();
+    writeFile(
+      join(dir, "input/garmin/2026-07-05.zip"),
+      zipFile([
+        {
+          name: "fake-metadata.fit",
+          content: syntheticFitFile(103, [
+            uint32Field(253, fitTimestamp("2026-07-05T16:00:00Z")),
+            uint32Field(3, 7962),
+          ]),
+        },
+        {
+          name: "fake-monitoring.fit",
+          content: syntheticMonitoringStepsFit([
+            {
+              dateTime: "2026-07-05T14:00:00Z",
+              activityType: 6,
+              steps: 222,
+            },
+            {
+              dateTime: "2026-07-06T03:54:00Z",
+              activityType: 6,
+              steps: 2158,
+            },
+            {
+              dateTime: "2026-07-06T03:54:00Z",
+              activityType: 1,
+              steps: 44,
+            },
+          ]),
+        },
+      ]),
+    );
+
+    const result = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-05",
+      timezone: "America/New_York",
+      debug: true,
+    });
+    const report = formatGarminWellnessImportReport(result);
+    const journal = readFileSync(
+      join(dir, "input/journal/2026-07-05.md"),
+      "utf8",
+    );
+
+    assert.match(journal, /Total Steps: 2,202/);
+    assert.doesNotMatch(journal, /Total Steps: 7,962/);
+    assert.match(report, /selected source category garmin_cumulative_snapshot/);
+    assert.match(report, /selected value 2,202/);
+    assert.match(report, /monitoring_info field 3 rejected/);
+    assert.doesNotMatch(report, /fake-metadata|fake-monitoring/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not leak adjacent local-date monitoring steps into the requested date", () => {
+    const dir = makeProject();
+    writeFile(
+      join(dir, "input/garmin/2026-07-05.zip"),
+      zipFile([
+        {
+          name: "fake-next-day-monitoring.fit",
+          content: syntheticMonitoringStepsFit([
+            {
+              dateTime: "2026-07-06T05:00:00Z",
+              activityType: 6,
+              steps: 9999,
+            },
+          ]),
+        },
+      ]),
+    );
+
+    const result = importGarminWellness({
+      cwd: dir,
+      date: "2026-07-05",
+      timezone: "America/New_York",
+      debug: true,
+    });
+
+    assert.equal(result.fieldsPopulated.includes("Total Steps"), false);
+    assert.equal(
+      result.debugNotes.join("\n").includes("selected value 9,999"),
+      false,
     );
     rmSync(dir, { recursive: true, force: true });
   });
@@ -493,9 +588,12 @@ describe("Garmin wellness import", () => {
       zipFile([
         {
           name: "fake-steps.fit",
-          content: syntheticFitFile(103, [
-            uint32Field(253, fitTimestamp("2026-07-01T12:00:00Z")),
-            uint32Field(3, 14032),
+          content: syntheticMonitoringStepsFit([
+            {
+              dateTime: "2026-07-01T12:00:00Z",
+              activityType: 6,
+              steps: 14032,
+            },
           ]),
         },
       ]),
@@ -935,6 +1033,21 @@ function syntheticWellnessFit(input: {
   ];
 
   return syntheticFitFile(65280, fields);
+}
+
+function syntheticMonitoringStepsFit(
+  records: Array<{ dateTime: string; activityType: number; steps: number }>,
+): Buffer {
+  return syntheticFitRecords(
+    records.map((record) => ({
+      globalMessageNumber: 55,
+      fields: [
+        uint32Field(253, fitTimestamp(record.dateTime)),
+        uint32Field(3, record.steps),
+        uint8Field(5, record.activityType),
+      ],
+    })),
+  );
 }
 
 interface FitField {

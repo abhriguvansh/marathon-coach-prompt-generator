@@ -124,10 +124,17 @@ export function scanGarminWellness(
   const summaries = mergeCsvAndZipSummaries(zipSummaries, csvSummaries, {
     debugNotes,
   });
+  const requestedSummaries = summaries.filter(
+    (summary) => summary.date === input.date,
+  );
+
+  if (input.debug === true) {
+    debugNotes.push(...stepSelectionDebugNotes(input.date, requestedSummaries));
+  }
 
   return {
     requestedDate: input.date,
-    summaries: summaries.filter((summary) => summary.date === input.date),
+    summaries: requestedSummaries,
     zipFilesFound,
     looseFitFilesFound,
     sleepCsvFilesFound,
@@ -314,6 +321,10 @@ function mergeSummaryWithCsvPriority(
   const merged: GarminWellnessSummary = {
     date: csv.date,
     totalSteps: zip.totalSteps,
+    totalStepsSource: zip.totalStepsSource ?? null,
+    stepCandidateCount: zip.stepCandidateCount ?? 0,
+    stepRejectedCount: zip.stepRejectedCount ?? 0,
+    stepRejectedReasons: zip.stepRejectedReasons ?? [],
     sleepDurationMinutes: csv.sleepDurationMinutes ?? zip.sleepDurationMinutes,
     sleepScore: csv.sleepScore ?? zip.sleepScore,
     sleepQuality: csv.sleepQuality ?? zip.sleepQuality,
@@ -435,9 +446,20 @@ function mergeSummary(
   left: GarminWellnessSummary,
   right: GarminWellnessSummary,
 ): GarminWellnessSummary {
+  const steps = mergeStepSummary(left, right);
+
   return {
     date: left.date,
-    totalSteps: maxNullable(left.totalSteps, right.totalSteps),
+    totalSteps: steps.totalSteps,
+    totalStepsSource: steps.totalStepsSource,
+    stepCandidateCount:
+      (left.stepCandidateCount ?? 0) + (right.stepCandidateCount ?? 0),
+    stepRejectedCount:
+      (left.stepRejectedCount ?? 0) + (right.stepRejectedCount ?? 0),
+    stepRejectedReasons: unique([
+      ...(left.stepRejectedReasons ?? []),
+      ...(right.stepRejectedReasons ?? []),
+    ]),
     sleepDurationMinutes: maxNullable(
       left.sleepDurationMinutes,
       right.sleepDurationMinutes,
@@ -500,6 +522,62 @@ function mergeSummary(
       ...(right.lowerPriorityJournalValues ?? {}),
     },
   };
+}
+
+function mergeStepSummary(
+  left: GarminWellnessSummary,
+  right: GarminWellnessSummary,
+): Pick<GarminWellnessSummary, "totalSteps" | "totalStepsSource"> {
+  if (left.totalStepsSource === "garmin_daily_summary") {
+    return {
+      totalSteps: left.totalSteps,
+      totalStepsSource: left.totalStepsSource,
+    };
+  }
+
+  if (right.totalStepsSource === "garmin_daily_summary") {
+    return {
+      totalSteps: right.totalSteps,
+      totalStepsSource: right.totalStepsSource,
+    };
+  }
+
+  return {
+    totalSteps: maxNullable(left.totalSteps, right.totalSteps),
+    totalStepsSource:
+      left.totalSteps !== null || right.totalSteps !== null
+        ? "garmin_cumulative_snapshot"
+        : "unavailable",
+  };
+}
+
+function stepSelectionDebugNotes(
+  requestedDate: string,
+  summaries: GarminWellnessSummary[],
+): string[] {
+  if (summaries.length === 0) {
+    return [
+      `Step selection for requested date ${requestedDate}: candidate step count 0; selected source category unavailable; selected value unavailable.`,
+    ];
+  }
+
+  const summary = summaries[0];
+  const selectedValue =
+    summary.totalSteps === null
+      ? "unavailable"
+      : summary.totalSteps.toLocaleString("en-US");
+  const reasons = summary.stepRejectedReasons ?? [];
+
+  return [
+    `Step selection for requested date ${requestedDate}: candidate step count ${summary.stepCandidateCount ?? 0}; selected source category ${summary.totalStepsSource ?? "unavailable"}; selected value ${selectedValue}; rejected candidates ${summary.stepRejectedCount ?? 0}.`,
+    ...(reasons.length === 0
+      ? []
+      : [
+          `Step selection rejected candidate reasons: ${reasons
+            .slice(0, 3)
+            .join("; ")}.`,
+        ]),
+  ];
 }
 
 function journalValues(

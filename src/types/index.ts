@@ -116,7 +116,18 @@ export interface ManualActivity {
   fitSubSport?: number | null;
   activityTypeConfidence?: "explicit" | "profile" | "fallback" | null;
   distanceMiles: number | null;
+  distanceSource?:
+    | "manual_full_session"
+    | "device_recording"
+    | "unknown"
+    | null;
   durationMinutes: number | null;
+  durationSource?:
+    | "manual_full_session"
+    | "device_recording"
+    | "unknown"
+    | null;
+  metricsSource?: string | null;
   paceMinPerMile: string | null;
   elevationFt: number | null;
   elevationGainFt?: number | null;

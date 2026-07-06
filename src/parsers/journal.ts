@@ -378,16 +378,32 @@ function parseJournalManualActivities(
     .filter((block) => normalizeActivityType(block.name) !== "activity_name")
     .map((block) => {
       const duration = fieldValue(block.body, "Duration");
+      const fullSessionDistance = parseDistanceMiles(
+        fieldValue(block.body, "Full Session Distance"),
+      );
+      const fullSessionDuration = parseDurationMinutes(
+        fieldValue(block.body, "Full Session Duration"),
+      );
+      const recordingNote = fieldValue(block.body, "Recording Note");
       const intensity = fieldValue(block.body, "Intensity");
       const notes = fieldValue(block.body, "Notes");
+      const isFullSessionOverride =
+        fullSessionDistance !== null || fullSessionDuration !== null;
 
       return {
         date,
         startTime: null,
-        source: "journal",
+        source: isFullSessionOverride
+          ? "journal_full_session_override"
+          : "journal",
         activityType: normalizeActivityType(block.name),
-        distanceMiles: null,
-        durationMinutes: parseDurationMinutes(duration),
+        distanceMiles: fullSessionDistance,
+        distanceSource:
+          fullSessionDistance === null ? null : "manual_full_session",
+        durationMinutes: fullSessionDuration ?? parseDurationMinutes(duration),
+        durationSource:
+          fullSessionDuration === null ? null : "manual_full_session",
+        metricsSource: null,
         paceMinPerMile: null,
         elevationFt: null,
         avgHr: null,
@@ -395,6 +411,7 @@ function parseJournalManualActivities(
         steps: null,
         notes: combineNotes([
           intensity === null ? null : `Intensity: ${intensity}`,
+          recordingNote === null ? null : `Recording note: ${recordingNote}`,
           notes,
         ]),
       };
@@ -548,6 +565,25 @@ function parseDurationMinutes(value: string | null): number | null {
   }
 
   return null;
+}
+
+function parseDistanceMiles(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const match = value
+    .trim()
+    .toLowerCase()
+    .match(/(\d+(?:\.\d+)?)\s*(?:mi|mile|miles)?\b/);
+
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number(match[1]);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function parseSleepDurationMinutes(value: string | null): number | null {

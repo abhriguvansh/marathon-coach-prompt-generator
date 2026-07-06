@@ -3,10 +3,12 @@ import { addDays, formatDate, parseDate, todayLocalDate } from "../utils/dates";
 
 interface Args {
   weekStart: string | null;
+  debug: boolean;
 }
 
 export function parseCoachWeeklyArgs(argv: string[]): Args {
   let weekStart: string | null = null;
+  let debug = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -14,10 +16,15 @@ export function parseCoachWeeklyArgs(argv: string[]): Args {
     if (arg === "--week-start") {
       weekStart = argv[index + 1] ?? null;
       index += 1;
+      continue;
+    }
+
+    if (arg === "--debug") {
+      debug = true;
     }
   }
 
-  return { weekStart };
+  return { weekStart, debug };
 }
 
 export function nextMonday(now = new Date()): string {
@@ -39,6 +46,7 @@ export function runWeeklyCoachWorkflow(input: {
   const result = generateWeeklySummary(input.cwd, {
     weekStart,
     preview: false,
+    debug: input.args.debug,
   });
 
   log("Weekly coach workflow");
@@ -46,6 +54,13 @@ export function runWeeklyCoachWorkflow(input: {
   log(`Planning week: ${result.weekStart} to ${result.weekEnd}`);
   log(`Evidence window: ${result.evidenceStart} to ${result.evidenceEnd}`);
   log("Output: output/weekly-checkin.md");
+  if (input.args.debug && result.debugNotes.length > 0) {
+    log("");
+    log("Debug notes:");
+    for (const note of result.debugNotes) {
+      log(`- ${note}`);
+    }
+  }
 
   return result;
 }
