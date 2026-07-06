@@ -4,10 +4,7 @@ import { loadAthleteConfig } from "../config/load";
 import { parseLocalExports } from "../exports/export-scanner";
 import { renderWeeklySummary } from "../generator/weekly-markdown";
 import { createWeeklySummary } from "../generator/weekly-summary";
-import {
-  loadJournalInputs,
-  mergeDailyNotesPreferJournal,
-} from "../parsers/journal";
+import { loadJournalInputs } from "../parsers/journal";
 import { loadManualInputs } from "../parsers/manual-notes";
 import type { DailyNote } from "../types";
 import { getWeekRange, parseDate, formatDate } from "../utils/dates";
@@ -17,6 +14,7 @@ interface Args {
   weekStart: string | null;
   preview: boolean;
   debug: boolean;
+  includeContext?: boolean;
 }
 
 const OUTPUT_PATH = "output/weekly-checkin.md";
@@ -25,6 +23,7 @@ export function parseGenerateWeeklyArgs(argv: string[]): Args {
   let weekStart: string | null = null;
   let preview = false;
   let debug = false;
+  let includeContext = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -42,10 +41,15 @@ export function parseGenerateWeeklyArgs(argv: string[]): Args {
 
     if (arg === "--debug") {
       debug = true;
+      continue;
+    }
+
+    if (arg === "--include-context") {
+      includeContext = true;
     }
   }
 
-  return { weekStart, preview, debug };
+  return { weekStart, preview, debug, includeContext };
 }
 
 export function generateWeeklySummary(
@@ -89,10 +93,7 @@ export function generateWeeklySummary(
     manualInputs.missingFiles,
     journalInputs.journalEntries.length > 0,
   );
-  const dailyNotes = mergeDailyNotesPreferJournal(
-    manualInputs.dailyNotes,
-    journalInputs.dailyNotes,
-  );
+  const dailyNotes = [...manualInputs.dailyNotes, ...journalInputs.dailyNotes];
   const summary = createWeeklySummary({
     weekStart: args.weekStart,
     athleteConfig: config,
@@ -108,7 +109,9 @@ export function generateWeeklySummary(
     exportWarnings: exportInputs.warnings,
     missingFiles: missingFiles.map((file) => relative(cwd, file)),
   });
-  const markdown = renderWeeklySummary(summary);
+  const markdown = renderWeeklySummary(summary, {
+    includeContext: args.includeContext,
+  });
   const outputPath = join(cwd, OUTPUT_PATH);
 
   mkdirSync(dirname(outputPath), { recursive: true });
@@ -204,6 +207,18 @@ function weeklyDebugNotes(
         activity.distanceSource === "manual_full_session" ||
         activity.durationSource === "manual_full_session",
     );
+    const retainedMetricSources = [
+      ...new Set(
+        day.activities
+          .filter(
+            (activity) =>
+              (activity.distanceSource === "manual_full_session" ||
+                activity.durationSource === "manual_full_session") &&
+              activity.metricsSource,
+          )
+          .map((activity) => activity.metricsSource),
+      ),
+    ];
     const futureConstraintIncluded = isFutureConstraint(
       journalEntry?.coachNotes ?? null,
     );
@@ -226,6 +241,11 @@ function weeklyDebugNotes(
       `steps source ${formatStepSource(note?.stepsSource)}`,
       `confirmed rest ${day.confirmedRest ? "yes" : "no"}`,
       `manual override won ${hasManualOverride ? "yes" : "no"}`,
+      `retained metrics source ${
+        retainedMetricSources.length === 0
+          ? "unavailable"
+          : retainedMetricSources.join("+")
+      }`,
       `future constraint included ${futureConstraintIncluded ? "yes" : "no"}`,
       `historical note excluded from constraints ${
         historicalNoteExcluded ? "yes" : "no"

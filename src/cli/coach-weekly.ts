@@ -4,11 +4,13 @@ import { addDays, formatDate, parseDate, todayLocalDate } from "../utils/dates";
 interface Args {
   weekStart: string | null;
   debug: boolean;
+  includeContext?: boolean;
 }
 
 export function parseCoachWeeklyArgs(argv: string[]): Args {
   let weekStart: string | null = null;
   let debug = false;
+  let includeContext = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -21,10 +23,15 @@ export function parseCoachWeeklyArgs(argv: string[]): Args {
 
     if (arg === "--debug") {
       debug = true;
+      continue;
+    }
+
+    if (arg === "--include-context") {
+      includeContext = true;
     }
   }
 
-  return { weekStart, debug };
+  return { weekStart, debug, includeContext };
 }
 
 export function nextMonday(now = new Date()): string {
@@ -47,6 +54,7 @@ export function runWeeklyCoachWorkflow(input: {
     weekStart,
     preview: false,
     debug: input.args.debug,
+    includeContext: input.args.includeContext,
   });
 
   log("Weekly coach workflow");

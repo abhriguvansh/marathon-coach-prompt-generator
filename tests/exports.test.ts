@@ -438,7 +438,7 @@ describe("local export parsing", () => {
     assert.match(dailyMarkdown, /Runs: run, 2\.91 mi/);
     assert.match(
       weeklyMarkdown,
-      /walk, 3\.8\d+ mi, .*Avg HR 121, .*Elevation gain 85 ft, Elevation loss 72 ft, .*source strava_fit_export, route details omitted/,
+      /walk, 3\.8\d+ mi, .*Avg HR 121, .*Elevation gain 85 ft, Elevation loss 72 ft, .*source Strava FIT export, route details omitted/,
     );
     assert.doesNotMatch(
       dailyMarkdown,

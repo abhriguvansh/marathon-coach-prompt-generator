@@ -414,4 +414,5 @@ export interface WeeklySummary {
   recoveryTrendFlags: RecoveryTrendFlags;
   safetyFlags: WeeklySafetyFlag[];
   missingDataFlags: WeeklyMissingDataFlag[];
+  dataAdjustments: string[];
 }

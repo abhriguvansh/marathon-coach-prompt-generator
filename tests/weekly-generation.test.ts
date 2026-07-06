@@ -9,7 +9,11 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
-import { nextMonday, runWeeklyCoachWorkflow } from "../src/cli/coach-weekly";
+import {
+  nextMonday,
+  parseCoachWeeklyArgs,
+  runWeeklyCoachWorkflow,
+} from "../src/cli/coach-weekly";
 import {
   generateWeeklySummary,
   parseGenerateWeeklyArgs,
@@ -18,7 +22,12 @@ import { createDailySummary } from "../src/generator/daily-summary";
 import { createWeeklySummary } from "../src/generator/weekly-summary";
 import { renderWeeklySummary } from "../src/generator/weekly-markdown";
 import { parseJournal } from "../src/parsers/journal";
-import type { AthleteConfig, DailyNote, ManualActivity } from "../src/types";
+import type {
+  AthleteConfig,
+  DailyNote,
+  JournalEntry,
+  ManualActivity,
+} from "../src/types";
 
 const fakeConfig: AthleteConfig = {
   athleteName: "Sample Runner",
@@ -111,7 +120,7 @@ describe("weekly generation", () => {
             7,
             3,
           ),
-          stepsSource: "manual_csv",
+          stepsSource: "garmin_daily_export",
         },
         {
           ...fakeDailyNote(
@@ -139,6 +148,9 @@ describe("weekly generation", () => {
     assert.equal(summary.totals.averageDailySteps, 2500);
     assert.equal(summary.totals.stepDaysWithData, 1);
     assert.equal(summary.totals.highStepDays, 0);
+    assert.deepEqual(summary.dataAdjustments, [
+      "Manual journal steps overrode imported values on 1 date.",
+    ]);
   });
 
   it("summarizes soreness, fatigue, energy, pain, and safety flags", () => {
@@ -181,13 +193,16 @@ describe("weekly generation", () => {
     assert.match(markdown, /Mixed non-running load days: 1/);
     assert.match(markdown, /Mobility\/recovery days: 1/);
     assert.match(markdown, /Rock climbing sessions: 1/);
-    assert.match(markdown, /Confirmed rest\/no-run days: 1/);
+    assert.match(markdown, /Confirmed no-run days: 1/);
+    assert.match(markdown, /True rest days: 0/);
     assert.match(markdown, /Days with no activity data found: 0/);
     assert.match(markdown, /route details omitted/);
     assert.match(markdown, /Gait-change flags: 2026-06-26/);
     assert.match(markdown, /## Weekly Recovery Trend Flags/);
     assert.match(markdown, /Fake travel week/);
     assert.doesNotMatch(markdown, /## Athlete Background/);
+    assert.doesNotMatch(markdown, /## Current Plan Context/);
+    assert.doesNotMatch(markdown, /## Data Quality Notes/);
     assert.doesNotMatch(markdown, /lat=|lon=|trkpt|position_lat|position_long/);
     assert.match(markdown, /how should I structure the upcoming week/i);
   });
@@ -249,7 +264,7 @@ describe("weekly generation", () => {
     );
     assert.match(
       markdown,
-      /2026-06-27: run\/walk, 3\.25 mi, 42:52, 4:1, source strava_fit_export, route details omitted/,
+      /2026-06-27: run\/walk, 3\.25 mi, 42:52, 4:1, source Strava FIT export, route details omitted/,
     );
     assert.doesNotMatch(markdown, /2\.5 min walk warmup/);
   });
@@ -298,7 +313,8 @@ describe("weekly generation", () => {
     });
     const markdown = renderWeeklySummary(summary);
 
-    assert.match(markdown, /Confirmed rest\/no-run days: 1/);
+    assert.match(markdown, /Confirmed no-run days: 1/);
+    assert.match(markdown, /True rest days: 1/);
     assert.match(markdown, /Days with no activity data found: 4/);
     assert.match(
       markdown,
@@ -415,7 +431,138 @@ describe("weekly generation", () => {
     assert.equal(daily.runs[0].avgCadence, 158);
     assert.match(markdown, /3\.1 mi full session/);
     assert.match(markdown, /45:00 full session/);
-    assert.match(markdown, /Garmin-recorded metrics from garmin_fit_export/);
+    assert.match(markdown, /manual full-session distance\/duration/);
+    assert.match(markdown, /Garmin-recorded metrics retained: Avg HR 142/);
+    assert.doesNotMatch(
+      markdown,
+      /Garmin-recorded metrics from garmin_fit_export/,
+    );
+    assert.doesNotMatch(markdown, /source garmin_fit_export/);
+    assert.match(markdown, /## Data Adjustments/);
+    assert.match(
+      markdown,
+      /1 manual full-session correction was applied to weekly mileage and longest-run calculations\./,
+    );
+    assert.doesNotMatch(markdown, /manual full-session correction\(s\)/);
+    assert.equal(
+      weekly.missingDataFlags.some(
+        (flag) => flag.field === "manual full-session overrides",
+      ),
+      false,
+    );
+  });
+
+  it("omits Data Adjustments when no adjustments exist", () => {
+    const markdown = renderWeeklySummary(buildWeeklySummary());
+
+    assert.doesNotMatch(markdown, /## Data Adjustments/);
+  });
+
+  it("uses plural adjustment grammar", () => {
+    const summary = createWeeklySummary({
+      weekStart: "2026-07-06",
+      athleteConfig: fakeConfig,
+      dailyNotes: [],
+      activityNotes: [],
+      manualActivities: [
+        {
+          ...fakeActivity("2026-07-03", "run", 2.8, 40, null, 140),
+          source: "garmin_fit_export",
+        },
+        {
+          ...fakeActivity("2026-07-03", "run", 3, 42, null, null),
+          source: "journal_full_session_override",
+          distanceSource: "manual_full_session" as const,
+          durationSource: "manual_full_session" as const,
+        },
+        {
+          ...fakeActivity("2026-07-04", "run", 2.2, 30, null, 138),
+          source: "garmin_fit_export",
+        },
+        {
+          ...fakeActivity("2026-07-04", "run", 2.5, 34, null, null),
+          source: "journal_full_session_override",
+          distanceSource: "manual_full_session" as const,
+          durationSource: "manual_full_session" as const,
+        },
+      ],
+      planNotes: null,
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.match(
+      markdown,
+      /2 manual full-session corrections were applied to weekly mileage and longest-run calculations\./,
+    );
+  });
+
+  it("uses precise Garmin wellness coverage warnings without broad missing-data wording", () => {
+    const dailyNotes = fullWeekDailyNotes().map((note, index) =>
+      index < 3
+        ? {
+            ...note,
+            sleepDurationMinutes: 480,
+            sleepScore: 75,
+            restingHeartRate: 58,
+          }
+        : note,
+    );
+    const summary = createWeeklySummary({
+      weekStart: "2026-07-06",
+      athleteConfig: fakeConfigWithoutTravel(),
+      dailyNotes,
+      activityNotes: [],
+      manualActivities: [fakeActivity("2026-06-29", "run", 3, 30, null, null)],
+      planNotes: null,
+      journalEntries: fullWeekJournalEntries(),
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.match(markdown, /## Data Quality Warnings/);
+    assert.match(
+      markdown,
+      /Garmin wellness trend interpretation is limited by 3\/7 days of coverage\./,
+    );
+    assert.doesNotMatch(
+      markdown,
+      /Recovery or activity trend may be limited by missing data/,
+    );
+  });
+
+  it("omits empty missing-data and safety sections", () => {
+    const summary = createWeeklySummary({
+      weekStart: "2026-07-06",
+      athleteConfig: fakeConfigWithoutTravel(),
+      dailyNotes: fullWeekDailyNotes(),
+      activityNotes: [],
+      manualActivities: [fakeActivity("2026-06-29", "run", 3, 30, null, null)],
+      planNotes: null,
+      journalEntries: fullWeekJournalEntries(),
+    });
+    const markdown = renderWeeklySummary(summary);
+
+    assert.equal(summary.missingDataFlags.length, 0);
+    assert.equal(summary.safetyFlags.length, 0);
+    assert.doesNotMatch(markdown, /## Missing Data Flags/);
+    assert.doesNotMatch(markdown, /## Safety Flags/);
+    assert.doesNotMatch(markdown, /## Data Quality Warnings/);
+  });
+
+  it("includes weekly context only when requested", () => {
+    const summary = buildWeeklySummary();
+    const defaultMarkdown = renderWeeklySummary(summary);
+    const contextMarkdown = renderWeeklySummary(summary, {
+      includeContext: true,
+    });
+
+    assert.doesNotMatch(defaultMarkdown, /## Current Plan Context/);
+    assert.doesNotMatch(defaultMarkdown, /## Data Interpretation Context/);
+    assert.match(contextMarkdown, /## Current Plan Context/);
+    assert.match(contextMarkdown, /## Data Interpretation Context/);
+    assert.match(
+      contextMarkdown,
+      /Running mileage, walking mileage, steps, and cross-training load should stay separate/,
+    );
   });
 
   it("separates sessions, activity days, and standalone day types", () => {
@@ -596,8 +743,27 @@ describe("weekly generation", () => {
         weekStart: "2026-06-22",
         preview: true,
         debug: false,
+        includeContext: false,
       },
     );
+    assert.deepEqual(
+      parseGenerateWeeklyArgs([
+        "--week-start",
+        "2026-06-22",
+        "--include-context",
+      ]),
+      {
+        weekStart: "2026-06-22",
+        preview: false,
+        debug: false,
+        includeContext: true,
+      },
+    );
+    assert.deepEqual(parseCoachWeeklyArgs(["--include-context"]), {
+      weekStart: null,
+      debug: false,
+      includeContext: true,
+    });
   });
 
   it("calculates next Monday for coach:weekly across month and year boundaries", () => {
@@ -621,6 +787,33 @@ describe("weekly generation", () => {
       readFileSync(join(dir, "output/weekly-checkin.md"), "utf8"),
       /# Weekly Marathon Coach Check-In/,
     );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("generate:weekly includes context only when requested", () => {
+    const dir = makeWeeklyProject();
+    generateWeeklySummary(dir, {
+      weekStart: "2026-06-29",
+      preview: false,
+      debug: false,
+    });
+    const defaultMarkdown = readFileSync(
+      join(dir, "output/weekly-checkin.md"),
+      "utf8",
+    );
+    generateWeeklySummary(dir, {
+      weekStart: "2026-06-29",
+      preview: false,
+      debug: false,
+      includeContext: true,
+    });
+    const contextMarkdown = readFileSync(
+      join(dir, "output/weekly-checkin.md"),
+      "utf8",
+    );
+
+    assert.doesNotMatch(defaultMarkdown, /## Current Plan Context/);
+    assert.match(contextMarkdown, /## Current Plan Context/);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -671,6 +864,21 @@ describe("weekly generation", () => {
     assert.match(logs.join("\n"), /Planning week: 2026-06-29 to 2026-07-05/);
     assert.match(logs.join("\n"), /Evidence window: 2026-06-22 to 2026-06-28/);
     assert.match(logs.join("\n"), /Output: output\/weekly-checkin\.md/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("coach:weekly passes include-context through to weekly generation", () => {
+    const dir = makeWeeklyProject();
+    runWeeklyCoachWorkflow({
+      cwd: dir,
+      args: { weekStart: "2026-06-29", debug: false, includeContext: true },
+      now: new Date("2026-06-28T12:00:00"),
+    });
+
+    assert.match(
+      readFileSync(join(dir, "output/weekly-checkin.md"), "utf8"),
+      /## Current Plan Context/,
+    );
     rmSync(dir, { recursive: true, force: true });
   });
 });
@@ -773,6 +981,42 @@ function fakeDailyNotes(): DailyNote[] {
       5,
     ),
   ];
+}
+
+function fullWeekDailyNotes(): DailyNote[] {
+  return [
+    fakeDailyNote("2026-06-29", 8000, 1, 0, "none", "none", false, 2, 8, 7, 3),
+    fakeDailyNote("2026-06-30", 8000, 1, 0, "none", "none", false, 2, 8, 7, 3),
+    fakeDailyNote("2026-07-01", 8000, 1, 0, "none", "none", false, 2, 8, 7, 3),
+    fakeDailyNote("2026-07-02", 8000, 1, 0, "none", "none", false, 2, 8, 7, 3),
+    fakeDailyNote("2026-07-03", 8000, 1, 0, "none", "none", false, 2, 8, 7, 3),
+    fakeDailyNote("2026-07-04", 8000, 1, 0, "none", "none", false, 2, 8, 7, 3),
+    fakeDailyNote("2026-07-05", 8000, 1, 0, "none", "none", false, 2, 8, 7, 3),
+  ];
+}
+
+function fullWeekJournalEntries(): JournalEntry[] {
+  return [
+    "2026-06-29",
+    "2026-06-30",
+    "2026-07-01",
+    "2026-07-02",
+    "2026-07-03",
+    "2026-07-04",
+    "2026-07-05",
+  ].map((date) => ({
+    date,
+    hydration: null,
+    fueling: null,
+    bodyWeight: null,
+    shoes: null,
+    equipment: null,
+    gearOtherNotes: null,
+    workoutStructure: null,
+    runWalkFormat: null,
+    coachNotes: null,
+    questionsForCoach: null,
+  }));
 }
 
 function fakeDailyNote(

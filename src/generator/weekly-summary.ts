@@ -154,6 +154,10 @@ export function createWeeklySummary(input: {
     totals,
     dailyNotes,
     activityListByDay,
+  });
+  const dataAdjustments = buildWeeklyDataAdjustments({
+    allDailyNotes: input.dailyNotes,
+    canonicalDailyNotes: dailyNotes,
     activitiesForTotals,
   });
 
@@ -220,6 +224,7 @@ export function createWeeklySummary(input: {
       duplicateWarnings: duplicateAnalysis.warnings,
       journalEntries,
     }).concat(reconciliationWarnings),
+    dataAdjustments,
   };
 }
 
@@ -444,20 +449,6 @@ function buildWeeklyMissingDataFlags(input: {
     });
   }
 
-  for (const exportWarning of input.exportWarnings) {
-    flags.push({
-      field: "local exports",
-      message: `Export data-quality note: ${exportWarning.message}`,
-    });
-  }
-
-  for (const duplicateWarning of input.duplicateWarnings) {
-    flags.push({
-      field: "activity duplicates",
-      message: `Duplicate data-quality note: ${duplicateWarning.message}`,
-    });
-  }
-
   if (input.dailyNotes.length === 0 && !hasJournalEntries) {
     flags.push({
       field: "daily-notes.csv",
@@ -488,7 +479,6 @@ function buildWeeklyReconciliationWarnings(input: {
   totals: WeeklySummary["totals"];
   dailyNotes: DailyNote[];
   activityListByDay: WeeklySummary["activityListByDay"];
-  activitiesForTotals: ManualActivity[];
 }): WeeklySummary["missingDataFlags"] {
   const flags: WeeklySummary["missingDataFlags"] = [];
   const dayRunTotal = sumMileage(
@@ -520,19 +510,6 @@ function buildWeeklyReconciliationWarnings(input: {
     });
   }
 
-  const manualOverrideCount = input.activitiesForTotals.filter(
-    (activity) =>
-      activity.distanceSource === "manual_full_session" ||
-      activity.durationSource === "manual_full_session",
-  ).length;
-
-  if (manualOverrideCount > 0) {
-    flags.push({
-      field: "manual full-session overrides",
-      message: `${manualOverrideCount} manual full-session correction(s) were applied before weekly totals were rendered.`,
-    });
-  }
-
   const missingStepDays =
     countDatesInRange(input.evidenceStart, input.evidenceEnd) -
     input.dailyNotes.filter((note) => stepApprox(note) !== null).length;
@@ -545,6 +522,51 @@ function buildWeeklyReconciliationWarnings(input: {
   }
 
   return flags;
+}
+
+function buildWeeklyDataAdjustments(input: {
+  allDailyNotes: DailyNote[];
+  canonicalDailyNotes: DailyNote[];
+  activitiesForTotals: ManualActivity[];
+}): string[] {
+  const adjustments: string[] = [];
+  const manualOverrideCount = input.activitiesForTotals.filter(
+    (activity) =>
+      activity.distanceSource === "manual_full_session" ||
+      activity.durationSource === "manual_full_session",
+  ).length;
+  const journalStepOverrideDates = input.canonicalDailyNotes.filter((note) => {
+    if (note.stepsSource !== "journal_manual" || stepApprox(note) === null) {
+      return false;
+    }
+
+    return input.allDailyNotes.some(
+      (candidate) =>
+        candidate.date === note.date &&
+        candidate !== note &&
+        (candidate.stepsSource === "garmin_daily_export" ||
+          candidate.stepsSource === "strava_daily_export") &&
+        stepApprox(candidate) !== null,
+    );
+  }).length;
+
+  if (manualOverrideCount > 0) {
+    adjustments.push(
+      `${formatCount(manualOverrideCount, "manual full-session correction")} ${manualOverrideCount === 1 ? "was" : "were"} applied to weekly mileage and longest-run calculations.`,
+    );
+  }
+
+  if (journalStepOverrideDates > 0) {
+    adjustments.push(
+      `Manual journal steps overrode imported values on ${formatCount(journalStepOverrideDates, "date")}.`,
+    );
+  }
+
+  return adjustments;
+}
+
+function formatCount(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
 }
 
 function approximatelyEqual(left: number, right: number): boolean {
