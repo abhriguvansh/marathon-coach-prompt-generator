@@ -6,6 +6,8 @@ const allowedExactPaths = new Set([
   "private/.gitkeep",
   "input/garmin/.gitkeep",
   "input/strava/.gitkeep",
+  "input/inbox/.gitkeep",
+  "input/processed/.gitkeep",
   "input/journal/template.md",
   "output/.gitkeep",
   "examples/demo-daily-checkin.md",
@@ -20,6 +22,7 @@ const contentAllowlistPrefixes = [
   "src/exports/",
   "src/fit/",
   "src/garmin-wellness/",
+  "src/ingest/",
   "src/privacy/",
 ];
 const contentAllowlistExactPaths = new Set([

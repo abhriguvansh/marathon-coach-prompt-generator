@@ -19,6 +19,7 @@ This project keeps the workflow local, explicit, and easy to audit before anythi
 - Reads private local athlete config from `private/`.
 - Reads private daily Markdown journals from `input/journal/`.
 - Still supports legacy private manual CSV notes from `input/manual/`.
+- Reads a mixed local inbox from `input/inbox/` so Garmin activity FIT files, Garmin wellness ZIPs, Garmin sleep CSVs, and Strava fallback exports can be dropped in one place.
 - Reads supported local Garmin and Strava export files from ignored folders.
 - Reads Garmin wellness ZIP exports from ignored local folders and fills blank journal wellness fields.
 - Keeps running mileage separate from walking mileage.
@@ -70,6 +71,8 @@ config/                 Public example config only
 private/                Ignored local athlete config
 input/manual/           Public templates and ignored local notes
 input/journal/          Public journal template and ignored daily journals
+input/inbox/            Ignored daily drop zone for Garmin/Strava files
+input/processed/        Ignored optional archive for ingested files
 input/garmin/           Ignored local Garmin exports
 input/strava/           Ignored local Strava exports
 output/                 Ignored generated summaries
@@ -125,6 +128,17 @@ Keep public config files fake. Do not put real athlete names, real race logistic
 ## Daily Coaching Workflow
 
 Use the one-command coach workflow for normal daily use. It prints the evidence date and coaching date before doing work. Daily check-ins are compact by default, so they keep the race header and omit the full `## Athlete Background` section.
+
+Recommended local ingest workflow:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD
+npm run coach -- --evidence-date YYYY-MM-DD
+```
+
+Drop whatever you downloaded for the completed evidence day into `input/inbox/` first. The inbox can contain Garmin activity FIT files, Garmin wellness ZIPs, Garmin sleep CSVs, and Strava GPX/FIT/TCX/CSV/JSON fallback exports. Ingest classifies files by content where practical, updates only safe blank journal fields, preserves manual values, and prints a concise privacy-safe summary.
+
+Use Strava exports only when Garmin missed part of a workout or you want fallback validation.
 
 Night workflow:
 
@@ -293,7 +307,29 @@ Walking mileage stays separate from running mileage. Cross-training is context a
 
 ## Adding Garmin/Strava Local Exports
 
-Put real local exports in ignored folders:
+For daily use, put mixed downloads in the ignored inbox:
+
+```txt
+input/inbox/
+```
+
+Then run:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD
+```
+
+The command scans the inbox, parses activity exports, imports Garmin wellness and sleep data, refreshes the evidence-day journal's imported activity references, preserves manual journal values, and suggests the next coach command.
+
+Optional archive mode moves successfully processed supported files after ingest:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD --archive
+```
+
+Processed files move to `input/processed/YYYY-MM-DD/`. Unsupported files are left in the inbox with a warning. If a supported file cannot be inspected or parsed safely, archive is skipped.
+
+The older source-specific folders still work:
 
 ```txt
 input/garmin/
@@ -336,7 +372,9 @@ Lightweight labels such as `easy run`, `recovery run`, `long run/walk`, `4 x 20 
 
 ## Garmin Wellness ZIPs
 
-Garmin wellness ZIP ingestion is local-only and optional. Put real wellness exports in either location:
+Garmin wellness ZIP ingestion is local-only and optional. The recommended path is to put wellness ZIPs and Garmin sleep CSV files in `input/inbox/` and run `npm run ingest -- --date YYYY-MM-DD`.
+
+The lower-level wellness importer also supports these locations:
 
 ```txt
 input/garmin/
@@ -542,14 +580,13 @@ npm test
 
 ## Recommended Daily Workflow
 
-1. Export Garmin/Strava activities if available.
-2. Place a Garmin wellness ZIP in `input/garmin/wellness/` if available.
-3. At night, run `npm run coach:tonight`.
-4. Fill out the evidence-day journal if the command created or if the validator warns about missing subjective details.
-5. Rerun `npm run coach:tonight` to regenerate the check-in with your subjective notes.
-6. Open `output/daily-checkin.md`.
-7. Paste the Markdown into ChatGPT that night to plan tomorrow, or the next morning to plan the current day.
-8. Review the coaching response and update future journal notes or plan notes if needed.
+1. Drop Garmin activity FIT files, Garmin wellness ZIPs, Garmin sleep CSVs, and any needed Strava fallback exports into `input/inbox/`.
+2. Run `npm run ingest -- --date YYYY-MM-DD` for the completed evidence day.
+3. Fill out the evidence-day journal if the command created it or if the validator later warns about missing subjective details.
+4. Run `npm run coach -- --evidence-date YYYY-MM-DD`.
+5. Open `output/daily-checkin.md`.
+6. Paste the Markdown into ChatGPT that night to plan tomorrow, or the next morning to plan the current day.
+7. Review the coaching response and update future journal notes or plan notes if needed.
 
 For example, on the night of June 27, 2026:
 
@@ -606,6 +643,8 @@ If generation says local input files are missing, create a journal with `npm run
 If weekly generation fails, confirm `--week-start` is a Monday.
 
 If exports do not appear, confirm they are in `input/garmin/` or `input/strava/` and use a supported format.
+
+If inbox files do not appear, confirm they are in `input/inbox/`, run `npm run ingest -- --date YYYY-MM-DD`, and review the ingest warnings. A bare FIT activity is treated as Garmin-primary because FIT files do not reliably identify whether they were downloaded directly from Garmin or via Strava.
 
 ## Before Publishing To GitHub Checklist
 

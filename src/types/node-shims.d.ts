@@ -95,6 +95,7 @@ declare module "node:fs" {
     path: string,
     options: { withFileTypes: true },
   ): Dirent[];
+  export function renameSync(oldPath: string, newPath: string): void;
   export function rmSync(
     path: string,
     options?: { recursive?: boolean; force?: boolean },

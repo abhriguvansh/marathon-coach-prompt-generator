@@ -133,6 +133,67 @@ describe("recovery trend flags", () => {
     );
   });
 
+  it("treats 0 to 1 soreness with no pain or gait concern as mild and controlled", () => {
+    const flags = dailyFlags([
+      note("2026-06-25", 0, 0, false, "Fake easy day.", 0),
+      note("2026-06-26", 1, 0, false, "Fake easy run felt comfortable.", 0),
+    ]).join("\n");
+
+    assert.match(flags, /Soreness trend: mild and controlled/);
+    assert.doesNotMatch(flags, /caution - worsening/);
+  });
+
+  it("uses a mild load note for 0 to 1 soreness after a high-step day", () => {
+    const flags = dailyFlags([
+      note("2026-06-25", 0, 0, false, "Fake easy day.", 0),
+      noteWithSteps(
+        "2026-06-26",
+        1,
+        0,
+        false,
+        "Fake easy run felt comfortable.",
+        0,
+        "12,000",
+      ),
+    ]).join("\n");
+
+    assert.match(flags, /higher step\/load may add recovery demand/);
+    assert.doesNotMatch(flags, /avoid stacking load until stable/);
+    assert.doesNotMatch(
+      flags,
+      /higher total load coincided with worse recovery/,
+    );
+  });
+
+  it("keeps caution wording for soreness rising to 2 or more", () => {
+    const flags = dailyFlags([
+      note("2026-06-25", 0, 0, false, "Fake easy day.", 0),
+      note("2026-06-26", 2, 0, false, "Fake soreness increased.", 0),
+    ]).join("\n");
+
+    assert.match(flags, /Soreness trend: caution - worsening/);
+  });
+
+  it("keeps caution wording when soreness increase combines with pain", () => {
+    const flags = dailyFlags([
+      note("2026-06-25", 0, 0, false, "Fake easy day.", 0),
+      note("2026-06-26", 1, 1, false, "Fake soreness with pain.", 0),
+    ]).join("\n");
+
+    assert.match(flags, /Soreness trend: caution - worsening/);
+    assert.match(flags, /Pain trend: caution/);
+  });
+
+  it("keeps caution wording when soreness increase combines with gait concern", () => {
+    const flags = dailyFlags([
+      note("2026-06-25", 0, 0, false, "Fake easy day.", 0),
+      note("2026-06-26", 1, 0, true, "Fake gait changed.", 0),
+    ]).join("\n");
+
+    assert.match(flags, /Soreness trend: caution - worsening/);
+    assert.match(flags, /Gait: caution/);
+  });
+
   it("renders compact weekly flags", () => {
     const flags = buildWeeklyRecoveryTrendFlags({
       dailyNotes: [
@@ -166,6 +227,7 @@ function note(
   pain: RecoveryValue,
   gaitChanged: boolean | string | null,
   notes: string | null = null,
+  fatigue: RecoveryValue = null,
 ): DailyNote {
   return {
     date,
@@ -175,12 +237,30 @@ function note(
     painLocation: pain === null || pain === 0 ? null : "demo calf",
     painType: pain === null || pain === 0 ? null : "demo ache",
     gaitChanged,
-    fatigue: null,
+    fatigue,
     energy: null,
     sleepQuality: null,
     stress: null,
     motivation: null,
     notes,
+  };
+}
+
+function noteWithSteps(
+  date: string,
+  soreness: RecoveryValue,
+  pain: RecoveryValue,
+  gaitChanged: boolean | string | null,
+  notes: string | null,
+  fatigue: RecoveryValue,
+  steps: string,
+): DailyNote {
+  return {
+    ...note(date, soreness, pain, gaitChanged, notes, fatigue),
+    totalSteps: steps,
+    stepsDisplay: steps,
+    stepsApprox: Number(steps.replace(/,/g, "")),
+    stepsSource: "journal_manual",
   };
 }
 

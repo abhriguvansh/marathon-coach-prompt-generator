@@ -13,6 +13,14 @@ Definitions:
 At the end of the day:
 
 ```bash
+npm run ingest -- --date YYYY-MM-DD
+```
+
+Use the completed evidence day as the ingest date. Drop Garmin activity FIT files, Garmin wellness ZIPs, Garmin sleep CSVs, and any needed Strava fallback exports into `input/inbox/` before running this. Ingest updates only safe blank journal fields, refreshes imported activity references, and preserves manual journal values.
+
+Then run:
+
+```bash
 npm run coach:tonight
 ```
 
@@ -117,13 +125,21 @@ Use `--include-athlete-background` with any coach command when you want the full
 
 ## Activities And Journals
 
-Put Garmin exports in `input/garmin/` and Strava exports in `input/strava/`.
+For daily use, put mixed Garmin/Strava downloads in `input/inbox/` and run:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD
+```
+
+The date is the completed evidence day. The inbox may contain Garmin activity FIT files, Garmin wellness ZIPs, Garmin sleep CSVs, and Strava GPX/FIT/TCX/CSV/JSON exports. Strava exports are best used as fallback or validation when Garmin missed part of a workout.
+
+The older source-specific folders still work: Garmin exports can go in `input/garmin/`, and Strava exports can go in `input/strava/`.
 
 FIT, TCX, or CSV exports are preferred when available because they usually include better summary data than GPX. GPX remains a fallback when summary exports are not available.
 
 Imported activity dates are assigned using the athlete-local IANA timezone from `private/athlete.config.local.json`, such as `America/New_York`. FIT, TCX, GPX, and JSON timestamps may be stored as UTC, so a late-evening local activity can cross midnight in the file timestamp and still belong to the prior local evidence day. MCPG does not use VPN location, download time, or file modified time as the activity date.
 
-Garmin wellness ZIPs can be placed in `input/garmin/` or `input/garmin/wellness/`. The coach workflow decodes them directly, fills blank structured wellness fields in the evidence-day journal, and preserves manual journal values. Garmin may fill fields such as `Total Steps:`, `Sleep Duration:`, `Sleep Score:`, `Resting Heart Rate:`, `Overnight HRV:`, `HRV Status:`, `Garmin Stress:`, and `Body Battery:`.
+Garmin wellness ZIPs and Garmin sleep CSVs can be placed in `input/inbox/`. The lower-level wellness command also supports `input/garmin/` and `input/garmin/wellness/`. The coach workflow decodes them directly, fills blank structured wellness fields in the evidence-day journal, and preserves manual journal values. Garmin may fill fields such as `Total Steps:`, `Sleep Duration:`, `Sleep Score:`, `Resting Heart Rate:`, `Overnight HRV:`, `HRV Status:`, `Garmin Stress:`, and `Body Battery:`.
 
 Subjective fields remain manual: soreness, pain, gait change, energy, fatigue, motivation, and subjective `Stress (0-10 or words):`. Garmin stress is stored separately as `Garmin Stress:` because it is not the same scale as subjective stress.
 

@@ -42,7 +42,13 @@ For a specific completed evidence day:
 npm run coach -- --evidence-date YYYY-MM-DD
 ```
 
-The command creates or reuses `input/journal/YYYY-MM-DD.md` without overwriting an existing journal, then generates `output/daily-checkin.md`. Fill the journal in with recovery, nutrition, gear, coach notes, questions, and manual-only activities, then rerun the same command.
+For less manual file handling, first drop Garmin activity FIT files, Garmin wellness ZIPs, Garmin sleep CSVs, and any needed Strava fallback exports into `input/inbox/`, then run:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD
+```
+
+The command creates or reuses `input/journal/YYYY-MM-DD.md` without overwriting an existing journal, fills only safe blank structured fields, refreshes imported activity references, and preserves manual values. Fill the journal in with recovery, nutrition, gear, coach notes, questions, and manual-only activities, then rerun the same coach command.
 
 Compact daily check-ins omit the full `## Athlete Background` section. For a standalone check-in or a new ChatGPT coaching thread, add `--include-athlete-background`.
 
@@ -90,11 +96,11 @@ npm run inspect
 
 Inspect reports file presence and safe export counts. It does not print private file contents.
 
-If you use local Garmin or Strava exports, place them in `input/garmin/` or `input/strava/`. FIT, TCX, or CSV exports are preferred when available; GPX can be used as a fallback. Real export files remain ignored by Git.
+If you use local Garmin or Strava exports, prefer the shared `input/inbox/` drop zone and run `npm run ingest -- --date YYYY-MM-DD`. The older `input/garmin/` and `input/strava/` folders still work. FIT, TCX, or CSV exports are preferred when available; GPX can be used as a fallback. Real export files remain ignored by Git.
 
 Activity dates come from the embedded activity timestamp, not from VPN location, file download time, or filesystem modified time. A late-evening local workout may have a next-day UTC timestamp but should still group under the local evidence date when timezone is configured.
 
-If you use Garmin wellness ZIP exports, place them in `input/garmin/` or `input/garmin/wellness/`. They remain ignored by Git. Run `npm run import:wellness -- --date YYYY-MM-DD` to fill blank journal wellness fields, or let `npm run coach:*` do that automatically for the evidence day.
+If you use Garmin wellness ZIP exports or Garmin sleep CSV files, place them in `input/inbox/` for the ingest workflow. The lower-level wellness importer still supports `input/garmin/` and `input/garmin/wellness/`. These files remain ignored by Git.
 
 ## 6. Optional Cleanup
 

@@ -16,6 +16,7 @@ import { classifyActivities } from "./activity-classification";
 type TrendLabel =
   | "improving"
   | "stable"
+  | "controlled"
   | "worsening"
   | "fluctuating"
   | "limited context";
@@ -82,9 +83,14 @@ function buildRecoveryTrendFlags(input: {
   activities: ManualActivity[];
   dailyMode: boolean;
 }): RecoveryTrendFlags {
-  const soreness = trendFor(input.notes, "legSoreness", "soreness");
   const pain = trendFor(input.notes, "pain", "pain");
   const gait = gaitSummary(input.notes);
+  const soreness = adjustSorenessTrend(
+    trendFor(input.notes, "legSoreness", "soreness"),
+    input.notes,
+    pain,
+    gait,
+  );
   const loadNote = loadRecoveryNote(
     input.notes,
     input.activities,
@@ -116,7 +122,9 @@ function buildRecoveryTrendFlags(input: {
       pain.label === "worsening" ||
       pain.newPain ||
       gait.hasCaution ||
-      loadNote?.startsWith("Load/recovery note: higher") === true ||
+      loadNote?.startsWith(
+        "Load/recovery note: higher total load coincided",
+      ) === true ||
       sorenessWarmup?.startsWith("Caution:") === true,
   };
 }
@@ -182,6 +190,75 @@ function trendFor(
   }
 
   return { label: "stable" as TrendLabel, points, newPain };
+}
+
+function adjustSorenessTrend(
+  trend: ReturnType<typeof trendFor>,
+  notes: DailyNote[],
+  pain: ReturnType<typeof trendFor>,
+  gait: { hasCaution: boolean },
+): ReturnType<typeof trendFor> {
+  if (trend.label !== "worsening" || !isLowControlledIncrease(trend.points)) {
+    return trend;
+  }
+
+  if (hasSorenessRiskContext(notes, pain, gait)) {
+    return trend;
+  }
+
+  return {
+    ...trend,
+    label: "controlled" as TrendLabel,
+  };
+}
+
+function isLowControlledIncrease(points: TrendPoint[]): boolean {
+  if (points.length < 2) {
+    return false;
+  }
+
+  const values = points.map((point) => point.value);
+  const first = values[0];
+  const lastValue = values[values.length - 1];
+  const max = Math.max(...values);
+
+  return first <= 1 && lastValue <= 1 && max <= 1 && lastValue - first <= 1;
+}
+
+function hasSorenessRiskContext(
+  notes: DailyNote[],
+  pain: ReturnType<typeof trendFor>,
+  gait: { hasCaution: boolean },
+): boolean {
+  return (
+    pain.points.some((point) => point.value > 0) ||
+    pain.label === "worsening" ||
+    pain.newPain ||
+    gait.hasCaution ||
+    hasUnusualFatigue(notes)
+  );
+}
+
+function hasUnusualFatigue(notes: DailyNote[]): boolean {
+  const latest = notes.at(-1);
+
+  if (!latest) {
+    return false;
+  }
+
+  const numeric = recoveryNumber(latest.fatigue, "soreness");
+
+  if (numeric !== null) {
+    return numeric >= 4;
+  }
+
+  if (typeof latest.fatigue !== "string") {
+    return false;
+  }
+
+  return /\b(unusual fatigue|heavy legs|worsening fatigue|exhausted)\b/i.test(
+    latest.fatigue,
+  );
 }
 
 function pointsFor(
@@ -294,6 +371,12 @@ function sorenessBullet(
     return dailyMode
       ? "- Soreness trend: caution - worsening across recent entries."
       : "- Caution: soreness increased across available entries.";
+  }
+
+  if (trend.label === "controlled") {
+    return dailyMode
+      ? "- Soreness trend: mild and controlled; monitor, with no pain/gait concern."
+      : "- Soreness: mildly elevated but still low across available entries.";
   }
 
   if (trend.label === "fluctuating") {
@@ -467,6 +550,10 @@ function loadRecoveryNote(
     gait.hasCaution
   ) {
     return "- Load/recovery note: higher total load coincided with worse recovery; avoid stacking load until stable.";
+  }
+
+  if (soreness.label === "controlled") {
+    return "- Load/recovery note: higher step/load may add recovery demand; keep the next session easy and monitor soreness.";
   }
 
   if (pain.points.length >= 2 && soreness.points.length >= 2) {

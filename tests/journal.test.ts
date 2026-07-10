@@ -290,6 +290,59 @@ describe("daily journal workflow", () => {
     assert.equal(parsed.dailyNote.stress, null);
   });
 
+  it("treats blank gait as no gait change without a missing-field warning", () => {
+    const parsed = parseJournal(gaitJournal(""), "2026-06-27");
+    const summary = createDailySummary({
+      date: "2026-06-28",
+      athleteConfig: fakeConfig,
+      dailyNotes: [parsed.dailyNote],
+      activityNotes: [],
+      manualActivities: [],
+      planNotes: null,
+      journalEntries: [parsed.journalEntry],
+    });
+    const markdown = renderDailyCheckIn(summary);
+
+    assert.equal(parsed.dailyNote.gaitChanged, false);
+    assert.match(markdown, /Gait changed: No/);
+    assert.doesNotMatch(
+      summary.checkInCompleteness.missingHighValueFields.join(", "),
+      /gait changed/,
+    );
+  });
+
+  it("treats neutral gait values as no gait change", () => {
+    for (const value of ["na", "n/a", "0", "none", "no"]) {
+      const parsed = parseJournal(gaitJournal(value), "2026-06-27");
+
+      assert.equal(parsed.dailyNote.gaitChanged, false);
+    }
+  });
+
+  it("preserves explicit gait concern text", () => {
+    for (const value of ["yes", "changed", "limping", "altered gait"]) {
+      const parsed = parseJournal(gaitJournal(value), "2026-06-27");
+      const markdown = renderDailyCheckIn(
+        createDailySummary({
+          date: "2026-06-28",
+          athleteConfig: fakeConfig,
+          dailyNotes: [parsed.dailyNote],
+          activityNotes: [],
+          manualActivities: [],
+          planNotes: null,
+          journalEntries: [parsed.journalEntry],
+        }),
+      );
+
+      assert.equal(parsed.dailyNote.gaitChanged, true);
+      assert.match(
+        markdown,
+        /Gait changed: Yes|Gait changed: changed|Gait changed: limping|Gait changed: altered gait/,
+      );
+      assert.match(markdown, /gait/i);
+    }
+  });
+
   it("ignores missing optional fields and sections gracefully", () => {
     const parsed = parseJournal("# Daily Journal\n\nDate: 2026-06-27\n");
 
@@ -658,6 +711,34 @@ function placeholderRecoveryJournal(): string {
     "Fatigue (0-10 or words): fill in",
     "Sleep: TBD",
     "Stress (0-10 or words): unknown",
+  ].join("\n");
+}
+
+function gaitJournal(gaitValue: string): string {
+  return [
+    "# Daily Journal",
+    "",
+    "Date: 2026-06-27",
+    "",
+    "## Recovery",
+    "",
+    "Total Steps: 5,000",
+    "Soreness (0-10 or words): 1",
+    "Pain (0-10 or words): 0",
+    "Pain Location: na",
+    "Pain Type: na",
+    `Did pain change gait? (Yes/No): ${gaitValue}`,
+    "Energy (0-10 or words): 7",
+    "Fatigue (0-10 or words): 0",
+    "Sleep: good",
+    "",
+    "## Gear Notes",
+    "",
+    "Shoes: none / no run",
+    "",
+    "## Coach Notes",
+    "",
+    "Tomorrow has fake constraints.",
   ].join("\n");
 }
 

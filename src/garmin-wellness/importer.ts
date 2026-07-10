@@ -11,11 +11,13 @@ export function importGarminWellness(input: {
   timezone?: string | null;
   debug?: boolean;
   importedActivities?: ManualActivity[];
+  roots?: string[];
 }): GarminWellnessImportResult {
   const scan = scanGarminWellness(input.cwd, {
     date: input.date,
     timezone: input.timezone,
     debug: input.debug,
+    roots: input.roots,
   });
   const summary =
     scan.summaries.find((candidate) => candidate.date === input.date) ?? null;

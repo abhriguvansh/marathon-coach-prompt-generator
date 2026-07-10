@@ -17,6 +17,8 @@ import {
 
 const GARMIN_ROOT = "input/garmin";
 const WELLNESS_ROOT = "input/garmin/wellness";
+const INBOX_ROOT = "input/inbox";
+const PROCESSED_ROOT = "input/processed";
 
 interface WellnessCandidateFile {
   path: string;
@@ -24,7 +26,12 @@ interface WellnessCandidateFile {
 
 export function scanGarminWellness(
   cwd: string,
-  input: { date: string; timezone?: string | null; debug?: boolean },
+  input: {
+    date: string;
+    timezone?: string | null;
+    debug?: boolean;
+    roots?: string[];
+  },
 ): GarminWellnessScanResult {
   const timezone = resolveActivityTimezone(input.timezone);
   const zipSummaries = new Map<string, GarminWellnessSummary>();
@@ -43,7 +50,7 @@ export function scanGarminWellness(
     warnings.push(timezone.warning);
   }
 
-  for (const candidate of wellnessCandidateFiles(cwd)) {
+  for (const candidate of wellnessCandidateFiles(cwd, input.roots)) {
     const extension = extname(candidate.path).toLowerCase();
 
     if (extension === ".zip") {
@@ -191,9 +198,18 @@ function parseOneFit(
   }
 }
 
-function wellnessCandidateFiles(cwd: string): WellnessCandidateFile[] {
+function wellnessCandidateFiles(
+  cwd: string,
+  roots?: string[],
+): WellnessCandidateFile[] {
+  if (roots !== undefined) {
+    return configuredWellnessCandidateFiles(cwd, roots);
+  }
+
   const garminRoot = join(cwd, GARMIN_ROOT);
   const wellnessRoot = join(cwd, WELLNESS_ROOT);
+  const inboxRoot = join(cwd, INBOX_ROOT);
+  const processedRoot = join(cwd, PROCESSED_ROOT);
   const files = new Map<string, WellnessCandidateFile>();
 
   if (existsSync(wellnessRoot)) {
@@ -231,6 +247,47 @@ function wellnessCandidateFiles(cwd: string): WellnessCandidateFile[] {
           });
         }
       }
+    }
+  }
+
+  for (const root of [inboxRoot, processedRoot]) {
+    if (!existsSync(root)) {
+      continue;
+    }
+
+    for (const path of recursiveCandidateFiles(root, {
+      zip: true,
+      fit: true,
+      csv: true,
+    })) {
+      files.set(path, {
+        path,
+      });
+    }
+  }
+
+  return [...files.values()];
+}
+
+function configuredWellnessCandidateFiles(
+  cwd: string,
+  roots: string[],
+): WellnessCandidateFile[] {
+  const files = new Map<string, WellnessCandidateFile>();
+
+  for (const root of roots) {
+    const absoluteRoot = join(cwd, root);
+
+    if (!existsSync(absoluteRoot)) {
+      continue;
+    }
+
+    for (const path of recursiveCandidateFiles(absoluteRoot, {
+      zip: true,
+      fit: true,
+      csv: true,
+    })) {
+      files.set(path, { path });
     }
   }
 

@@ -2,7 +2,14 @@ const { existsSync } = require("node:fs");
 const { readdirSync } = require("node:fs");
 const { extname, join } = require("node:path");
 
-const supportedExportExtensions = new Set([".csv", ".tcx", ".gpx", ".json"]);
+const supportedExportExtensions = new Set([
+  ".csv",
+  ".tcx",
+  ".gpx",
+  ".json",
+  ".fit",
+  ".zip",
+]);
 
 const checks = [
   ["Example athlete config", "config/athlete.example.json"],
@@ -15,6 +22,8 @@ const checks = [
   ["Private folder", "private"],
   ["Manual input folder", "input/manual"],
   ["Journal input folder", "input/journal"],
+  ["Inbox drop folder", "input/inbox"],
+  ["Processed archive folder", "input/processed"],
   ["Garmin input folder", "input/garmin"],
   ["Strava input folder", "input/strava"],
   ["Output folder", "output"],
@@ -33,6 +42,8 @@ console.log("");
 console.log("Local Export Status");
 console.log(`Garmin export files found: ${exportStatus.garminCount}`);
 console.log(`Strava export files found: ${exportStatus.stravaCount}`);
+console.log(`Inbox files found: ${exportStatus.inboxCount}`);
+console.log(`Processed archive files found: ${exportStatus.processedCount}`);
 console.log(
   `Supported file types detected: ${
     exportStatus.supportedTypes.length === 0
@@ -60,12 +71,16 @@ function inspectExportFolders(cwd) {
   const folders = [
     ["input/garmin", "garmin"],
     ["input/strava", "strava"],
+    ["input/inbox", "inbox"],
+    ["input/processed", "processed"],
   ];
   const supportedTypes = new Set();
   const unsupportedTypes = new Set();
   const warnings = [];
   let garminCount = 0;
   let stravaCount = 0;
+  let inboxCount = 0;
+  let processedCount = 0;
 
   for (const [relativeFolder, label] of folders) {
     const folder = join(cwd, relativeFolder);
@@ -79,8 +94,12 @@ function inspectExportFolders(cwd) {
 
     if (label === "garmin") {
       garminCount = files.length;
-    } else {
+    } else if (label === "strava") {
       stravaCount = files.length;
+    } else if (label === "inbox") {
+      inboxCount = files.length;
+    } else {
+      processedCount = files.length;
     }
 
     for (const file of files) {
@@ -94,13 +113,11 @@ function inspectExportFolders(cwd) {
     }
   }
 
-  if (unsupportedTypes.has(".fit")) {
-    warnings.push("FIT files are detected but not parsed yet.");
-  }
-
   return {
     garminCount,
     stravaCount,
+    inboxCount,
+    processedCount,
     supportedTypes: [...supportedTypes],
     unsupportedTypes: [...unsupportedTypes],
     warnings,

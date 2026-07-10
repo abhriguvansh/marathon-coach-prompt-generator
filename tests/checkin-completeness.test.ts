@@ -52,7 +52,6 @@ describe("check-in completeness validation", () => {
     assert.deepEqual(result.completeness.missingHighValueFields, [
       "soreness",
       "pain",
-      "gait changed",
       "energy",
       "steps",
       "sleep",

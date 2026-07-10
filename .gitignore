@@ -13,6 +13,12 @@ input/**
 !input/journal/
 input/journal/*
 !input/journal/template.md
+!input/inbox/
+input/inbox/*
+!input/inbox/.gitkeep
+!input/processed/
+input/processed/*
+!input/processed/.gitkeep
 !input/garmin/
 !input/garmin/.gitkeep
 !input/strava/

@@ -4,7 +4,21 @@ Use local exports when you want Garmin or Strava activity files included without
 
 ## Where Exports Go
 
-Put real exports in ignored folders:
+For daily use, drop mixed exports into the ignored inbox:
+
+```txt
+input/inbox/
+```
+
+Then run:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD
+```
+
+Use the completed evidence day as the date. The inbox may contain Garmin activity FIT files, Garmin wellness ZIPs, Garmin sleep CSV files, and Strava GPX/FIT/TCX/CSV/JSON fallback exports. MCPG classifies by content where practical, fills only safe blank journal fields, preserves manual values, and refreshes imported activity references.
+
+The older source-specific folders still work:
 
 ```txt
 input/garmin/
@@ -53,6 +67,20 @@ npm run parse:exports
 ```
 
 The command prints safe counts, activity-type summaries, and parse warnings. It does not print raw file contents, raw FIT binary data, coordinates, or raw GPS route points.
+
+For one-command daily ingest, run:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD
+```
+
+Optional archive mode moves successfully processed supported inbox files to `input/processed/YYYY-MM-DD/`:
+
+```bash
+npm run ingest -- --date YYYY-MM-DD --archive
+```
+
+Unsupported files remain in the inbox with a warning. If a supported file cannot be inspected or parsed safely, archive is skipped.
 
 ## Daily And Weekly Generation
 

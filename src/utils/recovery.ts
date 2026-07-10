@@ -52,11 +52,19 @@ export function parseGaitChangedValue(
 ): boolean | string | null {
   const normalized = normalize(value);
 
-  if (normalized === null || PLACEHOLDER_VALUES.has(normalized)) {
+  if (normalized === null) {
+    return false;
+  }
+
+  if (PLACEHOLDER_VALUES.has(normalized)) {
     return null;
   }
 
   if (["yes", "y", "true", "1"].includes(normalized)) {
+    return true;
+  }
+
+  if (/\b(changed|altered|limp|limping)\b/i.test(normalized)) {
     return true;
   }
 

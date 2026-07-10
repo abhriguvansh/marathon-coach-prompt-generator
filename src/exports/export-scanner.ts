@@ -35,19 +35,39 @@ const SUPPORTED_EXTENSIONS = new Set([
 const EXPORT_FOLDERS: Array<{
   relativePath: string;
   source: "garmin_export" | "strava_export";
+  optional?: boolean;
 }> = [
   { relativePath: "input/garmin", source: "garmin_export" },
   { relativePath: "input/strava", source: "strava_export" },
+  { relativePath: "input/inbox", source: "garmin_export", optional: true },
+  {
+    relativePath: "input/processed",
+    source: "garmin_export",
+    optional: true,
+  },
 ];
 
-export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
+interface ExportFolder {
+  relativePath: string;
+  source: "garmin_export" | "strava_export";
+  optional?: boolean;
+}
+
+export function scanExportFiles(
+  cwd = process.cwd(),
+  options: { folders?: ExportFolder[] } = {},
+): ExportScanResult {
   const files: ExportFileInfo[] = [];
   const warnings: ExportParseWarning[] = [];
 
-  for (const folder of EXPORT_FOLDERS) {
+  for (const folder of options.folders ?? EXPORT_FOLDERS) {
     const absoluteFolder = join(cwd, folder.relativePath);
 
     if (!existsSync(absoluteFolder)) {
+      if (folder.optional === true) {
+        continue;
+      }
+
       warnings.push({
         source: folder.source,
         message: `${folder.relativePath} is missing; no local exports scanned.`,
@@ -58,32 +78,33 @@ export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
     for (const absolutePath of walkFiles(absoluteFolder)) {
       const relativePath = normalizePath(relative(cwd, absolutePath));
       const extension = extname(absolutePath).toLowerCase();
+      const source = sourceForFolderFile(folder, absolutePath, extension);
 
       if (relativePath.endsWith("/.gitkeep")) {
         continue;
       }
 
-      if (shouldSkipGarminFitFile(absolutePath, folder.source, extension)) {
+      if (shouldSkipGarminFitFile(absolutePath, source, extension)) {
         continue;
       }
 
-      if (shouldSkipGarminWellnessZip(absolutePath, folder.source, extension)) {
+      if (shouldSkipGarminWellnessZip(absolutePath, source, extension)) {
         continue;
       }
 
       const supported =
         SUPPORTED_EXTENSIONS.has(extension) &&
-        (extension !== ".zip" || folder.source === "garmin_export");
+        (extension !== ".zip" || source === "garmin_export");
       files.push({
         relativePath,
-        source: folder.source,
+        source,
         extension: extension || "(none)",
         supported,
       });
 
       if (!supported) {
         warnings.push({
-          source: folder.source,
+          source,
           extension: extension || "(none)",
           message: `Unsupported export file type skipped: ${extension || "(none)"}.`,
         });
@@ -96,9 +117,20 @@ export function scanExportFiles(cwd = process.cwd()): ExportScanResult {
 
 export function parseLocalExports(
   cwd = process.cwd(),
+  options: { timezone?: string | null; folders?: ExportFolder[] } = {},
+): ExportParseResult {
+  const scan = scanExportFiles(cwd, { folders: options.folders });
+
+  return parseScannedExportFiles(cwd, scan, {
+    timezone: options.timezone,
+  });
+}
+
+export function parseScannedExportFiles(
+  cwd: string,
+  scan: ExportScanResult,
   options: { timezone?: string | null } = {},
 ): ExportParseResult {
-  const scan = scanExportFiles(cwd);
   const activities: ManualActivity[] = [];
   const warnings = [...scan.warnings];
   const garminCsvCompanions: GarminCsvCompanion[] = [];
@@ -194,6 +226,45 @@ function shouldSkipGarminFitFile(
   return classifyFitContent(readFileSync(absolutePath)) === "wellness";
 }
 
+function sourceForFolderFile(
+  folder: ExportFolder,
+  absolutePath: string,
+  extension: string,
+): "garmin_export" | "strava_export" {
+  if (!["input/inbox", "input/processed"].includes(folder.relativePath)) {
+    return folder.source;
+  }
+
+  if ([".gpx", ".tcx", ".json"].includes(extension)) {
+    return "strava_export";
+  }
+
+  if (extension === ".csv") {
+    const content = readFileSync(absolutePath, "utf8");
+
+    if (
+      isGarminSleepCsvContent(content) ||
+      parseGarminCsvCompanion(content) !== null
+    ) {
+      return "garmin_export";
+    }
+
+    const firstLine = content.split(/\r?\n/, 1)[0]?.toLowerCase() ?? "";
+
+    if (
+      firstLine.includes("activity date") ||
+      firstLine.includes("activity type") ||
+      firstLine.includes("begintimestamp")
+    ) {
+      return "garmin_export";
+    }
+
+    return "strava_export";
+  }
+
+  return "garmin_export";
+}
+
 function shouldSkipGarminWellnessZip(
   absolutePath: string,
   source: ExportSource,
@@ -214,7 +285,7 @@ function shouldSkipGarminWellnessZip(
   }
 }
 
-function parseExportContent(input: {
+export function parseExportContent(input: {
   content: Buffer;
   extension: string;
   source: ExportSource;
