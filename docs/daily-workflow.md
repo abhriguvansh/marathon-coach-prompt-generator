@@ -26,7 +26,7 @@ npm run coach:tonight
 
 This uses today as the evidence date and tomorrow as the coaching date. The command creates or reuses `input/journal/YYYY-MM-DD.md`, then generates `output/daily-checkin.md`.
 
-If a journal is created or reused, add subjective details such as soreness, pain, steps, energy, shoes, fueling, and tomorrow constraints. Then rerun:
+If a journal is created or reused, add subjective details such as soreness, pain, steps, energy, shoes, fueling, and tomorrow constraints. Blank recovery fields use field-specific defaults: Pain and Fatigue become `0`; Gait Changed becomes `No`; Energy and Stress become `average`; blank Pain Location/Type become `na` when pain is `0`. Other blank fields remain unknown unless populated by a trusted import. Then rerun:
 
 ```bash
 npm run coach:tonight

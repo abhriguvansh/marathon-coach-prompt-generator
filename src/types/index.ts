@@ -1,5 +1,10 @@
 export type Unknownish = string | number | boolean | null | undefined;
 export type RecoveryValue = string | number | null;
+export type RecoveryFieldProvenance =
+  | "explicit_manual"
+  | "field_default"
+  | "imported"
+  | "unknown";
 export type StepValue = string | number | null;
 export type StepSource =
   | "journal_manual"
@@ -90,6 +95,18 @@ export interface DailyNote {
   breathingVariations?: string | null;
   motivation: RecoveryValue;
   notes: string | null;
+  recoveryProvenance?: Partial<
+    Record<
+      | "pain"
+      | "painLocation"
+      | "painType"
+      | "gaitChanged"
+      | "fatigue"
+      | "energy"
+      | "stress",
+      RecoveryFieldProvenance
+    >
+  >;
 }
 
 export interface ActivityNote {

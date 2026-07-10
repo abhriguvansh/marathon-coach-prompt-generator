@@ -6,7 +6,12 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { DailyNote, JournalEntry, ManualActivity } from "../types";
+import type {
+  DailyNote,
+  JournalEntry,
+  ManualActivity,
+  RecoveryFieldProvenance,
+} from "../types";
 import { parseOptionalNumber } from "../utils/csv";
 import { formatDate, parseDate, todayLocalDate } from "../utils/dates";
 import {
@@ -104,12 +109,30 @@ export function parseJournal(
     coachNotes,
     questionsForCoach,
   };
-  const pain = parseRecoveryValue(
-    fieldValue(recovery, "Pain (0-10 or words)") ??
-      fieldValue(recovery, "Pain (0-10)"),
-    { allowNone: true },
-  );
+  const painField = recoveryFieldValueAny(recovery, [
+    "Pain (0-10 or words)",
+    "Pain (0-10)",
+  ]);
+  const pain = resolvePain(painField);
   const noPain = isNoPain(pain);
+  const painLocationField = recoveryFieldValue(recovery, "Pain Location");
+  const painTypeField = recoveryFieldValue(recovery, "Pain Type");
+  const gaitField = recoveryFieldValue(
+    recovery,
+    "Did pain change gait? (Yes/No)",
+  );
+  const fatigueField = recoveryFieldValueAny(recovery, [
+    "Fatigue (0-10 or words)",
+    "Fatigue (0-10)",
+  ]);
+  const energyField = recoveryFieldValueAny(recovery, [
+    "Energy (0-10 or words)",
+    "Energy (0-10)",
+  ]);
+  const stressField = recoveryFieldValueAny(recovery, [
+    "Stress (0-10 or words)",
+    "Stress (0-10)",
+  ]);
   const steps = parseStepDetails(
     fieldValueAny(recovery, [
       "Total Steps",
@@ -131,27 +154,11 @@ export function parseJournal(
           fieldValue(recovery, "Soreness (0-10)"),
       ),
       pain,
-      painLocation: parseRecoveryText(fieldValue(recovery, "Pain Location"), {
-        allowNone: noPain,
-        allowNotApplicable: noPain,
-      }),
-      painType: parseRecoveryText(fieldValue(recovery, "Pain Type"), {
-        allowNone: noPain,
-        allowNotApplicable: noPain,
-      }),
-      gaitChanged: parseGaitChangedValue(
-        fieldValue(recovery, "Did pain change gait? (Yes/No)"),
-        pain,
-      ),
-      fatigue: parseRecoveryValue(
-        fieldValue(recovery, "Fatigue (0-10 or words)") ??
-          fieldValue(recovery, "Fatigue (0-10)"),
-        { allowNone: true },
-      ),
-      energy: parseRecoveryValue(
-        fieldValue(recovery, "Energy (0-10 or words)") ??
-          fieldValue(recovery, "Energy (0-10)"),
-      ),
+      painLocation: resolvePainDetail(painLocationField, noPain),
+      painType: resolvePainDetail(painTypeField, noPain),
+      gaitChanged: parseGaitChangedValue(gaitField.value, pain),
+      fatigue: resolveFatigue(fatigueField),
+      energy: resolveAverage(energyField),
       sleepQuality: parseRecoveryValue(fieldValue(recovery, "Sleep")),
       sleepDuration: fieldValue(recovery, "Sleep Duration"),
       sleepDurationMinutes: parseSleepDurationMinutes(
@@ -174,10 +181,7 @@ export function parseJournal(
       ),
       overnightHrv: parseWellnessNumber(fieldValue(recovery, "Overnight HRV")),
       hrvStatus: fieldValue(recovery, "HRV Status"),
-      stress: parseRecoveryValue(
-        fieldValue(recovery, "Stress (0-10 or words)") ??
-          fieldValue(recovery, "Stress (0-10)"),
-      ),
+      stress: resolveAverage(stressField),
       garminStress: parseWellnessNumber(fieldValue(recovery, "Garmin Stress")),
       bodyBattery: fieldValue(recovery, "Body Battery"),
       averageRespiration: parseWellnessNumber(
@@ -199,6 +203,21 @@ export function parseJournal(
           ? null
           : `Questions for coach: ${journalEntry.questionsForCoach}`,
       ]),
+      recoveryProvenance: {
+        pain: provenanceFor(painField),
+        painLocation: provenanceFor(
+          painLocationField,
+          noPain && painLocationField.value === null,
+        ),
+        painType: provenanceFor(
+          painTypeField,
+          noPain && painTypeField.value === null,
+        ),
+        gaitChanged: provenanceFor(gaitField),
+        fatigue: provenanceFor(fatigueField),
+        energy: provenanceFor(energyField),
+        stress: provenanceFor(stressField),
+      },
     },
     manualActivities: parseJournalManualActivities(
       sectionBody(cleanContent, "Manual Activities"),
@@ -425,6 +444,114 @@ function parseRecoveryText(
   const parsed = parseRecoveryValue(value, options);
 
   return parsed === null ? null : String(parsed);
+}
+
+interface RecoveryField {
+  present: boolean;
+  value: string | null;
+}
+
+function recoveryFieldValue(content: string, label: string): RecoveryField {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = content.match(
+    new RegExp(`^${escapedLabel}:[ \\t]*(.*)$`, "im"),
+  );
+
+  if (!match) {
+    return { present: false, value: null };
+  }
+
+  const value = match[1].trim();
+
+  return {
+    present: true,
+    value:
+      value === "" || value === "---" || looksLikeBlankFieldLabel(value)
+        ? null
+        : value,
+  };
+}
+
+function recoveryFieldValueAny(
+  content: string,
+  labels: string[],
+): RecoveryField {
+  for (const label of labels) {
+    const field = recoveryFieldValue(content, label);
+
+    if (field.present) {
+      return field;
+    }
+  }
+
+  return { present: false, value: null };
+}
+
+function resolvePain(field: RecoveryField): DailyNote["pain"] {
+  if (field.present && field.value === null) {
+    return 0;
+  }
+
+  const value = parseRecoveryValue(field.value, {
+    allowNone: true,
+    allowNotApplicable: true,
+  });
+
+  return isNeutralRecoveryValue(value) ? 0 : value;
+}
+
+function resolvePainDetail(
+  field: RecoveryField,
+  noPain: boolean,
+): string | null {
+  if (field.present && field.value === null && noPain) {
+    return "na";
+  }
+
+  return parseRecoveryText(field.value, {
+    allowNone: noPain,
+    allowNotApplicable: noPain,
+  });
+}
+
+function resolveFatigue(field: RecoveryField): DailyNote["fatigue"] {
+  if (field.present && field.value === null) {
+    return 0;
+  }
+
+  const value = parseRecoveryValue(field.value, {
+    allowNone: true,
+    allowNotApplicable: true,
+  });
+
+  return isNeutralRecoveryValue(value) ? 0 : value;
+}
+
+function resolveAverage(field: RecoveryField): DailyNote["energy"] {
+  return field.present && field.value === null
+    ? "average"
+    : parseRecoveryValue(field.value);
+}
+
+function isNeutralRecoveryValue(value: DailyNote["pain"]): boolean {
+  return (
+    value === 0 ||
+    (typeof value === "string" &&
+      ["0", "no", "none", "na", "n/a"].includes(value.trim().toLowerCase()))
+  );
+}
+
+function provenanceFor(
+  field: RecoveryField,
+  defaultWhenNoPain = false,
+): RecoveryFieldProvenance {
+  if (!field.present) {
+    return "unknown";
+  }
+
+  return field.value === null || defaultWhenNoPain
+    ? "field_default"
+    : "explicit_manual";
 }
 
 function splitActivityBlocks(

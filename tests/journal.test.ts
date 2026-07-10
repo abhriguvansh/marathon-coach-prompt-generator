@@ -311,6 +311,86 @@ describe("daily journal workflow", () => {
     );
   });
 
+  it("applies only the supported field-specific blank recovery defaults", () => {
+    const parsed = parseJournal(
+      [
+        "# Daily Journal",
+        "",
+        "Date: 2026-06-27",
+        "",
+        "## Recovery",
+        "",
+        "Soreness (0-10 or words):",
+        "Pain (0-10 or words):",
+        "Pain Location:",
+        "Pain Type:",
+        "Did pain change gait? (Yes/No):",
+        "Energy (0-10 or words):",
+        "Fatigue (0-10 or words):",
+        "Stress (0-10 or words):",
+        "Motivation (0-10 or words):",
+        "Workout Structure:",
+      ].join("\n"),
+      "2026-06-27",
+    );
+
+    assert.equal(parsed.dailyNote.legSoreness, null);
+    assert.equal(parsed.dailyNote.pain, 0);
+    assert.equal(parsed.dailyNote.painLocation, "na");
+    assert.equal(parsed.dailyNote.painType, "na");
+    assert.equal(parsed.dailyNote.gaitChanged, false);
+    assert.equal(parsed.dailyNote.fatigue, 0);
+    assert.equal(parsed.dailyNote.energy, "average");
+    assert.equal(parsed.dailyNote.stress, "average");
+    assert.equal(parsed.dailyNote.motivation, null);
+    assert.equal(parsed.journalEntry.workoutStructure, null);
+    assert.deepEqual(parsed.dailyNote.recoveryProvenance, {
+      pain: "field_default",
+      painLocation: "field_default",
+      painType: "field_default",
+      gaitChanged: "field_default",
+      fatigue: "field_default",
+      energy: "field_default",
+      stress: "field_default",
+    });
+    const summary = createDailySummary({
+      date: "2026-06-28",
+      athleteConfig: fakeConfig,
+      dailyNotes: [parsed.dailyNote],
+      activityNotes: [],
+      manualActivities: [],
+      planNotes: null,
+      journalEntries: [parsed.journalEntry],
+    });
+    const missing =
+      summary.checkInCompleteness.missingHighValueFields.join(", ");
+
+    assert.doesNotMatch(missing, /pain|gait changed|energy|fatigue/);
+    assert.match(
+      summary.recoveryTrendFlags.bullets.join("\n"),
+      /Pain trend: limited context/,
+    );
+  });
+
+  it("keeps blank pain details unknown when explicit pain is present", () => {
+    const parsed = parseJournal(
+      [
+        "# Daily Journal",
+        "",
+        "## Recovery",
+        "",
+        "Pain (0-10 or words): 3",
+        "Pain Location:",
+        "Pain Type:",
+      ].join("\n"),
+      "2026-06-27",
+    );
+
+    assert.equal(parsed.dailyNote.pain, 3);
+    assert.equal(parsed.dailyNote.painLocation, null);
+    assert.equal(parsed.dailyNote.painType, null);
+  });
+
   it("treats neutral gait values as no gait change", () => {
     for (const value of ["na", "n/a", "0", "none", "no"]) {
       const parsed = parseJournal(gaitJournal(value), "2026-06-27");

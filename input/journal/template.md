@@ -14,6 +14,8 @@ These activities were imported automatically from Garmin or Strava exports. Do n
 
 ## Recovery
 
+<!-- Leave blank to use defaults: Pain = 0; Pain Location/Type = na when Pain is 0; Gait Changed = No; Fatigue = 0; Energy = average; Stress = average. Other blank fields remain unknown unless populated by a trusted import. -->
+
 Soreness (0-10 or words):
 
 Pain (0-10 or words):

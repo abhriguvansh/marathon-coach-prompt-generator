@@ -15,6 +15,7 @@ const allowedExactPaths = new Set([
 ]);
 
 const contentAllowlistPrefixes = [
+  "AGENTS.md",
   "README.md",
   "docs/",
   "tests/",
